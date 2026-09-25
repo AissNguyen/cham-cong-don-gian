@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Khung ngoài trong suốt, chiếm hết chỗ launcher cấp cho widget; thẻ trắng bên trong chỉ to
+     vừa đủ nội dung rồi nằm giữa — tránh thẻ trắng bị kéo to lấp đầy hết vùng widget. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/widget_card"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:background="@drawable/widget_background"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/widget_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="8dp"
+            android:textColor="#FF17211E"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:text="--/--" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/widget_checkin"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minHeight="36dp"
+                android:minWidth="0dp"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:background="@drawable/widget_button_checkin"
+                android:textColor="#FFFFFFFF"
+                android:textAllCaps="false"
+                android:textSize="13sp"
+                android:text="Chấm vào" />
+
+            <Button
+                android:id="@+id/widget_checkout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="36dp"
+                android:minWidth="0dp"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:background="@drawable/widget_button_checkin"
+                android:textColor="#FFFFFFFF"
+                android:textAllCaps="false"
+                android:textSize="13sp"
+                android:text="Chấm ra" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
