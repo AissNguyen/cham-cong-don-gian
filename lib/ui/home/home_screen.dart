@@ -43,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
-    Future.delayed(const Duration(seconds: 5), () {
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) setState(() => _showTodayIntro = false);
     });
   }
@@ -199,6 +199,10 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     final colors = context.appColors;
     final showIntro = _showTodayIntro;
+    const animDuration = Duration(milliseconds: 500);
+    const bigSize = 27.0;
+    const smallSize = 15.0;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
@@ -211,41 +215,67 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Bên trái: thu nhập kỳ, to lúc bình thường, thu nhỏ trong 3s đầu.
               Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 400),
-                  child: Text(
-                    showIntro ? 'Thu nhập hôm nay, tính tới bây giờ' : 'Thu nhập tạm tính · kỳ ${fmtDM(period.start)}–${fmtDM(period.end)}',
-                    key: ValueKey(showIntro),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Thu nhập tạm tính · kỳ ${fmtDM(period.start)}–${fmtDM(period.end)}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isOverridden)
+                          Container(
+                            margin: const EdgeInsets.only(left: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(6)),
+                            child: const Text('đã sửa tay', style: TextStyle(color: Colors.white, fontSize: 10)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    AnimatedDefaultTextStyle(
+                      duration: animDuration,
+                      curve: Curves.easeInOut,
+                      style: TextStyle(
+                        fontSize: showIntro ? smallSize : bigSize,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                      child: Text(fmtMoney(totalIncome), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
                 ),
               ),
-              if (isOverridden && !showIntro)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('đã sửa tay', style: TextStyle(color: Colors.white, fontSize: 10)),
-                ),
+              const SizedBox(width: 10),
+              // Bên phải: thu nhập hôm nay, to nổi bật trong 3s đầu, sau đó thu nhỏ về góc
+              // này — nhưng số vẫn tiếp tục chạy tăng dần mỗi giây nếu ca đang mở.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Hôm nay', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  const SizedBox(height: 2),
+                  AnimatedDefaultTextStyle(
+                    duration: animDuration,
+                    curve: Curves.easeInOut,
+                    style: TextStyle(
+                      fontSize: showIntro ? bigSize : smallSize,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                    child: Text(fmtMoney(todayPay), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
             ],
-          ),
-          const SizedBox(height: 2),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 400),
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SizeTransition(sizeFactor: anim, axis: Axis.vertical, child: child),
-            ),
-            child: Text(
-              fmtMoney(showIntro ? todayPay : totalIncome),
-              key: ValueKey(showIntro),
-              style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: Colors.white),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -253,18 +283,11 @@ class _HomeScreenState extends State<HomeScreen> {
               _statTile(context, 'Giờ công', fmtHours(stats.normalMinutes)),
               _statTile(context, 'Tăng ca', fmtHours(stats.overtimeMinutes)),
               _statTile(context, 'Ngày nghỉ', '${stats.daysOff}'),
-              if (!showIntro) _statTile(context, 'Hôm nay', _shortMoney(todayPay)),
             ],
           ),
         ],
       ),
     );
-  }
-
-  String _shortMoney(double v) {
-    if (v >= 1e6) return '${fmtN(v / 1e6)}tr';
-    if (v >= 1e3) return '${(v / 1e3).round()}k';
-    return v.round().toString();
   }
 
   Widget _statTile(BuildContext context, String label, String value) {

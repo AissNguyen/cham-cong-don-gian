@@ -22,9 +22,9 @@ void main() {
       ),
     );
 
-    // 5 giây đầu hiện "Thu nhập hôm nay" (số chạy theo giây); vượt qua khoảng đó để kiểm tra
+    // 3 giây đầu số "Hôm nay" hiện to (số chạy theo giây); vượt qua khoảng đó để kiểm tra
     // trạng thái bình thường.
-    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(seconds: 4));
 
     expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     expect(find.textContaining('Thu nhập tạm tính'), findsOneWidget);
