@@ -104,10 +104,17 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
   int overtimeMinutes;
   if (checkOut.isAfter(overtimeStart) && settings.overtimeBrackets.isNotEmpty) {
     overtimeMinutes = 0;
+    DateTime? lastBracketEnd;
     for (final bracket in settings.overtimeBrackets) {
       final (bStart, bEnd) = _span(bracket.from, bracket.to, dateOnly(windowEnd));
       final overlap = _overlapMinutes(overtimeStart, checkOut, bStart, bEnd);
       overtimeMinutes += overlap > 0 ? (overlap - bracket.breakMinutes).clamp(0, overlap) : 0;
+      if (lastBracketEnd == null || bEnd.isAfter(lastBracketEnd)) lastBracketEnd = bEnd;
+    }
+    // Làm quá khung tăng ca cuối cùng đã cài (vd làm rất khuya): phần dư vẫn tính theo hệ số
+    // tăng ca, không bỏ trắng — các khung chỉ định nghĩa chỗ trừ nghỉ, không phải giới hạn trả tiền.
+    if (lastBracketEnd != null && checkOut.isAfter(lastBracketEnd)) {
+      overtimeMinutes += checkOut.difference(lastBracketEnd).inMinutes;
     }
   } else if (checkOut.isAfter(overtimeStart)) {
     overtimeMinutes = checkOut.difference(overtimeStart).inMinutes;
@@ -168,10 +175,17 @@ double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
   int overtimeSeconds;
   if (now.isAfter(overtimeStart) && settings.overtimeBrackets.isNotEmpty) {
     overtimeSeconds = 0;
+    DateTime? lastBracketEnd;
     for (final bracket in settings.overtimeBrackets) {
       final (bStart, bEnd) = _span(bracket.from, bracket.to, dateOnly(windowEnd));
       final overlap = _overlapSeconds(overtimeStart, now, bStart, bEnd);
       overtimeSeconds += overlap > 0 ? (overlap - bracket.breakMinutes * 60).clamp(0, overlap) : 0;
+      if (lastBracketEnd == null || bEnd.isAfter(lastBracketEnd)) lastBracketEnd = bEnd;
+    }
+    // Quá khung tăng ca cuối cùng (vd còn đang làm rất khuya) — số vẫn chạy tiếp theo hệ số tăng
+    // ca, khớp với computeDay, không đứng yên.
+    if (lastBracketEnd != null && now.isAfter(lastBracketEnd)) {
+      overtimeSeconds += now.difference(lastBracketEnd).inSeconds;
     }
   } else if (now.isAfter(overtimeStart)) {
     overtimeSeconds = now.difference(overtimeStart).inSeconds;

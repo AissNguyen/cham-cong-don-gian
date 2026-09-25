@@ -128,6 +128,23 @@ void main() {
     expect(result.overtimeMinutes, 90);
   });
 
+  test('làm quá khung tăng ca cuối cùng -> phần dư vẫn tính, không mất trắng', () {
+    final settings = baseSettings().copyWith(
+      overtimeBrackets: [
+        const OvertimeBracket(from: Clock(18, 0), to: Clock(19, 0), breakMinutes: 0),
+        const OvertimeBracket(from: Clock(22, 0), to: Clock(23, 0), breakMinutes: 15),
+      ],
+    );
+    final record = DayRecord(
+      date: DateTime(2026, 9, 21),
+      checkIn: DateTime(2026, 9, 21, 7, 0),
+      checkOut: DateTime(2026, 9, 21, 23, 48), // quá khung cuối (kết thúc 23:00) 48 phút
+    );
+    final result = computeDay(record, settings);
+    // Khung 1: 60 phút. Khung 2: 60 - 15 = 45 phút. Dư sau 23:00 tới 23:48 = 48 phút.
+    expect(result.overtimeMinutes, 60 + 45 + 48);
+  });
+
   test('ngày lễ dùng đúng cột hệ số Ngày lễ', () {
     final settings = baseSettings().copyWith(
       holidays: [Holiday(date: DateTime(2026, 9, 21), name: 'Test')],
@@ -207,6 +224,16 @@ void main() {
       final closedRecord = openRecord.copyWith(checkOut: checkOutMoment);
       final official = computeDay(closedRecord, settings).pay;
       expect(liveJustBefore, closeTo(official, 0.01));
+    });
+
+    test('còn mở ca sau khi qua hết mọi khung tăng ca đã cài -> vẫn tăng tiếp, không đứng yên', () {
+      final settings = baseSettings().copyWith(
+        overtimeBrackets: [const OvertimeBracket(from: Clock(18, 0), to: Clock(19, 0), breakMinutes: 0)],
+      );
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      final at2000 = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 20, 0));
+      final at2010 = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 20, 10));
+      expect(at2010, greaterThan(at2000));
     });
   });
 }
