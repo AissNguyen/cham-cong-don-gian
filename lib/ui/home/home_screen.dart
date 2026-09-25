@@ -84,9 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final selectedRecord = store.recordFor(_selectedDate);
 
     final todayRecord = store.recordFor(today);
-    final todayPay = todayRecord.isOpenShift
-        ? computeDay(todayRecord.copyWith(checkOut: DateTime.now()), store.settings).pay
-        : computeDay(todayRecord, store.settings).pay;
+    final todayPay = liveEstimatedPay(todayRecord, store.settings, DateTime.now());
 
     return Scaffold(
       body: SafeArea(

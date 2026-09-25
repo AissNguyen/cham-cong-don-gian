@@ -154,4 +154,43 @@ void main() {
     final result = computeDay(record, settings);
     expect(result.normalMinutes, 9 * 60 - 15);
   });
+
+  group('liveEstimatedPay', () {
+    test('ca đang mở -> tăng theo giây, không đứng yên chờ đủ phút', () {
+      final settings = baseSettings();
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      final at30s = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 7, 0, 30));
+      final at45s = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 7, 0, 45));
+      expect(at30s, greaterThan(0));
+      expect(at45s, greaterThan(at30s));
+      // 30 giây với lương 30.000đ/giờ = 30.000 / 3600 * 30 = 250đ.
+      expect(at30s, closeTo(250, 0.5));
+    });
+
+    test('chưa chấm vào -> 0', () {
+      final settings = baseSettings();
+      final record = DayRecord(date: DateTime(2026, 9, 21));
+      expect(liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 8, 0)), 0);
+    });
+
+    test('đã chấm ra -> dùng đúng số chính thức (theo phút)', () {
+      final settings = baseSettings();
+      final record = DayRecord(
+        date: DateTime(2026, 9, 21),
+        checkIn: DateTime(2026, 9, 21, 7, 0),
+        checkOut: DateTime(2026, 9, 21, 16, 0),
+      );
+      final live = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 20, 0));
+      final official = computeDay(record, settings).pay;
+      expect(live, official);
+    });
+
+    test('vào sớm hơn khung -> chỉ tính từ giờ bắt đầu khung, không tính phần đến sớm', () {
+      final settings = baseSettings();
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 6, 30));
+      final at7h1m = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 7, 1));
+      // Chỉ 1 phút trong khung (6:30-7:00 không tính) = 30.000/60 = 500đ.
+      expect(at7h1m, closeTo(500, 1));
+    });
+  });
 }

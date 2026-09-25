@@ -123,6 +123,29 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
   );
 }
 
+/// Ước tính lương đang kiếm được tính tới [now], chính xác theo **giây** — chỉ để hiện số chạy
+/// mượt trên màn chính (khi ca đang mở), không thay cho [computeDay] (số chính thức trong sổ vẫn
+/// tính theo phút, không đổi gì). Bỏ qua cộng trừ giờ vào và đi muộn để giữ đơn giản.
+double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
+  if (record.isDayOff || record.checkIn == null) return 0;
+  if (record.checkOut != null) return computeDay(record, settings).pay;
+
+  final dayType = dayTypeOf(record.date, settings.holidays);
+  final wage = settings.wageTable.of(dayType);
+  final (windowStart, windowEnd) = _span(settings.workStart, settings.workEnd, dateOnly(record.date));
+  final checkIn = record.checkIn!;
+
+  final normalStart = checkIn.isBefore(windowStart) ? windowStart : checkIn;
+  final normalEnd = now.isBefore(windowEnd) ? now : windowEnd;
+  final normalSeconds = normalEnd.isAfter(normalStart) ? normalEnd.difference(normalStart).inSeconds : 0;
+
+  final overtimeStart = checkIn.isAfter(windowEnd) ? checkIn : windowEnd;
+  final overtimeSeconds = now.isAfter(overtimeStart) ? now.difference(overtimeStart).inSeconds : 0;
+
+  final pay = (normalSeconds / 3600) * wage.normalPerHour + (overtimeSeconds / 3600) * wage.overtimePerHour;
+  return pay < 0 ? 0 : pay;
+}
+
 class PeriodStats {
   const PeriodStats({
     required this.period,
