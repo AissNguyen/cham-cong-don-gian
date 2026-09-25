@@ -192,5 +192,21 @@ void main() {
       // Chỉ 1 phút trong khung (6:30-7:00 không tính) = 30.000/60 = 500đ.
       expect(at7h1m, closeTo(500, 1));
     });
+
+    test('có cộng trừ giờ và đi muộn -> số lúc đang chạy khớp số chính thức ngay khi chấm ra (không tụt đột ngột)', () {
+      final settings = baseSettings().copyWith(
+        breakRules: [const BreakRule(from: Clock(7, 0), to: Clock(8, 59), deltaMinutes: -15)],
+        lateRule: const LateRule(after: Clock(7, 0), unit: LateUnit.minutes, amount: 30),
+      );
+      final checkIn = DateTime(2026, 9, 21, 7, 0);
+      final checkOutMoment = DateTime(2026, 9, 21, 16, 0);
+      final openRecord = DayRecord(date: DateTime(2026, 9, 21), checkIn: checkIn, isLate: true);
+
+      // Số ngay trước lúc chấm ra (còn đang mở ca) phải bằng số chính thức ngay sau khi chấm ra.
+      final liveJustBefore = liveEstimatedPay(openRecord, settings, checkOutMoment);
+      final closedRecord = openRecord.copyWith(checkOut: checkOutMoment);
+      final official = computeDay(closedRecord, settings).pay;
+      expect(liveJustBefore, closeTo(official, 0.01));
+    });
   });
 }

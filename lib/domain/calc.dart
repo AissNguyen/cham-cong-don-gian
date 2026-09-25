@@ -34,6 +34,13 @@ int _overlapMinutes(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bE
   return diff > 0 ? diff : 0;
 }
 
+int _overlapSeconds(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd) {
+  final start = aStart.isAfter(bStart) ? aStart : bStart;
+  final end = aEnd.isBefore(bEnd) ? aEnd : bEnd;
+  final diff = end.difference(start).inSeconds;
+  return diff > 0 ? diff : 0;
+}
+
 class DayCalcResult {
   const DayCalcResult({
     required this.dayType,
@@ -124,8 +131,9 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
 }
 
 /// Ước tính lương đang kiếm được tính tới [now], chính xác theo **giây** — chỉ để hiện số chạy
-/// mượt trên màn chính (khi ca đang mở), không thay cho [computeDay] (số chính thức trong sổ vẫn
-/// tính theo phút, không đổi gì). Bỏ qua cộng trừ giờ vào và đi muộn để giữ đơn giản.
+/// mượt trên màn chính (khi ca đang mở). Áp dụng đúng các khoản cộng/trừ như [computeDay] (cộng
+/// trừ giờ vào, đi muộn, tăng ca theo khung) để không bị tụt đột ngột lúc chấm ra và chuyển sang
+/// số chính thức (tính theo phút).
 double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
   if (record.isDayOff || record.checkIn == null) return 0;
   if (record.checkOut != null) return computeDay(record, settings).pay;
@@ -137,12 +145,43 @@ double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
 
   final normalStart = checkIn.isBefore(windowStart) ? windowStart : checkIn;
   final normalEnd = now.isBefore(windowEnd) ? now : windowEnd;
-  final normalSeconds = normalEnd.isAfter(normalStart) ? normalEnd.difference(normalStart).inSeconds : 0;
+  var normalSeconds = normalEnd.isAfter(normalStart) ? normalEnd.difference(normalStart).inSeconds : 0;
+
+  // Đúng 1 khung cộng trừ giờ khớp giờ vào — giống computeDay.
+  final checkInClock = Clock(checkIn.hour, checkIn.minute);
+  final matchingRules = settings.breakRules.where((r) => r.matches(checkInClock));
+  if (matchingRules.isNotEmpty) {
+    normalSeconds += matchingRules.first.deltaMinutes * 60;
+  }
+
+  var lateDeductionMoney = 0.0;
+  if (record.isLate) {
+    if (settings.lateRule.unit == LateUnit.minutes) {
+      normalSeconds -= (settings.lateRule.amount * 60).round();
+    } else {
+      lateDeductionMoney = settings.lateRule.amount;
+    }
+  }
+  if (normalSeconds < 0) normalSeconds = 0;
 
   final overtimeStart = checkIn.isAfter(windowEnd) ? checkIn : windowEnd;
-  final overtimeSeconds = now.isAfter(overtimeStart) ? now.difference(overtimeStart).inSeconds : 0;
+  int overtimeSeconds;
+  if (now.isAfter(overtimeStart) && settings.overtimeBrackets.isNotEmpty) {
+    overtimeSeconds = 0;
+    for (final bracket in settings.overtimeBrackets) {
+      final (bStart, bEnd) = _span(bracket.from, bracket.to, dateOnly(windowEnd));
+      final overlap = _overlapSeconds(overtimeStart, now, bStart, bEnd);
+      overtimeSeconds += overlap > 0 ? (overlap - bracket.breakMinutes * 60).clamp(0, overlap) : 0;
+    }
+  } else if (now.isAfter(overtimeStart)) {
+    overtimeSeconds = now.difference(overtimeStart).inSeconds;
+  } else {
+    overtimeSeconds = 0;
+  }
+  if (overtimeSeconds < 0) overtimeSeconds = 0;
 
-  final pay = (normalSeconds / 3600) * wage.normalPerHour + (overtimeSeconds / 3600) * wage.overtimePerHour;
+  var pay = (normalSeconds / 3600) * wage.normalPerHour + (overtimeSeconds / 3600) * wage.overtimePerHour;
+  pay -= lateDeductionMoney;
   return pay < 0 ? 0 : pay;
 }
 
