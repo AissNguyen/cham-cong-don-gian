@@ -3,6 +3,7 @@
 library;
 
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../data/data_file.dart';
@@ -23,6 +24,7 @@ DateTime _nextOccurrence(Clock time) {
 }
 
 Future<void> cancelAllGpsAlarms() async {
+  if (kIsWeb) return;
   for (var i = 0; i < _maxWindowsPerDirection; i++) {
     await AndroidAlarmManager.cancel(_checkInAlarmId(i));
     await AndroidAlarmManager.cancel(_checkOutAlarmId(i));
@@ -32,6 +34,7 @@ Future<void> cancelAllGpsAlarms() async {
 /// Gọi lại mỗi khi cài đặt GPS đổi (bật/tắt, thêm/sửa/xóa khung giờ, đổi vị trí) để báo thức khớp
 /// với cấu hình mới nhất.
 Future<void> rescheduleGpsAlarms(GpsConfig gps) async {
+  if (kIsWeb) return; // Bản web không có báo thức nền.
   await cancelAllGpsAlarms();
   if (!gps.enabled || gps.latitude == null) return;
 

@@ -1,4 +1,5 @@
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
@@ -11,8 +12,11 @@ import 'widget/widget_sync.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AndroidAlarmManager.initialize();
-  HomeWidget.registerInteractivityCallback(widgetInteractiveCallback);
+  // Bản web không có báo thức nền / widget màn hình chính.
+  if (!kIsWeb) {
+    await AndroidAlarmManager.initialize();
+    HomeWidget.registerInteractivityCallback(widgetInteractiveCallback);
+  }
   runApp(const ChamCongApp());
 }
 

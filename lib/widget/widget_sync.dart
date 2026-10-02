@@ -2,6 +2,7 @@
 /// người dùng chạm nút chấm vào/ra ngay trên widget (kể cả khi app không chạy).
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
 import '../data/data_file.dart';
@@ -13,6 +14,7 @@ const _providerName = 'ChamCongWidgetProvider';
 /// Đọc dữ liệu hôm nay từ file chung, ghi lên widget rồi vẽ lại. Gọi sau mỗi lần chấm công
 /// (trong app, từ GPS, hoặc từ chính widget) để widget luôn khớp với dữ liệu mới nhất.
 Future<void> refreshWidgetDisplay() async {
+  if (kIsWeb) return; // Bản web không có widget màn hình chính.
   final json = await readDataJson();
   final today = dateOnly(DateTime.now());
   final record = recordFromJson(json, today);

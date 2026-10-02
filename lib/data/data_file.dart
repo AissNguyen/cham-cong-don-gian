@@ -4,16 +4,9 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
-
-import 'package:path_provider/path_provider.dart';
 
 import '../domain/models.dart';
-
-Future<File> dataFile() async {
-  final dir = await getApplicationDocumentsDirectory();
-  return File('${dir.path}/cham_cong_data.json');
-}
+import 'data_storage_io.dart' if (dart.library.js_interop) 'data_storage_web.dart';
 
 Map<String, dynamic> _emptyJson() => {
   'settings': AppSettings().toJson(),
@@ -22,21 +15,20 @@ Map<String, dynamic> _emptyJson() => {
   'manualIncomeEntries': <String, dynamic>{},
 };
 
-Future<bool> dataFileExists() async => (await dataFile()).exists();
+Future<bool> dataFileExists() => rawDataExists();
 
 Future<Map<String, dynamic>> readDataJson() async {
-  final file = await dataFile();
-  if (!await file.exists()) return _emptyJson();
+  final raw = await readRawData();
+  if (raw == null) return _emptyJson();
   try {
-    return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    return jsonDecode(raw) as Map<String, dynamic>;
   } catch (_) {
     return _emptyJson();
   }
 }
 
 Future<void> writeDataJson(Map<String, dynamic> json) async {
-  final file = await dataFile();
-  await file.writeAsString(jsonEncode(json));
+  await writeRawData(jsonEncode(json));
 }
 
 AppSettings settingsFromJson(Map<String, dynamic> json) =>
