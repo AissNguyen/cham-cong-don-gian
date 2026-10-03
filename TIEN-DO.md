@@ -48,7 +48,7 @@ App tải lại Remote Config tối đa 6 giờ một lần.
 
 ## Việc còn lại
 
-- **Bản Android mới chưa tới tay ai**: bản build ngày 2026-10-03 chưa cài lên điện thoại thử (máy không nhận USB), chưa đưa lên GitHub Releases, chưa tăng số phiên bản và chưa đổi `latest_version`. Nút "Tải bản Android" trên web vẫn trỏ tới APK `v1.0.0`.
+- **Bản Android mới chưa tới tay ai**: bản build ngày 2026-10-03 đã cài lên điện thoại của người dùng (22:48) nhưng chưa đưa lên GitHub Releases, chưa tăng số phiên bản và chưa đổi `latest_version`. Nút "Tải bản Android" trên web vẫn trỏ tới APK `v1.0.0`.
 - **Chưa thử trên máy thật**: luồng lấy mã / nhập mã / mở khóa (cần 2 máy), băng thông báo, việc gửi số lượt dùng lên máy chủ. Mới xác nhận được là máy đầu tiên đã đăng ký với máy chủ (`meta/counter` = 1).
 - **Khóa ký app**: bản release đang ký bằng khóa debug. Phải tạo khóa phát hành thật trước khi có nhiều người dùng hoặc lên Google Play; đổi khóa thì các máy bị coi là máy mới (mất số thứ tự và trạng thái mở khóa).
 - **Lên Google Play**: cần khóa ký, trang chính sách quyền riêng tư và khai báo Data safety (app có gửi số liệu sử dụng theo máy).
@@ -75,7 +75,7 @@ Còn lại:
 
 - Firestore đã bật và luật đã đưa lên ngày 2026-10-02 (`firebase deploy --only firestore:rules`). Lệnh deploy tự tạo cơ sở dữ liệu ở **nam5 (Mỹ)**, không phải Singapore như dự định; vị trí không đổi được, muốn đổi phải xóa cơ sở dữ liệu `(default)` trong Firebase Console rồi tạo lại ở `asia-southeast1` và deploy lại luật.
 - Chưa thử trên máy thật luồng lấy mã / nhập mã / mở khóa (cần 2 máy, và đặt tạm `share_free_users` = 0 hoặc 1 để giới hạn áp dụng ngay).
-- Bản build 2026-10-03 (luật lấy mã thì mất ô nhập) chưa cài lên điện thoại vì lúc build máy không nối USB: `adb install -r build\app\outputs\flutter-apk\app-release.apk`.
+- Bản build 2026-10-03 (luật lấy mã thì mất ô nhập) đã cài lên điện thoại của người dùng tối 2026-10-03; mới cài và mở, chưa bấm thử luồng nào.
 - Máy được nhận diện bằng mã thiết bị Android, mã này phụ thuộc khóa ký app. Bản release đang ký bằng khóa debug; đổi sang khóa phát hành thật thì các máy đã mở khóa sẽ bị coi là máy mới. Nên chốt khóa ký trước khi có nhiều người dùng.
 - App không đăng nhập nên người rành kỹ thuật có thể gọi thẳng máy chủ để tự mở khóa. Muốn chặn thì thêm Firebase App Check sau.
 
@@ -88,7 +88,7 @@ Băng thông báo ở đầu màn chính (cả Android lẫn web), soạn trên 
 - `notice_url` + `notice_button`: link (phải bắt đầu bằng `https://`) và chữ trên nút; không đặt chữ thì nút ghi "Xem".
 - Người dùng bấm × thì thông báo đó ẩn hẳn trên máy họ; đổi nội dung, tiêu đề hoặc link là thành thông báo mới và hiện lại cho mọi người.
 - App tải lại Remote Config tối đa 6 giờ một lần, nên thông báo tới dần trong ngày. Chỉ người mở app mới thấy (chưa có thông báo đẩy).
-- Bản web đã deploy ngày 2026-10-03 (`flutter build web --release` rồi `firebase deploy --only hosting`), gồm băng thông báo và mục "Chia sẻ app" (trên web là nút sao chép link). Bản Android mới chưa cài lên điện thoại và chưa đưa lên GitHub releases.
+- Bản web đã deploy ngày 2026-10-03 (`flutter build web --release` rồi `firebase deploy --only hosting`), gồm băng thông báo và mục "Chia sẻ app" (trên web là nút sao chép link). Bản Android mới đã cài lên điện thoại của người dùng, chưa đưa lên GitHub releases.
 
 ## Cách build, cài và đưa lên
 
