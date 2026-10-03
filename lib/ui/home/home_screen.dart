@@ -3,20 +3,31 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../analytics/analytics_service.dart';
 import '../../data/store.dart';
 import '../../domain/calc.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
+import '../../domain/share_gate.dart';
+import '../../notice/notice.dart';
+import '../../share/share_service.dart';
 import '../../theme/app_theme.dart';
 import '../format.dart';
+import '../../update/update_screen.dart';
+import '../../update/update_service.dart';
 import '../settings/settings_screen.dart';
+import '../settings/share_section.dart';
 import 'calendar_grid.dart';
 import 'edit_dialogs.dart';
 import 'notes_summary.dart';
+import 'period_day_chart.dart';
 import 'period_history.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.updateStatus = UpdateStatus.none, this.onDismissUpdateBanner});
+
+  final UpdateStatus updateStatus;
+  final VoidCallback? onDismissUpdateBanner;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -27,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late DateTime _selectedDate;
   bool _showLunar = false;
   bool _showMoneyPerDay = false;
+  bool _showCheckTimes = false;
   final _scrollController = ScrollController();
 
   /// Trong 5 giây đầu mở app, số to hiện thu nhập hôm nay (tăng dần theo giây); sau đó chuyển lại
@@ -46,13 +58,37 @@ class _HomeScreenState extends State<HomeScreen> {
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) setState(() => _showTodayIntro = false);
     });
+    shareController.addListener(_onShareChanged);
+    _onShareChanged();
   }
 
   @override
   void dispose() {
+    shareController.removeListener(_onShareChanged);
     _scrollController.dispose();
     _tickTimer?.cancel();
     super.dispose();
+  }
+
+  bool _shareDialogOpen = false;
+
+  /// Hỏi "Ai giới thiệu bạn?" 1 lần cho máy mới cài; báo 1 lần khi hết ngày dùng thử chấm công tự
+  /// động (và mỗi lần người dùng chạm nút "Mở khóa" trên widget).
+  void _onShareChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _shareDialogOpen) return;
+      final s = shareController.state;
+      final askReferral = shouldPromptReferral(s, DateTime.now());
+      final tellLocked = !shareController.allowed && (!s.lockNoticeShown || shareController.lockNoticeRequested);
+      if (!askReferral && !tellLocked) return;
+      _shareDialogOpen = true;
+      if (askReferral) {
+        await showReferralPrompt(context);
+      } else {
+        await showLockNotice(context);
+      }
+      _shareDialogOpen = false;
+    });
   }
 
   void _changeMonth(int delta) {
@@ -73,18 +109,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final today = dateOnly(DateTime.now());
     final period = periodContaining(today, store.settings.payPeriod);
     final recordsInPeriod = store.records.values.where((r) => period.contains(r.date));
-    final stats = computePeriodStats(
-      period,
-      recordsInPeriod,
-      store.settings,
-      manualItemAmount: (item) => store.manualIncomeEntry(item.id, period.key),
-    );
+    final stats = computePeriodStats(period, recordsInPeriod, store.settings);
     final incomeOverridden = store.periodOverrides.containsKey(period.key);
     final totalIncome = store.periodOverrides[period.key] ?? stats.totalIncome;
     final selectedRecord = store.recordFor(_selectedDate);
 
     final todayRecord = store.recordFor(today);
-    final todayPay = liveEstimatedPay(todayRecord, store.settings, DateTime.now());
+    final now = DateTime.now();
+    final todayPay =
+        liveEstimatedPay(todayRecord, store.settings, now) +
+        liveItemsEstimate(todayRecord, store.settings, now, stats.workDayCount);
 
     return Scaffold(
       body: SafeArea(
@@ -100,6 +134,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: _buildHeader(context, store),
             ),
+            if (widget.updateStatus.hasUpdate) ...[
+              const SizedBox(height: 10),
+              UpdateBanner(status: widget.updateStatus, onDismiss: () => widget.onDismissUpdateBanner?.call()),
+            ],
+            const NoticeBanner(),
             const SizedBox(height: 12),
             _buildIncomeCard(context, period, stats, totalIncome, incomeOverridden, todayPay),
             const SizedBox(height: 16),
@@ -109,6 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
               store: store,
               showLunar: _showLunar,
               showMoneyPerDay: _showMoneyPerDay,
+              showCheckTimes: _showCheckTimes,
               onSelect: (d) => setState(() => _selectedDate = d),
             ),
             const SizedBox(height: 16),
@@ -121,7 +161,13 @@ class _HomeScreenState extends State<HomeScreen> {
               child: NotesSummary(store: store, onSelectDate: _jumpToDateFromNote),
             ),
             const SizedBox(height: 12),
-            _CollapsibleSection(title: 'Thống kê thu nhập theo kỳ', child: PeriodHistorySection(store: store)),
+            _CollapsibleSection(
+              title: 'Thống kê thu nhập theo kỳ',
+              onExpand: () => logOncePerDay(eventViewedPeriodStats),
+              child: PeriodHistorySection(store: store),
+            ),
+            const SizedBox(height: 12),
+            PeriodDayChartSection(store: store),
           ],
         ),
       ),
@@ -148,13 +194,18 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _headerIcon(
           icon: Icons.settings_outlined,
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          onPressed: () {
+            logOncePerDay(eventOpenedSettings);
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+          },
         ),
         _headerIcon(icon: Icons.chevron_left, onPressed: () => _changeMonth(-1)),
         Expanded(
           child: Center(
             child: Text(
-              '${monthNames[_viewedMonth.month - 1]}, ${_viewedMonth.year}',
+              // Dạng số gọn (vd "07/26") thay vì chữ đầy đủ — hàng nút đã chật do thêm nút giờ
+              // vào/ra, chữ dài dễ bị cắt.
+              '${_viewedMonth.month.toString().padLeft(2, '0')}/${(_viewedMonth.year % 100).toString().padLeft(2, '0')}',
               style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -176,6 +227,12 @@ class _HomeScreenState extends State<HomeScreen> {
           tooltip: 'Âm lịch',
           color: _showLunar ? primary : null,
           onPressed: () => setState(() => _showLunar = !_showLunar),
+        ),
+        _headerIcon(
+          icon: Icons.access_time_outlined,
+          tooltip: 'Giờ vào/ra',
+          color: _showCheckTimes ? primary : null,
+          onPressed: () => setState(() => _showCheckTimes = !_showCheckTimes),
         ),
         _headerIcon(
           icon: Icons.payments_outlined,
@@ -280,6 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _statTile(context, 'Giờ công', fmtHours(stats.normalMinutes)),
               _statTile(context, 'Tăng ca', fmtHours(stats.overtimeMinutes)),
+              _statTile(context, 'Tổng giờ', fmtHours(stats.normalMinutes + stats.overtimeMinutes)),
               _statTile(context, 'Ngày nghỉ', '${stats.daysOff}'),
             ],
           ),
@@ -293,14 +351,17 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: Colors.white), maxLines: 1),
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.white70), maxLines: 1),
+          Text(value, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: Colors.white), maxLines: 1),
+          Text(label, style: const TextStyle(fontSize: 11.5, color: Colors.white70), maxLines: 1),
         ],
       ),
     );
   }
 
   Widget _buildActionButtons(BuildContext context, AppStore store, DayRecord record) {
+    final result = computeDay(record, store.settings);
+    final errorColor = Theme.of(context).colorScheme.error;
+
     Future<void> punchNow(bool isCheckIn) async {
       final now = DateTime.now();
       final time = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, now.hour, now.minute);
@@ -360,6 +421,31 @@ class _HomeScreenState extends State<HomeScreen> {
           'Chạm để chấm giờ hiện tại · giữ để tự sửa giờ',
           style: TextStyle(fontSize: 11, color: context.appColors.ink3),
         ),
+        if (result.breakRuleWarning)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: errorColor.withValues(alpha: 0.1),
+              border: Border.all(color: errorColor),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.warning_amber_rounded, color: errorColor, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Giờ vào/ra không khớp khung cộng-trừ giờ nào đã cài — đang tạm tính theo khung '
+                    'dự phòng (${result.breakRuleDeltaMinutes < 0 ? 'trừ' : 'cộng'} '
+                    '${result.breakRuleDeltaMinutes.abs()} phút). Hãy chấm lại cho đúng giờ.',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: errorColor),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -448,10 +534,11 @@ class _ActionButton extends StatelessWidget {
 
 /// Khung gấp lại được, tránh chiếm chỗ khi không cần xem (thống kê theo kỳ, ghi chú...).
 class _CollapsibleSection extends StatefulWidget {
-  const _CollapsibleSection({required this.title, required this.child});
+  const _CollapsibleSection({required this.title, required this.child, this.onExpand});
 
   final String title;
   final Widget child;
+  final VoidCallback? onExpand;
 
   @override
   State<_CollapsibleSection> createState() => _CollapsibleSectionState();
@@ -473,7 +560,10 @@ class _CollapsibleSectionState extends State<_CollapsibleSection> {
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: () => setState(() => expanded = !expanded),
+            onTap: () {
+              setState(() => expanded = !expanded);
+              if (expanded) widget.onExpand?.call();
+            },
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(

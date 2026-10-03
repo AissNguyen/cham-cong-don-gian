@@ -94,24 +94,70 @@ class WageTable {
   );
 }
 
-/// Cộng/trừ phút theo khung giờ vào (ví dụ vào 07:00-08:59 trừ 15 phút giải lao).
-class BreakRule {
-  const BreakRule({required this.from, required this.to, required this.deltaMinutes});
+/// Cộng/trừ phút theo khung giờ vào-ra cố định: khớp khi giờ vào nằm trong [checkInFrom,
+/// checkInTo] VÀ giờ ra nằm trong [checkOutFrom, checkOutTo] (mỗi khoảng có thể chỉ là 1 điểm,
+/// nhập từ = đến). Ví dụ vào trong khoảng 7:00-8:00, ra trong khoảng 11:00-12:00, trừ 15 phút.
+class FixedBreakRule {
+  const FixedBreakRule({
+    required this.checkInFrom,
+    required this.checkInTo,
+    required this.checkOutFrom,
+    required this.checkOutTo,
+    required this.deltaMinutes,
+  });
 
-  final Clock from;
-  final Clock to;
+  final Clock checkInFrom;
+  final Clock checkInTo;
+  final Clock checkOutFrom;
+  final Clock checkOutTo;
 
   /// Âm là trừ, dương là cộng.
   final int deltaMinutes;
 
-  bool matches(Clock checkIn) => checkIn >= from && checkIn <= to;
+  /// Khớp khi giờ vào/ra nằm trong khoảng đã cài. Nếu [checkOutTo] trùng đúng giờ ra chuẩn
+  /// ([normalEnd], ví dụ 16:00) thì giờ ra muộn hơn (do tăng ca) vẫn coi là khớp, không bị đẩy
+  /// xuống khung dự phòng — [checkOutTo] khi đó có nghĩa là "từ giờ này trở lên".
+  bool matches(Clock checkIn, Clock checkOut, {Clock? normalEnd}) {
+    final inCheckIn = checkIn >= checkInFrom && checkIn <= checkInTo;
+    var inCheckOut = checkOut >= checkOutFrom && checkOut <= checkOutTo;
+    if (!inCheckOut && normalEnd != null && checkOutTo == normalEnd && checkOut > checkOutTo) {
+      inCheckOut = true;
+    }
+    return inCheckIn && inCheckOut;
+  }
 
-  Map<String, dynamic> toJson() => {'from': from.toJson(), 'to': to.toJson(), 'delta': deltaMinutes};
+  Map<String, dynamic> toJson() => {
+    'checkInFrom': checkInFrom.toJson(),
+    'checkInTo': checkInTo.toJson(),
+    'checkOutFrom': checkOutFrom.toJson(),
+    'checkOutTo': checkOutTo.toJson(),
+    'delta': deltaMinutes,
+  };
 
-  factory BreakRule.fromJson(Map<String, dynamic> json) => BreakRule(
+  factory FixedBreakRule.fromJson(Map<String, dynamic> json) => FixedBreakRule(
+    checkInFrom: Clock.fromJson(json['checkInFrom'] as Map<String, dynamic>),
+    checkInTo: Clock.fromJson(json['checkInTo'] as Map<String, dynamic>),
+    checkOutFrom: Clock.fromJson(json['checkOutFrom'] as Map<String, dynamic>),
+    checkOutTo: Clock.fromJson(json['checkOutTo'] as Map<String, dynamic>),
+    deltaMinutes: json['delta'] as int,
+  );
+}
+
+/// Một đoạn trong "khung nhiều mục": từ giờ nào tới giờ nào thì nghỉ bao nhiêu phút. Nhiều đoạn
+/// nối tiếp nhau phủ kín cả ngày làm, dùng làm dự phòng khi không khung cố định nào khớp.
+class BreakSegment {
+  const BreakSegment({required this.from, required this.to, required this.breakMinutes});
+
+  final Clock from;
+  final Clock to;
+  final int breakMinutes;
+
+  Map<String, dynamic> toJson() => {'from': from.toJson(), 'to': to.toJson(), 'break': breakMinutes};
+
+  factory BreakSegment.fromJson(Map<String, dynamic> json) => BreakSegment(
     from: Clock.fromJson(json['from'] as Map<String, dynamic>),
     to: Clock.fromJson(json['to'] as Map<String, dynamic>),
-    deltaMinutes: json['delta'] as int,
+    breakMinutes: json['break'] as int,
   );
 }
 
@@ -154,17 +200,37 @@ class OvertimeBracket {
   );
 }
 
+/// Ngày lễ tự thêm có lặp lại hằng năm hay không, và lặp theo lịch nào.
+enum HolidayRecurrence {
+  /// Chỉ đúng ngày đã chọn, không tự sinh thêm năm sau.
+  once,
+
+  /// Lặp mỗi năm, giữ nguyên ngày/tháng dương lịch (ví dụ 15/6 dương lịch mọi năm).
+  solarYearly,
+
+  /// Lặp mỗi năm theo ngày/tháng âm lịch — mỗi năm tính lại ra ngày dương khác nhau.
+  lunarYearly,
+}
+
 /// Một ngày lễ, có tên để dễ nhận biết (ví dụ "Quốc khánh").
 class Holiday {
-  const Holiday({required this.date, required this.name});
+  const Holiday({required this.date, required this.name, this.recurrence = HolidayRecurrence.once});
 
   final DateTime date;
   final String name;
 
-  Map<String, dynamic> toJson() => {'date': date.toIso8601String(), 'name': name};
+  /// Chỉ có ý nghĩa với ngày lễ tự thêm (các ngày lễ gợi ý sẵn luôn là [HolidayRecurrence.once]
+  /// vì đã tự sinh đúng ngày của từng năm rồi) — dùng để [backfillMissingYears] tự sinh thêm ngày
+  /// cho các năm sau.
+  final HolidayRecurrence recurrence;
 
-  factory Holiday.fromJson(Map<String, dynamic> json) =>
-      Holiday(date: DateTime.parse(json['date'] as String), name: json['name'] as String? ?? '');
+  Map<String, dynamic> toJson() => {'date': date.toIso8601String(), 'name': name, 'recurrence': recurrence.name};
+
+  factory Holiday.fromJson(Map<String, dynamic> json) => Holiday(
+    date: DateTime.parse(json['date'] as String),
+    name: json['name'] as String? ?? '',
+    recurrence: json['recurrence'] != null ? HolidayRecurrence.values.byName(json['recurrence'] as String) : HolidayRecurrence.once,
+  );
 }
 
 /// Một khung giờ kiểm tra GPS (ví dụ khung đúng giờ 6:50-7:00, khung dự phòng cho người đi muộn 8:00-8:10).
@@ -182,28 +248,33 @@ class TimeWindow {
   );
 }
 
-/// Cài đặt chấm công tự động bằng GPS. Khung giờ chấm vào và chấm ra tách riêng: trong khung
-/// chấm vào mà hôm đó chưa có giờ vào thì mới tự chấm vào; khung chấm ra chỉ tự chấm khi hôm đó
-/// đã có chấm vào rồi (chưa vào thì chấm ra không tính, tránh chấm nhầm ngày không đi làm).
+/// Cài đặt chấm công tự động bằng GPS. Một danh sách khung giờ bật GPS duy nhất (không tách
+/// riêng vào/ra): lần chấm được xác nhận đầu tiên trong ngày là chấm vào, lần tiếp theo là chấm
+/// ra — máy tự phân biệt, không cần khai báo khung nào dùng để làm gì.
 class GpsConfig {
   GpsConfig({
     this.enabled = false,
     this.latitude,
     this.longitude,
     this.radiusMeters = 30,
-    List<TimeWindow>? checkInWindows,
-    List<TimeWindow>? checkOutWindows,
+    this.departRadiusMeters = 200,
+    List<TimeWindow>? activeWindows,
     this.frequencyMinutes = 2,
     this.soundEnabled = true,
-  }) : checkInWindows = checkInWindows ?? [const TimeWindow(from: Clock(6, 50), to: Clock(7, 0))],
-       checkOutWindows = checkOutWindows ?? [const TimeWindow(from: Clock(16, 0), to: Clock(16, 15))];
+  }) : activeWindows =
+           activeWindows ?? [const TimeWindow(from: Clock(6, 50), to: Clock(7, 0)), const TimeWindow(from: Clock(16, 0), to: Clock(16, 15))];
 
   final bool enabled;
   final double? latitude;
   final double? longitude;
+
+  /// Trong khoảng này (mét) coi là đang ở đúng chỗ chấm công.
   final double radiusMeters;
-  final List<TimeWindow> checkInWindows;
-  final List<TimeWindow> checkOutWindows;
+
+  /// Xa hơn khoảng này (mét) mới coi là chắc chắn đã rời đi hẳn — dùng để xác nhận giờ chấm ra.
+  final double departRadiusMeters;
+
+  final List<TimeWindow> activeWindows;
   final int frequencyMinutes;
 
   /// Có kêu chuông/rung khi máy tự chấm công hay không (chỉ áp dụng cho GPS tự động).
@@ -214,8 +285,8 @@ class GpsConfig {
     double? latitude,
     double? longitude,
     double? radiusMeters,
-    List<TimeWindow>? checkInWindows,
-    List<TimeWindow>? checkOutWindows,
+    double? departRadiusMeters,
+    List<TimeWindow>? activeWindows,
     int? frequencyMinutes,
     bool? soundEnabled,
   }) => GpsConfig(
@@ -223,8 +294,8 @@ class GpsConfig {
     latitude: latitude ?? this.latitude,
     longitude: longitude ?? this.longitude,
     radiusMeters: radiusMeters ?? this.radiusMeters,
-    checkInWindows: checkInWindows ?? this.checkInWindows,
-    checkOutWindows: checkOutWindows ?? this.checkOutWindows,
+    departRadiusMeters: departRadiusMeters ?? this.departRadiusMeters,
+    activeWindows: activeWindows ?? this.activeWindows,
     frequencyMinutes: frequencyMinutes ?? this.frequencyMinutes,
     soundEnabled: soundEnabled ?? this.soundEnabled,
   );
@@ -234,26 +305,34 @@ class GpsConfig {
     'lat': latitude,
     'lng': longitude,
     'radius': radiusMeters,
-    'checkInWindows': checkInWindows.map((w) => w.toJson()).toList(),
-    'checkOutWindows': checkOutWindows.map((w) => w.toJson()).toList(),
+    'departRadius': departRadiusMeters,
+    'activeWindows': activeWindows.map((w) => w.toJson()).toList(),
     'freq': frequencyMinutes,
     'sound': soundEnabled,
   };
 
-  factory GpsConfig.fromJson(Map<String, dynamic> json) => GpsConfig(
-    enabled: json['enabled'] as bool? ?? false,
-    latitude: (json['lat'] as num?)?.toDouble(),
-    longitude: (json['lng'] as num?)?.toDouble(),
-    radiusMeters: (json['radius'] as num?)?.toDouble() ?? 30,
-    checkInWindows: json['checkInWindows'] != null
-        ? (json['checkInWindows'] as List).map((w) => TimeWindow.fromJson(w as Map<String, dynamic>)).toList()
-        : [const TimeWindow(from: Clock(6, 50), to: Clock(7, 0))],
-    soundEnabled: json['sound'] as bool? ?? true,
-    checkOutWindows: json['checkOutWindows'] != null
-        ? (json['checkOutWindows'] as List).map((w) => TimeWindow.fromJson(w as Map<String, dynamic>)).toList()
-        : [const TimeWindow(from: Clock(16, 0), to: Clock(16, 15))],
-    frequencyMinutes: json['freq'] as int? ?? 2,
-  );
+  factory GpsConfig.fromJson(Map<String, dynamic> json) {
+    List<TimeWindow>? windows;
+    if (json['activeWindows'] != null) {
+      windows = (json['activeWindows'] as List).map((w) => TimeWindow.fromJson(w as Map<String, dynamic>)).toList();
+    } else if (json['checkInWindows'] != null || json['checkOutWindows'] != null) {
+      // Tương thích dữ liệu cũ: gộp 2 danh sách khung vào/ra cũ thành 1 danh sách chung.
+      windows = [
+        ...?(json['checkInWindows'] as List?)?.map((w) => TimeWindow.fromJson(w as Map<String, dynamic>)),
+        ...?(json['checkOutWindows'] as List?)?.map((w) => TimeWindow.fromJson(w as Map<String, dynamic>)),
+      ];
+    }
+    return GpsConfig(
+      enabled: json['enabled'] as bool? ?? false,
+      latitude: (json['lat'] as num?)?.toDouble(),
+      longitude: (json['lng'] as num?)?.toDouble(),
+      radiusMeters: (json['radius'] as num?)?.toDouble() ?? 30,
+      departRadiusMeters: (json['departRadius'] as num?)?.toDouble() ?? 200,
+      activeWindows: windows,
+      soundEnabled: json['sound'] as bool? ?? true,
+      frequencyMinutes: json['freq'] as int? ?? 2,
+    );
+  }
 }
 
 enum PayPeriodType { monthly, semiMonthly }
@@ -278,9 +357,11 @@ class PayPeriodConfig {
 
 enum IncomeItemType { income, deduction }
 
-enum IncomeCalcMethod { fixed, perWorkDay, manual }
+/// [percentOfBaseSalary]: số tiền = [AppSettings.baseSalary] * amount/100 (amount là % nhập vào,
+/// ví dụ amount=10 nghĩa là 10%).
+enum IncomeCalcMethod { fixed, perWorkDay, percentOfBaseSalary }
 
-/// Khoản thu nhập/khấu trừ tự tạo (phụ cấp, thưởng, tạm ứng...).
+/// Khoản thu nhập/khấu trừ tự tạo (phụ cấp, thưởng, bảo hiểm...).
 class IncomeItem {
   const IncomeItem({
     required this.id,
@@ -288,6 +369,7 @@ class IncomeItem {
     this.type = IncomeItemType.income,
     this.calcMethod = IncomeCalcMethod.fixed,
     this.amount = 0,
+    this.activeAfter,
   });
 
   final String id;
@@ -296,17 +378,25 @@ class IncomeItem {
   final IncomeCalcMethod calcMethod;
   final double amount;
 
+  /// Nếu đặt, khoản này chỉ bắt đầu tính (trong số tiền chạy sống của hôm nay) từ giờ này trở đi
+  /// trong ngày — ví dụ tiền cơm trưa chỉ tính sau 13:00. Không ảnh hưởng tới tổng tiền chính thức
+  /// của cả kỳ, chỉ ảnh hưởng cách số nhảy trong ngày.
+  final Clock? activeAfter;
+
   IncomeItem copyWith({
     String? name,
     IncomeItemType? type,
     IncomeCalcMethod? calcMethod,
     double? amount,
+    Clock? activeAfter,
+    bool clearActiveAfter = false,
   }) => IncomeItem(
     id: id,
     name: name ?? this.name,
     type: type ?? this.type,
     calcMethod: calcMethod ?? this.calcMethod,
     amount: amount ?? this.amount,
+    activeAfter: clearActiveAfter ? null : (activeAfter ?? this.activeAfter),
   );
 
   Map<String, dynamic> toJson() => {
@@ -315,14 +405,20 @@ class IncomeItem {
     'type': type.name,
     'calc': calcMethod.name,
     'amount': amount,
+    'activeAfter': activeAfter?.toJson(),
   };
 
   factory IncomeItem.fromJson(Map<String, dynamic> json) => IncomeItem(
     id: json['id'] as String,
     name: json['name'] as String,
     type: IncomeItemType.values.byName(json['type'] as String),
-    calcMethod: IncomeCalcMethod.values.byName(json['calc'] as String),
+    // Tương thích dữ liệu cũ: "manual" (nhập tay mỗi kỳ) đã bỏ, các khoản cũ kiểu này coi như "Cố
+    // định" với số 0 — không còn chỗ nhập số cho khoản manual cũ nữa.
+    calcMethod: json['calc'] == 'manual'
+        ? IncomeCalcMethod.fixed
+        : IncomeCalcMethod.values.byName(json['calc'] as String),
     amount: (json['amount'] as num).toDouble(),
+    activeAfter: json['activeAfter'] != null ? Clock.fromJson(json['activeAfter'] as Map<String, dynamic>) : null,
   );
 }
 
@@ -332,15 +428,19 @@ class AppSettings {
     this.workStart = const Clock(7, 0),
     this.workEnd = const Clock(16, 0),
     WageTable? wageTable,
-    List<BreakRule>? breakRules,
+    List<FixedBreakRule>? fixedBreakRules,
+    List<BreakSegment>? breakSegments,
     LateRule? lateRule,
     List<OvertimeBracket>? overtimeBrackets,
     GpsConfig? gps,
     this.payPeriod = const PayPeriodConfig(),
     List<IncomeItem>? incomeItems,
     List<Holiday>? holidays,
+    this.baseSalary = 0,
+    this.includeItemsInEstimate = false,
   }) : wageTable = wageTable ?? WageTable(),
-       breakRules = breakRules ?? [],
+       fixedBreakRules = fixedBreakRules ?? [],
+       breakSegments = breakSegments ?? [],
        lateRule = lateRule ?? const LateRule(after: Clock(7, 0)),
        overtimeBrackets = overtimeBrackets ?? [],
        gps = gps ?? GpsConfig(),
@@ -350,7 +450,8 @@ class AppSettings {
   final Clock workStart;
   final Clock workEnd;
   final WageTable wageTable;
-  final List<BreakRule> breakRules;
+  final List<FixedBreakRule> fixedBreakRules;
+  final List<BreakSegment> breakSegments;
   final LateRule lateRule;
   final List<OvertimeBracket> overtimeBrackets;
   final GpsConfig gps;
@@ -358,48 +459,73 @@ class AppSettings {
   final List<IncomeItem> incomeItems;
   final List<Holiday> holidays;
 
+  /// Lương cơ bản, dùng làm mốc cho khoản thu nhập/khấu trừ tính theo % (ví dụ bảo hiểm 10%).
+  final double baseSalary;
+
+  /// true thì các khoản thu nhập/khấu trừ tự tạo được cộng vào số tiền ước tính (tổng kỳ, hôm
+  /// nay, số chạy sống) — false thì chỉ tính theo bảng lương/giờ như trước, khoản tự tạo chỉ để
+  /// tham khảo, không cộng vào số ước tính.
+  final bool includeItemsInEstimate;
+
   AppSettings copyWith({
     Clock? workStart,
     Clock? workEnd,
     WageTable? wageTable,
-    List<BreakRule>? breakRules,
+    List<FixedBreakRule>? fixedBreakRules,
+    List<BreakSegment>? breakSegments,
     LateRule? lateRule,
     List<OvertimeBracket>? overtimeBrackets,
     GpsConfig? gps,
     PayPeriodConfig? payPeriod,
     List<IncomeItem>? incomeItems,
     List<Holiday>? holidays,
+    double? baseSalary,
+    bool? includeItemsInEstimate,
   }) => AppSettings(
     workStart: workStart ?? this.workStart,
     workEnd: workEnd ?? this.workEnd,
     wageTable: wageTable ?? this.wageTable,
-    breakRules: breakRules ?? this.breakRules,
+    fixedBreakRules: fixedBreakRules ?? this.fixedBreakRules,
+    breakSegments: breakSegments ?? this.breakSegments,
     lateRule: lateRule ?? this.lateRule,
     overtimeBrackets: overtimeBrackets ?? this.overtimeBrackets,
     gps: gps ?? this.gps,
     payPeriod: payPeriod ?? this.payPeriod,
     incomeItems: incomeItems ?? this.incomeItems,
     holidays: holidays ?? this.holidays,
+    baseSalary: baseSalary ?? this.baseSalary,
+    includeItemsInEstimate: includeItemsInEstimate ?? this.includeItemsInEstimate,
   );
 
   Map<String, dynamic> toJson() => {
     'workStart': workStart.toJson(),
     'workEnd': workEnd.toJson(),
     'wageTable': wageTable.toJson(),
-    'breakRules': breakRules.map((e) => e.toJson()).toList(),
+    'fixedBreakRules': fixedBreakRules.map((e) => e.toJson()).toList(),
+    'breakSegments': breakSegments.map((e) => e.toJson()).toList(),
     'lateRule': lateRule.toJson(),
     'overtimeBrackets': overtimeBrackets.map((e) => e.toJson()).toList(),
     'gps': gps.toJson(),
     'payPeriod': payPeriod.toJson(),
     'incomeItems': incomeItems.map((e) => e.toJson()).toList(),
     'holidays': holidays.map((h) => h.toJson()).toList(),
+    'baseSalary': baseSalary,
+    'includeItemsInEstimate': includeItemsInEstimate,
   };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
     workStart: Clock.fromJson(json['workStart'] as Map<String, dynamic>),
     workEnd: Clock.fromJson(json['workEnd'] as Map<String, dynamic>),
     wageTable: WageTable.fromJson(json['wageTable'] as Map<String, dynamic>),
-    breakRules: (json['breakRules'] as List).map((e) => BreakRule.fromJson(e as Map<String, dynamic>)).toList(),
+    // Tương thích dữ liệu cũ: chưa có "fixedBreakRules"/"breakSegments" thì coi như rỗng.
+    fixedBreakRules: (json['fixedBreakRules'] as List?)
+            ?.map((e) => FixedBreakRule.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
+    breakSegments: (json['breakSegments'] as List?)
+            ?.map((e) => BreakSegment.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
     lateRule: LateRule.fromJson(json['lateRule'] as Map<String, dynamic>),
     overtimeBrackets: (json['overtimeBrackets'] as List)
         .map((e) => OvertimeBracket.fromJson(e as Map<String, dynamic>))
@@ -411,6 +537,8 @@ class AppSettings {
     holidays: (json['holidays'] as List)
         .map((e) => e is String ? Holiday(date: DateTime.parse(e), name: '') : Holiday.fromJson(e as Map<String, dynamic>))
         .toList(),
+    baseSalary: (json['baseSalary'] as num?)?.toDouble() ?? 0,
+    includeItemsInEstimate: json['includeItemsInEstimate'] as bool? ?? false,
   );
 }
 
@@ -424,6 +552,7 @@ class DayRecord {
     this.isLate = false,
     this.note,
     this.tags = const [],
+    this.gpsLastSeenNearby,
   });
 
   /// Ngày (đã bỏ giờ phút), dùng làm khóa.
@@ -434,6 +563,10 @@ class DayRecord {
   final bool isLate;
   final String? note;
   final List<String> tags;
+
+  /// Sau khi đã chấm vào, mốc giờ lần quét GPS gần nhất còn thấy trong khoảng chưa rời hẳn
+  /// (≤ departRadiusMeters) — dùng làm giờ chấm ra khi cuối cùng phát hiện đã rời xa hẳn.
+  final DateTime? gpsLastSeenNearby;
 
   bool get hasAttendance => checkIn != null;
   bool get isOpenShift => checkIn != null && checkOut == null;
@@ -447,6 +580,8 @@ class DayRecord {
     bool? isLate,
     String? note,
     List<String>? tags,
+    DateTime? gpsLastSeenNearby,
+    bool clearGpsLastSeenNearby = false,
   }) => DayRecord(
     date: date,
     checkIn: clearCheckIn ? null : (checkIn ?? this.checkIn),
@@ -455,6 +590,7 @@ class DayRecord {
     isLate: isLate ?? this.isLate,
     note: note ?? this.note,
     tags: tags ?? this.tags,
+    gpsLastSeenNearby: clearGpsLastSeenNearby ? null : (gpsLastSeenNearby ?? this.gpsLastSeenNearby),
   );
 
   Map<String, dynamic> toJson() => {
@@ -465,6 +601,7 @@ class DayRecord {
     'late': isLate,
     'note': note,
     'tags': tags,
+    'gpsLastSeenNearby': gpsLastSeenNearby?.toIso8601String(),
   };
 
   factory DayRecord.fromJson(Map<String, dynamic> json) => DayRecord(
@@ -475,6 +612,7 @@ class DayRecord {
     isLate: json['late'] as bool? ?? false,
     note: json['note'] as String?,
     tags: (json['tags'] as List?)?.map((e) => e as String).toList() ?? const [],
+    gpsLastSeenNearby: json['gpsLastSeenNearby'] != null ? DateTime.parse(json['gpsLastSeenNearby'] as String) : null,
   );
 }
 

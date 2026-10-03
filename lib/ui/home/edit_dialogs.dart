@@ -55,7 +55,7 @@ Future<void> showPunchEditSheet(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final hour in const [6, 7, 8, 9, 12, 13, 17, 18, 22])
+                  for (final hour in isCheckIn ? const [7, 8, 9, 13] : const [12, 16, 18, 19, 20, 21])
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

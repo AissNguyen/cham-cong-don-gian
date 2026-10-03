@@ -15,6 +15,7 @@ class CalendarGrid extends StatelessWidget {
     required this.store,
     required this.showLunar,
     required this.showMoneyPerDay,
+    required this.showCheckTimes,
     required this.onSelect,
   });
 
@@ -23,6 +24,7 @@ class CalendarGrid extends StatelessWidget {
   final AppStore store;
   final bool showLunar;
   final bool showMoneyPerDay;
+  final bool showCheckTimes;
   final ValueChanged<DateTime> onSelect;
 
   @override
@@ -65,7 +67,7 @@ class CalendarGrid extends StatelessWidget {
                         builder: (context) {
                           final cellIndex = r * 7 + c;
                           final dayNum = cellIndex - leadingBlank + 1;
-                          if (dayNum < 1 || dayNum > daysInMonth) return const SizedBox(height: 58);
+                          if (dayNum < 1 || dayNum > daysInMonth) return SizedBox(height: showCheckTimes ? 70 : 58);
                           final date = DateTime(month.year, month.month, dayNum);
                           return _DayCell(
                             date: date,
@@ -74,6 +76,7 @@ class CalendarGrid extends StatelessWidget {
                             store: store,
                             showLunar: showLunar,
                             showMoneyPerDay: showMoneyPerDay,
+                            showCheckTimes: showCheckTimes,
                             onTap: () => onSelect(date),
                           );
                         },
@@ -96,6 +99,7 @@ class _DayCell extends StatelessWidget {
     required this.store,
     required this.showLunar,
     required this.showMoneyPerDay,
+    required this.showCheckTimes,
     required this.onTap,
   });
 
@@ -105,6 +109,7 @@ class _DayCell extends StatelessWidget {
   final AppStore store;
   final bool showLunar;
   final bool showMoneyPerDay;
+  final bool showCheckTimes;
   final VoidCallback onTap;
 
   @override
@@ -115,11 +120,16 @@ class _DayCell extends StatelessWidget {
     final isFuture = date.isAfter(today);
     final result = isFuture ? DayCalcResult.zero : computeDay(record, store.settings);
     final hasNote = (record.note != null && record.note!.isNotEmpty) || record.tags.isNotEmpty;
+    // Ngày lễ (mặc định hoặc tự thêm) -> viền riêng để biết ngay, trừ khi đã đánh dấu nghỉ (đã có
+    // màu riêng rồi).
+    final isHoliday = !record.isDayOff && dayTypeOf(date, store.settings.holidays) == DayType.holiday;
 
     Color fill = Colors.transparent;
     Color onFill = Theme.of(context).colorScheme.onSurface;
     Color borderColor = colors.line;
     String? bottomLabel;
+    String? bottomLabel2;
+    String? bottomLabel3;
 
     if (record.isDayOff) {
       fill = colors.dayOffMark;
@@ -136,12 +146,30 @@ class _DayCell extends StatelessWidget {
       fill = colors.openShiftMark;
       onFill = Colors.white;
       borderColor = colors.openShiftMark;
-      bottomLabel = 'Đang';
+      if (showCheckTimes) {
+        bottomLabel = Clock(record.checkIn!.hour, record.checkIn!.minute).formatted;
+        bottomLabel2 = '…';
+      } else {
+        bottomLabel = 'Đang';
+      }
     } else {
       fill = Theme.of(context).colorScheme.primary;
       onFill = Colors.white;
       borderColor = Theme.of(context).colorScheme.primary;
-      bottomLabel = showMoneyPerDay ? _shortMoney(result.pay) : fmtHours(result.normalMinutes);
+      if (showCheckTimes) {
+        bottomLabel = Clock(record.checkIn!.hour, record.checkIn!.minute).formatted;
+        bottomLabel2 = Clock(record.checkOut!.hour, record.checkOut!.minute).formatted;
+        bottomLabel3 = fmtHours(result.normalMinutes + result.overtimeMinutes);
+      } else {
+        bottomLabel = showMoneyPerDay ? _shortMoney(result.pay) : fmtHours(result.normalMinutes);
+      }
+    }
+
+    // Giờ vào/ra không khớp khung cộng-trừ giờ nào -> tô đỏ để nhắc chấm lại cho đúng.
+    if (result.breakRuleWarning) {
+      fill = Theme.of(context).colorScheme.error;
+      onFill = Colors.white;
+      borderColor = Theme.of(context).colorScheme.error;
     }
 
     final lunarDate = showLunar ? lunar.solarToLunar(date.day, date.month, date.year) : null;
@@ -150,14 +178,18 @@ class _DayCell extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 58,
+        height: showCheckTimes ? 70 : 58,
         margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(
           color: fill,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? colors.selectMark : borderColor,
-            width: isSelected ? 2.5 : 1,
+            color: isSelected
+                ? colors.selectMark
+                : (isHoliday ? colors.holidayMark : borderColor),
+            width: isSelected
+                ? 2.5
+                : (isHoliday ? 2 : 1),
           ),
           boxShadow: fill == Colors.transparent
               ? null
@@ -171,11 +203,48 @@ class _DayCell extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('${date.day}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19, height: 1, color: onFill)),
+                  Text(
+                    '${date.day}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: bottomLabel3 != null
+                          ? 15
+                          : bottomLabel2 != null
+                          ? 16
+                          : 19,
+                      height: 1,
+                      color: onFill,
+                    ),
+                  ),
                   if (bottomLabel != null)
                     Text(
                       bottomLabel,
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, height: 1.3, color: onFill == Colors.white ? Colors.white : colors.ink2),
+                      style: TextStyle(
+                        fontSize: bottomLabel3 != null ? 9.5 : 9,
+                        fontWeight: FontWeight.w600,
+                        height: bottomLabel2 != null ? 1.1 : 1.3,
+                        color: onFill == Colors.white ? Colors.white : colors.ink2,
+                      ),
+                    ),
+                  if (bottomLabel2 != null)
+                    Text(
+                      bottomLabel2,
+                      style: TextStyle(
+                        fontSize: bottomLabel3 != null ? 9.5 : 9,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                        color: onFill == Colors.white ? Colors.white : colors.ink2,
+                      ),
+                    ),
+                  if (bottomLabel3 != null)
+                    Text(
+                      bottomLabel3,
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                        color: onFill == Colors.white ? Colors.white : colors.ink2,
+                      ),
                     ),
                 ],
               ),
@@ -220,14 +289,14 @@ class _DayCell extends StatelessWidget {
                 bottom: 3,
                 child: Text(lunarDate.short, style: TextStyle(fontSize: 8, color: onFill == Colors.white ? Colors.white70 : colors.ink3)),
               ),
-            // Chấm ghi chú, góc phải dưới.
-            if (hasNote)
+            // Chấm ghi chú, góc phải dưới — ẩn khi xem giờ vào/ra vì chữ đã chiếm hết chỗ dưới.
+            if (hasNote && !showCheckTimes)
               Positioned(
                 right: 4,
                 bottom: 3,
                 child: Icon(Icons.circle, size: 6, color: onFill == Colors.white ? Colors.white : colors.noteMark),
               ),
-            if (isToday)
+            if (isToday && !showCheckTimes)
               Positioned(
                 bottom: 3,
                 left: 0,

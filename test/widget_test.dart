@@ -28,7 +28,7 @@ void main() {
 
     expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     expect(find.textContaining('Thu nhập tạm tính'), findsOneWidget);
-    expect(find.text('Giờ công'), findsOneWidget);
+    expect(find.text('Giờ công'), findsNWidgets(2)); // nhãn thống kê + chú thích biểu đồ giờ theo ngày
     expect(find.text('Chấm vào'), findsOneWidget);
     expect(find.text('Chấm ra'), findsOneWidget);
     expect(find.text('Ngày nghỉ'), findsNWidgets(2)); // nhãn thống kê + nhãn nút

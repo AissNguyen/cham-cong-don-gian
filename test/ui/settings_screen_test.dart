@@ -24,7 +24,8 @@ void main() {
     expect(find.text('Khung giờ ra vào'), findsOneWidget);
     expect(find.text('Bảng lương/giờ'), findsOneWidget);
     expect(find.text('Ngày lễ'), findsNWidgets(2)); // cột bảng lương + tiêu đề mục
-    expect(find.text('Cộng trừ giờ theo giờ vào'), findsOneWidget);
+    expect(find.textContaining('Cộng trừ giờ theo giờ vào'), findsOneWidget);
+    expect(find.text('Khung nhiều mục (dự phòng)'), findsOneWidget);
     expect(find.text('Đi muộn'), findsOneWidget);
     expect(find.text('Tăng ca theo khung'), findsOneWidget);
     expect(find.text('Chấm công GPS'), findsOneWidget);

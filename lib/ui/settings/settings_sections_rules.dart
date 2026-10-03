@@ -7,15 +7,19 @@ import 'settings_card.dart';
 TimeOfDay _toTod(Clock c) => TimeOfDay(hour: c.hour, minute: c.minute);
 Clock _toClock(TimeOfDay t) => Clock(t.hour, t.minute);
 
-/// Cộng/trừ phút theo khung giờ vào (ví dụ vào 07:00-08:59 trừ 15 phút giải lao).
+/// Khung cố định: giờ vào nằm trong 1 khoảng VÀ giờ ra nằm trong 1 khoảng khác thì áp dụng số
+/// phút cộng/trừ đã cài (ví dụ vào trong khoảng 7:00-8:00, ra trong khoảng 11:00-12:00, trừ 15p).
+/// Mỗi khoảng có thể chỉ là 1 giờ duy nhất (nhập từ = đến).
 class BreakRulesSection extends StatelessWidget {
   const BreakRulesSection({super.key, required this.store});
 
   final AppStore store;
 
-  Future<void> _openForm(BuildContext context, {BreakRule? editing}) async {
-    var from = editing?.from ?? const Clock(7, 0);
-    var to = editing?.to ?? const Clock(8, 59);
+  Future<void> _openForm(BuildContext context, {FixedBreakRule? editing}) async {
+    var checkInFrom = editing?.checkInFrom ?? const Clock(7, 0);
+    var checkInTo = editing?.checkInTo ?? const Clock(7, 0);
+    var checkOutFrom = editing?.checkOutFrom ?? const Clock(12, 0);
+    var checkOutTo = editing?.checkOutTo ?? const Clock(12, 0);
     var isSubtract = (editing?.deltaMinutes ?? -15) <= 0;
     var minutes = (editing?.deltaMinutes ?? -15).abs();
 
@@ -23,44 +27,72 @@ class BreakRulesSection extends StatelessWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Quy tắc cộng/trừ giờ'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Vào lúc từ giờ nào đến giờ nào:'),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                children: [
-                  TimeChip(label: 'Từ', time: _toTod(from), onPick: (t) => setState(() => from = _toClock(t))),
-                  TimeChip(label: 'Đến', time: _toTod(to), onPick: (t) => setState(() => to = _toClock(t))),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: true, label: Text('Trừ')),
-                  ButtonSegment(value: false, label: Text('Cộng')),
-                ],
-                selected: {isSubtract},
-                onSelectionChanged: (v) => setState(() => isSubtract = v.first),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: minutes.toString(),
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Số phút', border: OutlineInputBorder()),
-                onChanged: (v) => minutes = int.tryParse(v) ?? 0,
-              ),
-            ],
+          title: const Text('Khung cố định'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Giờ vào nằm trong khoảng (nhập 1 giờ nếu không cần khoảng):'),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TimeChip(
+                      label: 'Từ',
+                      time: _toTod(checkInFrom),
+                      onPick: (t) => setState(() => checkInFrom = _toClock(t)),
+                    ),
+                    TimeChip(
+                      label: 'Đến',
+                      time: _toTod(checkInTo),
+                      onPick: (t) => setState(() => checkInTo = _toClock(t)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text('Giờ ra nằm trong khoảng:'),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TimeChip(
+                      label: 'Từ',
+                      time: _toTod(checkOutFrom),
+                      onPick: (t) => setState(() => checkOutFrom = _toClock(t)),
+                    ),
+                    TimeChip(
+                      label: 'Đến',
+                      time: _toTod(checkOutTo),
+                      onPick: (t) => setState(() => checkOutTo = _toClock(t)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('Trừ')),
+                    ButtonSegment(value: false, label: Text('Cộng')),
+                  ],
+                  selected: {isSubtract},
+                  onSelectionChanged: (v) => setState(() => isSubtract = v.first),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: minutes.toString(),
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Số phút', border: OutlineInputBorder()),
+                  onChanged: (v) => minutes = int.tryParse(v) ?? 0,
+                ),
+              ],
+            ),
           ),
           actions: [
             if (editing != null)
               TextButton(
                 onPressed: () {
                   store.updateSettings(
-                    (s) => s.copyWith(breakRules: s.breakRules.where((r) => r != editing).toList()),
+                    (s) => s.copyWith(fixedBreakRules: s.fixedBreakRules.where((r) => r != editing).toList()),
                   );
                   Navigator.pop(context);
                 },
@@ -69,16 +101,131 @@ class BreakRulesSection extends StatelessWidget {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
             FilledButton(
               onPressed: () {
-                final rule = BreakRule(from: from, to: to, deltaMinutes: isSubtract ? -minutes : minutes);
+                final rule = FixedBreakRule(
+                  checkInFrom: checkInFrom,
+                  checkInTo: checkInTo,
+                  checkOutFrom: checkOutFrom,
+                  checkOutTo: checkOutTo,
+                  deltaMinutes: isSubtract ? -minutes : minutes,
+                );
                 store.updateSettings((s) {
-                  final list = [...s.breakRules];
+                  final list = [...s.fixedBreakRules];
                   if (editing != null) {
                     final i = list.indexOf(editing);
                     if (i >= 0) list[i] = rule;
                   } else {
                     list.add(rule);
                   }
-                  return s.copyWith(breakRules: list);
+                  return s.copyWith(fixedBreakRules: list);
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _rangeLabel(Clock from, Clock to) => from == to ? from.formatted : '${from.formatted}–${to.formatted}';
+
+  @override
+  Widget build(BuildContext context) {
+    final rules = store.settings.fixedBreakRules;
+    return SettingsCard(
+      title: 'Cộng trừ giờ theo giờ vào (khung cố định)',
+      subtitle:
+          'Giờ vào và giờ ra đều nằm trong khoảng đã cài thì tính theo khung đó. Không khung nào '
+          'khớp thì hệ thống chuyển qua tính theo "Khung nhiều mục" ở dưới (kèm cảnh báo đỏ). Ra '
+          'muộn hơn giờ ra chuẩn do tăng ca vẫn tính là khớp, không bị đẩy xuống dự phòng.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final r in rules)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: Text('Vào ${_rangeLabel(r.checkInFrom, r.checkInTo)} · Ra ${_rangeLabel(r.checkOutFrom, r.checkOutTo)}'),
+              subtitle: Text('${r.deltaMinutes < 0 ? 'Trừ' : 'Cộng'} ${r.deltaMinutes.abs()} phút'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openForm(context, editing: r),
+            ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('Thêm khung cố định'),
+            onPressed: () => _openForm(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Khung nhiều mục: danh sách các đoạn nối tiếp nhau (từ giờ nào tới giờ nào thì nghỉ mấy phút),
+/// dùng làm dự phòng khi không khung cố định nào khớp — cộng dồn các đoạn mà giờ làm có chạm vào.
+class BreakSegmentsSection extends StatelessWidget {
+  const BreakSegmentsSection({super.key, required this.store});
+
+  final AppStore store;
+
+  Future<void> _openForm(BuildContext context, {BreakSegment? editing}) async {
+    // Thêm đoạn mới thì gợi ý nối tiếp ngay sau đoạn cuối cùng đã có, đỡ phải tự gõ lại giờ bắt đầu.
+    final segments = store.settings.breakSegments;
+    final suggestedFrom = segments.isNotEmpty ? segments.last.to : const Clock(7, 0);
+    var from = editing?.from ?? suggestedFrom;
+    var to = editing?.to ?? suggestedFrom;
+    var breakMinutes = editing?.breakMinutes ?? 15;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Đoạn giờ nghỉ'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                children: [
+                  TimeChip(label: 'Từ', time: _toTod(from), onPick: (t) => setState(() => from = _toClock(t))),
+                  TimeChip(label: 'Đến', time: _toTod(to), onPick: (t) => setState(() => to = _toClock(t))),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: breakMinutes.toString(),
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Nghỉ bao nhiêu phút', border: OutlineInputBorder()),
+                onChanged: (v) => breakMinutes = int.tryParse(v) ?? 0,
+              ),
+            ],
+          ),
+          actions: [
+            if (editing != null)
+              TextButton(
+                onPressed: () {
+                  store.updateSettings(
+                    (s) => s.copyWith(breakSegments: s.breakSegments.where((r) => r != editing).toList()),
+                  );
+                  Navigator.pop(context);
+                },
+                child: const Text('Xóa'),
+              ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+            FilledButton(
+              onPressed: () {
+                final segment = BreakSegment(from: from, to: to, breakMinutes: breakMinutes);
+                store.updateSettings((s) {
+                  final list = [...s.breakSegments];
+                  if (editing != null) {
+                    final i = list.indexOf(editing);
+                    if (i >= 0) list[i] = segment;
+                  } else {
+                    list.add(segment);
+                  }
+                  return s.copyWith(breakSegments: list);
                 });
                 Navigator.pop(context);
               },
@@ -92,25 +239,27 @@ class BreakRulesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rules = store.settings.breakRules;
+    final segments = store.settings.breakSegments;
     return SettingsCard(
-      title: 'Cộng trừ giờ theo giờ vào',
-      subtitle: 'Ví dụ vào 7:00–11:30 thì trừ 15 phút giải lao, vào 9:00–12:00 thì không trừ.',
+      title: 'Khung nhiều mục (dự phòng)',
+      subtitle:
+          'Ví dụ 7:00–11:30 nghỉ 15p, 11:30–12:30 nghỉ 30p, 12:30–16:00 nghỉ 15p... Chỉ dùng khi giờ '
+          'vào/ra không khớp khung cố định nào ở trên.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final r in rules)
+          for (final seg in segments)
             ListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: Text('Vào ${r.from.formatted}–${r.to.formatted}'),
-              subtitle: Text('${r.deltaMinutes < 0 ? 'Trừ' : 'Cộng'} ${r.deltaMinutes.abs()} phút'),
+              title: Text('${seg.from.formatted}–${seg.to.formatted}'),
+              subtitle: Text('Nghỉ ${seg.breakMinutes} phút'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => _openForm(context, editing: r),
+              onTap: () => _openForm(context, editing: seg),
             ),
           OutlinedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Thêm quy tắc'),
+            label: const Text('Thêm đoạn'),
             onPressed: () => _openForm(context),
           ),
         ],

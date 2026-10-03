@@ -16,6 +16,8 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.openShiftMark,
     required this.noteMark,
     required this.selectMark,
+    required this.offHourMark,
+    required this.holidayMark,
     required this.gradientStart,
     required this.gradientEnd,
   });
@@ -32,6 +34,14 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color openShiftMark;
   final Color noteMark;
   final Color selectMark;
+
+  /// Màu riêng cho "đi giờ khác" trên biểu đồ ngày — khác với [lateMark] (đi muộn bị trừ lương),
+  /// đây chỉ là đánh dấu trực quan khi giờ vào thực tế lệch khỏi giờ vào chuẩn, không trừ gì.
+  final Color offHourMark;
+
+  /// Viền ô lịch của ngày rơi vào "Ngày lễ" (mặc định hoặc tự thêm) — để biết ngay không cần mở
+  /// Cài đặt, vì ngày này tính lương theo hệ số khác.
+  final Color holidayMark;
   final Color gradientStart;
   final Color gradientEnd;
 
@@ -50,6 +60,8 @@ class AppColors extends ThemeExtension<AppColors> {
     openShiftMark: Color(0xFF2F8FD1),
     noteMark: Color(0xFF6E56CF),
     selectMark: Color(0xFFEF7A1A),
+    offHourMark: Color(0xFFE3A008),
+    holidayMark: Color(0xFF0E7C86),
     gradientStart: Color(0xFF1CAE8F),
     gradientEnd: Color(0xFF2F7FE0),
   );
@@ -67,6 +79,8 @@ class AppColors extends ThemeExtension<AppColors> {
     openShiftMark: Color(0xFF6BB6EE),
     noteMark: Color(0xFFA694F5),
     selectMark: Color(0xFFFF9F43),
+    offHourMark: Color(0xFFFFD666),
+    holidayMark: Color(0xFF4FD1D9),
     gradientStart: Color(0xFF1F9C82),
     gradientEnd: Color(0xFF3F6FC9),
   );
@@ -85,6 +99,8 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? openShiftMark,
     Color? noteMark,
     Color? selectMark,
+    Color? offHourMark,
+    Color? holidayMark,
     Color? gradientStart,
     Color? gradientEnd,
   }) => AppColors(
@@ -100,6 +116,8 @@ class AppColors extends ThemeExtension<AppColors> {
     openShiftMark: openShiftMark ?? this.openShiftMark,
     noteMark: noteMark ?? this.noteMark,
     selectMark: selectMark ?? this.selectMark,
+    offHourMark: offHourMark ?? this.offHourMark,
+    holidayMark: holidayMark ?? this.holidayMark,
     gradientStart: gradientStart ?? this.gradientStart,
     gradientEnd: gradientEnd ?? this.gradientEnd,
   );
@@ -121,6 +139,8 @@ class AppColors extends ThemeExtension<AppColors> {
       openShiftMark: l(openShiftMark, other.openShiftMark),
       noteMark: l(noteMark, other.noteMark),
       selectMark: l(selectMark, other.selectMark),
+      offHourMark: l(offHourMark, other.offHourMark),
+      holidayMark: l(holidayMark, other.holidayMark),
       gradientStart: l(gradientStart, other.gradientStart),
       gradientEnd: l(gradientEnd, other.gradientEnd),
     );

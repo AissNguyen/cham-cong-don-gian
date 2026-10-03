@@ -4,8 +4,10 @@ library;
 
 import 'package:home_widget/home_widget.dart';
 
+import '../analytics/analytics_service.dart' show eventWidgetTap;
 import '../data/data_file.dart';
 import '../domain/models.dart';
+import '../share/share_state_file.dart';
 import '../ui/format.dart';
 
 const _providerName = 'ChamCongWidgetProvider';
@@ -17,11 +19,18 @@ Future<void> refreshWidgetDisplay() async {
   final today = dateOnly(DateTime.now());
   final record = recordFromJson(json, today);
 
+  // Hết ngày dùng thử mà chưa mở khóa: widget đổi thành lời mời mở app để chia sẻ.
+  final locked = !await autoFeatureAllowed();
+
+  await HomeWidget.saveWidgetData('locked', locked);
   await HomeWidget.saveWidgetData('date_label', '${today.day}/${today.month}');
-  await HomeWidget.saveWidgetData('checkin_label', record.checkIn != null ? fmtTime(record.checkIn!) : 'Chấm vào');
+  await HomeWidget.saveWidgetData(
+    'checkin_label',
+    locked ? 'Hết dùng thử' : (record.checkIn != null ? fmtTime(record.checkIn!) : 'Chấm vào'),
+  );
   await HomeWidget.saveWidgetData(
     'checkout_label',
-    record.checkOut != null ? fmtTime(record.checkOut!) : 'Chấm ra',
+    locked ? 'Mở khóa' : (record.checkOut != null ? fmtTime(record.checkOut!) : 'Chấm ra'),
   );
   await HomeWidget.updateWidget(name: _providerName);
 }
@@ -33,6 +42,12 @@ Future<void> widgetInteractiveCallback(Uri? uri) async {
   final action = uri?.queryParameters['action'];
   if (action != 'checkin' && action != 'checkout') return;
 
+  // Hết ngày dùng thử: không chấm, chỉ vẽ lại widget sang trạng thái khóa.
+  if (!await autoFeatureAllowed()) {
+    await refreshWidgetDisplay();
+    return;
+  }
+
   final json = await readDataJson();
   final today = dateOnly(DateTime.now());
   final record = recordFromJson(json, today);
@@ -41,7 +56,9 @@ Future<void> widgetInteractiveCallback(Uri? uri) async {
   final updated = action == 'checkin'
       ? record.copyWith(checkIn: now, isDayOff: false)
       : record.copyWith(checkOut: now);
-  await writeDataJson(putRecordJson(json, updated));
+  await writeDataJson(markPendingAnalyticsEvent(putRecordJson(json, updated), eventWidgetTap));
+  await recordAutoUse();
+  await recordUsage(usageWidgetUses);
 
   await refreshWidgetDisplay();
 }

@@ -7,13 +7,14 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../data/data_file.dart';
 import '../domain/models.dart';
+import '../share/background_unlock.dart';
+import '../share/share_state_file.dart';
 import 'gps_task_handler.dart';
 
-const _maxWindowsPerDirection = 10;
+const _maxWindows = 20;
 const _serviceId = 300;
 
-int _checkInAlarmId(int index) => 5000 + index;
-int _checkOutAlarmId(int index) => 5100 + index;
+int _windowAlarmId(int index) => 5000 + index;
 
 DateTime _nextOccurrence(Clock time) {
   final now = DateTime.now();
@@ -23,9 +24,8 @@ DateTime _nextOccurrence(Clock time) {
 }
 
 Future<void> cancelAllGpsAlarms() async {
-  for (var i = 0; i < _maxWindowsPerDirection; i++) {
-    await AndroidAlarmManager.cancel(_checkInAlarmId(i));
-    await AndroidAlarmManager.cancel(_checkOutAlarmId(i));
+  for (var i = 0; i < _maxWindows; i++) {
+    await AndroidAlarmManager.cancel(_windowAlarmId(i));
   }
 }
 
@@ -35,24 +35,12 @@ Future<void> rescheduleGpsAlarms(GpsConfig gps) async {
   await cancelAllGpsAlarms();
   if (!gps.enabled || gps.latitude == null) return;
 
-  for (var i = 0; i < gps.checkInWindows.length && i < _maxWindowsPerDirection; i++) {
+  for (var i = 0; i < gps.activeWindows.length && i < _maxWindows; i++) {
     await AndroidAlarmManager.periodic(
       const Duration(days: 1),
-      _checkInAlarmId(i),
+      _windowAlarmId(i),
       gpsAlarmCallback,
-      startAt: _nextOccurrence(gps.checkInWindows[i].from),
-      exact: true,
-      wakeup: true,
-      rescheduleOnReboot: true,
-      allowWhileIdle: true,
-    );
-  }
-  for (var i = 0; i < gps.checkOutWindows.length && i < _maxWindowsPerDirection; i++) {
-    await AndroidAlarmManager.periodic(
-      const Duration(days: 1),
-      _checkOutAlarmId(i),
-      gpsAlarmCallback,
-      startAt: _nextOccurrence(gps.checkOutWindows[i].from),
+      startAt: _nextOccurrence(gps.activeWindows[i].from),
       exact: true,
       wakeup: true,
       rescheduleOnReboot: true,
@@ -68,6 +56,9 @@ Future<void> gpsAlarmCallback() async {
   final json = await readDataJson();
   final settings = settingsFromJson(json);
   if (!settings.gps.enabled) return;
+  // Hết ngày dùng thử mà chưa mở khóa: hỏi máy chủ xem đã có ai nhập mã của máy này chưa; chưa
+  // thì không khởi động dịch vụ kiểm tra vị trí.
+  if (!await autoFeatureAllowed() && !await tryUnlockInBackground()) return;
 
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(

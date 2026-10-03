@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// Mã giới thiệu của app Chấm Công Đơn Giản (xem lib/share/share_service.dart).
+// App không đăng nhập, nên luật chỉ kiểm tra hình dạng dữ liệu và các bước "chỉ ghi 1 lần";
+// không cho liệt kê (list) để không ai quét được danh sách mã hay thiết bị.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isCode(c) {
+      return c is string && c.matches('^[0-9]{6}$');
+    }
+
+    // Giá trị bộ đếm sau lần ghi này — số thứ tự của máy vừa đăng ký phải đúng bằng nó.
+    function nextSeq() {
+      return getAfter(/databases/$(database)/documents/meta/counter).data.count;
+    }
+
+    // Bộ đếm số máy đã dùng app: mỗi lần chỉ được tăng đúng 1.
+    match /meta/counter {
+      allow get: if true;
+      allow create: if request.resource.data.keys().hasOnly(['count']) && request.resource.data.count == 1;
+      allow update: if request.resource.data.keys().hasOnly(['count'])
+                    && request.resource.data.count == resource.data.count + 1;
+    }
+
+    // Mỗi máy 1 tài liệu, khóa là mã thiết bị Android.
+    match /devices/{deviceId} {
+      allow get: if true;
+
+      // Lần đầu máy chủ thấy máy: chỉ được ghi mốc thời gian của máy chủ và số thứ tự vừa lấy
+      // từ bộ đếm trong cùng lần ghi.
+      allow create: if request.resource.data.keys().hasOnly(['firstSeen', 'seq'])
+                    && request.resource.data.firstSeen == request.time
+                    && request.resource.data.seq == nextSeq();
+
+      allow update: if request.resource.data.firstSeen == resource.data.firstSeen
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['seq', 'code', 'redeemedCode', 'redeemedAt', 'autoUseDays',
+                                   'appOpens', 'widgetUses', 'gpsUses', 'lastSeen', 'appVersion'])
+                    // Số thứ tự: đặt 1 lần (cho máy đã có tài liệu từ trước khi có bộ đếm), không đổi.
+                    && (!('seq' in resource.data) || request.resource.data.seq == resource.data.seq)
+                    && (!('seq' in request.resource.data) || 'seq' in resource.data
+                        || request.resource.data.seq == nextSeq())
+                    // Mã của máy: đặt 1 lần, không đổi.
+                    && (!('code' in resource.data) || request.resource.data.code == resource.data.code)
+                    && (!('code' in request.resource.data) || isCode(request.resource.data.code))
+                    // Mã đã nhập: đặt 1 lần, mã phải có thật, và chỉ máy chưa lấy mã của mình mới
+                    // được nhập (lấy mã rồi thì mất quyền nhập — chặn các máy mở khóa lẫn nhau).
+                    && (!('redeemedCode' in resource.data)
+                        || request.resource.data.redeemedCode == resource.data.redeemedCode)
+                    && (!('redeemedCode' in request.resource.data)
+                        || 'redeemedCode' in resource.data
+                        || (isCode(request.resource.data.redeemedCode)
+                            && !('code' in request.resource.data)
+                            && exists(/databases/$(database)/documents/codes/$(request.resource.data.redeemedCode))));
+    }
+
+    // Mỗi mã 1 tài liệu, khóa là mã 6 chữ số.
+    match /codes/{code} {
+      allow get: if true;
+
+      allow create: if isCode(code)
+                    && request.resource.data.keys().hasOnly(['owner', 'createdAt', 'redeemed'])
+                    && request.resource.data.owner is string
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.redeemed == false;
+
+      // Chỉ được đánh dấu "đã có người nhập", không đổi chủ mã.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['redeemed', 'redeemedAt', 'redeemedCount'])
+                    && request.resource.data.redeemed == true;
+    }
+  }
+}

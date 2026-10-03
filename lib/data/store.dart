@@ -18,9 +18,6 @@ class AppStore extends ChangeNotifier {
   /// Số tiền người dùng nhập tay để ghi đè cả kỳ, khóa là [PayPeriod.key].
   final Map<String, double> periodOverrides = {};
 
-  /// Khoản "nhập tay mỗi kỳ", khóa là "itemId|periodKey".
-  final Map<String, double> manualIncomeEntries = {};
-
   bool loaded = false;
 
   Map<String, DayRecord> get records => _records;
@@ -31,16 +28,17 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    final isFirstRun = !await dataFileExists();
     final json = await readDataJson();
     _applyJson(json);
-    if (isFirstRun) {
-      final now = DateTime.now();
-      settings = settings.copyWith(holidays: defaultVietnameseHolidays([now.year, now.year + 1, now.year + 2]));
-    }
+    // Bù ngày lễ mặc định cho năm hiện tại + 2 năm tới nếu năm đó chưa có ngày lễ nào — chạy mỗi
+    // lần mở app (không chỉ lần đầu), để dữ liệu cũ và các năm mới qua đều tự được phủ đủ.
+    final now = DateTime.now();
+    final backfilled = backfillMissingYears(settings.holidays, [now.year, now.year + 1, now.year + 2]);
+    final holidaysChanged = backfilled.length != settings.holidays.length;
+    if (holidaysChanged) settings = settings.copyWith(holidays: backfilled);
     loaded = true;
     notifyListeners();
-    if (isFirstRun) await _save();
+    if (holidaysChanged) await _save();
   }
 
   void _applyJson(Map<String, dynamic> json) {
@@ -51,9 +49,6 @@ class AppStore extends ChangeNotifier {
     periodOverrides.clear();
     final overrides = json['periodOverrides'] as Map<String, dynamic>? ?? {};
     overrides.forEach((k, v) => periodOverrides[k] = (v as num).toDouble());
-    manualIncomeEntries.clear();
-    final manual = json['manualIncomeEntries'] as Map<String, dynamic>? ?? {};
-    manual.forEach((k, v) => manualIncomeEntries[k] = (v as num).toDouble());
   }
 
   /// Đọc lại từ đĩa — gọi khi app quay lại foreground, để thấy các thay đổi widget/GPS vừa ghi.
@@ -68,7 +63,6 @@ class AppStore extends ChangeNotifier {
       'settings': settings.toJson(),
       'records': _records.map((k, v) => MapEntry(k, v.toJson())),
       'periodOverrides': periodOverrides,
-      'manualIncomeEntries': manualIncomeEntries,
     };
     await writeDataJson(json);
   }
@@ -77,7 +71,8 @@ class AppStore extends ChangeNotifier {
     _records[dateKey(dateOnly(record.date))] = record;
     notifyListeners();
     await _save();
-    if (dateOnly(record.date) == dateOnly(DateTime.now())) {
+    // Widget màn hình chính chỉ có trên Android, không có trên web.
+    if (!kIsWeb && dateOnly(record.date) == dateOnly(DateTime.now())) {
       await refreshWidgetDisplay();
     }
   }
@@ -140,12 +135,4 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
     await _save();
   }
-
-  Future<void> setManualIncomeEntry(String itemId, String periodKey, double amount) async {
-    manualIncomeEntries['$itemId|$periodKey'] = amount;
-    notifyListeners();
-    await _save();
-  }
-
-  double? manualIncomeEntry(String itemId, String periodKey) => manualIncomeEntries['$itemId|$periodKey'];
 }

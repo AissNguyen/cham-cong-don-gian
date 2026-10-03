@@ -3,8 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'settings_card.dart';
 
-/// TODO: điền email nhận góp ý của bạn vào đây.
-const feedbackEmail = 'your-email@example.com';
+const feedbackEmail = 'subin7ad@gmail.com';
 
 Uri feedbackMailUri({String subject = 'Góp ý Chấm Công Đơn Giản', String body = ''}) => Uri(
   scheme: 'mailto',

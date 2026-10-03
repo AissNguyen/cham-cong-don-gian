@@ -18,6 +18,8 @@ class ChamCongWidgetProvider : HomeWidgetProvider() {
       appWidgetIds: IntArray,
       widgetData: SharedPreferences
   ) {
+    // Hết ngày dùng thử mà chưa mở khóa: 2 nút không chấm nữa, chạm là mở app ở phần chia sẻ.
+    val locked = widgetData.getBoolean("locked", false)
     appWidgetIds.forEach { widgetId ->
       val views =
           RemoteViews(context.packageName, R.layout.widget_cham_cong).apply {
@@ -26,17 +28,25 @@ class ChamCongWidgetProvider : HomeWidgetProvider() {
 
             setTextViewText(
                 R.id.widget_checkin, widgetData.getString("checkin_label", null) ?: "Chấm vào")
-            setOnClickPendingIntent(
-                R.id.widget_checkin,
-                HomeWidgetBackgroundIntent.getBroadcast(
-                    context, Uri.parse("chamcong://widget?action=checkin")))
-
             setTextViewText(
                 R.id.widget_checkout, widgetData.getString("checkout_label", null) ?: "Chấm ra")
-            setOnClickPendingIntent(
-                R.id.widget_checkout,
-                HomeWidgetBackgroundIntent.getBroadcast(
-                    context, Uri.parse("chamcong://widget?action=checkout")))
+
+            if (locked) {
+              val unlockIntent =
+                  HomeWidgetLaunchIntent.getActivity(
+                      context, MainActivity::class.java, Uri.parse("chamcong://widget?action=unlock"))
+              setOnClickPendingIntent(R.id.widget_checkin, unlockIntent)
+              setOnClickPendingIntent(R.id.widget_checkout, unlockIntent)
+            } else {
+              setOnClickPendingIntent(
+                  R.id.widget_checkin,
+                  HomeWidgetBackgroundIntent.getBroadcast(
+                      context, Uri.parse("chamcong://widget?action=checkin")))
+              setOnClickPendingIntent(
+                  R.id.widget_checkout,
+                  HomeWidgetBackgroundIntent.getBroadcast(
+                      context, Uri.parse("chamcong://widget?action=checkout")))
+            }
 
             // Chạm vào ngày thì mở app.
             setOnClickPendingIntent(

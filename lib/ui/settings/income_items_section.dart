@@ -11,10 +11,11 @@ const _uuid = Uuid();
 String _calcLabel(IncomeCalcMethod m) => switch (m) {
   IncomeCalcMethod.fixed => 'Cố định mỗi kỳ',
   IncomeCalcMethod.perWorkDay => '× số ngày công',
-  IncomeCalcMethod.manual => 'Nhập tay mỗi kỳ',
+  IncomeCalcMethod.percentOfBaseSalary => '% lương cơ bản',
 };
 
-/// Khoản thu nhập/khấu trừ tự tạo (phụ cấp, thưởng, tạm ứng...). Cộng/trừ vào tổng thu nhập mỗi kỳ.
+/// Khoản thu nhập/khấu trừ tự tạo (phụ cấp, thưởng, bảo hiểm...). Cộng/trừ vào tổng thu nhập mỗi
+/// kỳ khi bật "Cộng thêm vào số ước tính" ở cuối mục này.
 class IncomeItemsSection extends StatelessWidget {
   const IncomeItemsSection({super.key, required this.store});
 
@@ -25,6 +26,7 @@ class IncomeItemsSection extends StatelessWidget {
     var type = editing?.type ?? IncomeItemType.income;
     var calc = editing?.calcMethod ?? IncomeCalcMethod.fixed;
     final amountCtrl = TextEditingController(text: (editing?.amount ?? 0).round().toString());
+    var activeAfter = editing?.activeAfter;
 
     await showModalBottomSheet(
       context: context,
@@ -73,24 +75,50 @@ class IncomeItemsSection extends StatelessWidget {
                       )
                       .toList(),
                 ),
-                if (calc != IncomeCalcMethod.manual) ...[
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: amountCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: calc == IncomeCalcMethod.perWorkDay ? 'Số tiền mỗi ngày công (đ)' : 'Số tiền (đ)',
-                      border: const OutlineInputBorder(),
-                    ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: switch (calc) {
+                      IncomeCalcMethod.perWorkDay => 'Số tiền mỗi ngày công (đ)',
+                      IncomeCalcMethod.percentOfBaseSalary => 'Phần trăm lương cơ bản (%)',
+                      IncomeCalcMethod.fixed => 'Số tiền (đ)',
+                    },
+                    border: const OutlineInputBorder(),
                   ),
-                ] else
-                  const Padding(
-                    padding: EdgeInsets.only(top: 10),
-                    child: Text(
-                      'Số tiền sẽ nhập riêng cho từng kỳ ở cuối màn chính (mục Thống kê thu nhập theo kỳ).',
-                      style: TextStyle(fontSize: 12.5),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Chỉ tính từ giờ... (ví dụ tiền cơm trưa sau 13:00)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
-                  ),
+                    if (activeAfter != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Bỏ mốc giờ',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => setState(() => activeAfter = null),
+                      ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.schedule, size: 16),
+                      label: Text(activeAfter?.formatted ?? 'Chưa đặt'),
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay(hour: activeAfter?.hour ?? 13, minute: activeAfter?.minute ?? 0),
+                        );
+                        if (picked != null) setState(() => activeAfter = Clock(picked.hour, picked.minute));
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Chỉ ảnh hưởng tới số tiền chạy sống trong ngày trên màn chính — không đổi tổng chính thức của cả kỳ.',
+                  style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -117,7 +145,8 @@ class IncomeItemsSection extends StatelessWidget {
                             name: nameCtrl.text.trim(),
                             type: type,
                             calcMethod: calc,
-                            amount: calc == IncomeCalcMethod.manual ? 0 : amount,
+                            amount: amount,
+                            activeAfter: activeAfter,
                           );
                           store.updateSettings((s) {
                             final list = [...s.incomeItems];
@@ -144,12 +173,31 @@ class IncomeItemsSection extends StatelessWidget {
     );
   }
 
+  /// Thêm nhanh khoản "Tiền cơm trưa" mẫu — 0đ, chỉ tính sau 13:00 — người dùng tự sửa lại số tiền.
+  void _addLunchPreset() {
+    store.updateSettings(
+      (s) => s.copyWith(
+        incomeItems: [
+          ...s.incomeItems,
+          IncomeItem(
+            id: _uuid.v4(),
+            name: 'Tiền cơm trưa',
+            type: IncomeItemType.income,
+            calcMethod: IncomeCalcMethod.fixed,
+            amount: 0,
+            activeAfter: const Clock(13, 0),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = store.settings.incomeItems;
     return SettingsCard(
       title: 'Khoản thu nhập / khấu trừ khác',
-      subtitle: 'Phụ cấp, thưởng, tạm ứng... cộng/trừ vào tổng thu nhập mỗi kỳ.',
+      subtitle: 'Phụ cấp, thưởng, bảo hiểm... cộng/trừ vào tổng thu nhập mỗi kỳ.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -163,16 +211,40 @@ class IncomeItemsSection extends StatelessWidget {
               ),
               title: Text(item.name),
               subtitle: Text(
-                _calcLabel(item.calcMethod) +
-                    (item.calcMethod == IncomeCalcMethod.manual ? '' : ' · ${fmtMoney(item.amount)}'),
+                '${_calcLabel(item.calcMethod)} · ${item.calcMethod == IncomeCalcMethod.percentOfBaseSalary ? '${fmtN(item.amount)}%' : fmtMoney(item.amount)}'
+                '${item.activeAfter != null ? ' · từ ${item.activeAfter!.formatted}' : ''}',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _openForm(context, editing: item),
             ),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Thêm khoản'),
-            onPressed: () => _openForm(context),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Thêm khoản'),
+                onPressed: () => _openForm(context),
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.lunch_dining_outlined),
+                label: const Text('+ Tiền cơm trưa'),
+                onPressed: _addLunchPreset,
+              ),
+            ],
+          ),
+          const Divider(height: 28),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Cộng thêm vào số tiền ước tính', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+            subtitle: const Text(
+              'Tắt: số ước tính chỉ theo bảng lương/giờ, các khoản trên chỉ để tham khảo.\n'
+              'Bật: cộng/trừ các khoản trên vào cả tổng kỳ lẫn số chạy sống hôm nay.',
+              style: TextStyle(fontSize: 11.5),
+            ),
+            value: store.settings.includeItemsInEstimate,
+            onChanged: (v) => store.updateSettings((s) => s.copyWith(includeItemsInEstimate: v)),
           ),
         ],
       ),

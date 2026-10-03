@@ -1,18 +1,56 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 
+import 'analytics/analytics_service.dart';
 import 'data/store.dart';
+import 'firebase_options.dart';
 import 'gps/gps_scheduler.dart';
+import 'notice/notice.dart';
+import 'share/share_service.dart';
+import 'share/share_state_file.dart';
 import 'theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
+import 'update/update_screen.dart';
+import 'update/update_service.dart';
 import 'widget/widget_sync.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AndroidAlarmManager.initialize();
-  HomeWidget.registerInteractivityCallback(widgetInteractiveCallback);
+  // Thống kê chỉ là phụ trợ, không bao giờ được phép làm app không mở lên được — ví dụ trên web,
+  // việc tải SDK Firebase qua mạng có thể thất bại (chặn quảng cáo/theo dõi, mất mạng...), nên bọc
+  // try/catch, lỗi thì bỏ qua Analytics/Crashlytics, app vẫn chạy bình thường không thống kê.
+  var firebaseReady = false;
+  try {
+    // Có timeout: nếu bị chặn mạng, lệnh này có thể treo mãi không ném lỗi lẫn không trả về —
+    // không giới hạn thời gian thì app sẽ không bao giờ mở lên được trong tình huống đó.
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    ).timeout(const Duration(seconds: 5));
+    firebaseReady = true;
+  } catch (_) {
+    firebaseReady = false;
+  }
+  // Crashlytics chỉ có trên Android/iOS, không có trên web.
+  if (firebaseReady && !kIsWeb) {
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
+  // Bản web không có GPS nền/widget màn hình chính (không phải nền tảng Android) nên bỏ qua.
+  if (!kIsWeb) {
+    await AndroidAlarmManager.initialize();
+    HomeWidget.registerInteractivityCallback(widgetInteractiveCallback);
+  }
   runApp(const ChamCongApp());
 }
 
@@ -25,19 +63,47 @@ class ChamCongApp extends StatefulWidget {
 
 class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
   final store = AppStore();
+  UpdateStatus _updateStatus = UpdateStatus.none;
+  bool _updateBannerDismissed = false;
+
+  StreamSubscription<Uri?>? _widgetClickSub;
+
+  void _checkUpdate() {
+    checkForUpdate().then((status) {
+      if (mounted) setState(() => _updateStatus = status);
+      // Sau khi Remote Config đã tải mới đọc thông báo của chủ app và đồng bộ mã giới thiệu.
+      loadNotice();
+      shareController.sync();
+    });
+  }
+
+  /// Chạm nút "Mở khóa" trên widget (lúc đã hết ngày dùng thử) thì mở app và hiện hộp chia sẻ.
+  void _onWidgetLaunch(Uri? uri) {
+    if (uri?.queryParameters['action'] == 'unlock') shareController.requestLockNotice();
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    store.load().then((_) {
-      rescheduleGpsAlarms(store.settings.gps);
-      refreshWidgetDisplay();
+    store.load().then((_) async {
+      logOncePerDay(eventAppOpen);
+      processPendingAnalyticsEvents();
+      await shareController.load();
+      await recordUsage(usageAppOpens);
+      _checkUpdate();
+      if (!kIsWeb) {
+        rescheduleGpsAlarms(store.settings.gps);
+        refreshWidgetDisplay();
+        HomeWidget.initiallyLaunchedFromHomeWidget().then(_onWidgetLaunch);
+        _widgetClickSub = HomeWidget.widgetClicked.listen(_onWidgetLaunch);
+      }
     });
   }
 
   @override
   void dispose() {
+    _widgetClickSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -47,6 +113,12 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
     // App quay lại foreground: đọc lại file, để thấy các lần chấm mà widget/GPS nền vừa ghi.
     if (state == AppLifecycleState.resumed && store.loaded) {
       store.reloadFromDisk();
+      logOncePerDay(eventAppOpen);
+      processPendingAnalyticsEvents();
+      // Đọc lại số ngày dùng thử mà widget/GPS nền vừa ghi.
+      shareController.load();
+      recordUsage(usageAppOpens);
+      _checkUpdate();
     }
   }
 
@@ -71,7 +143,13 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
             if (!store.loaded) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
-            return const HomeScreen();
+            if (_updateStatus.mandatory) {
+              return MandatoryUpdateScreen(status: _updateStatus);
+            }
+            return HomeScreen(
+              updateStatus: !_updateBannerDismissed ? _updateStatus : UpdateStatus.none,
+              onDismissUpdateBanner: () => setState(() => _updateBannerDismissed = true),
+            );
           },
         ),
       ),

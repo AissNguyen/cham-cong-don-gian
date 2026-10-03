@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup: Biểu đồ giờ theo ngày</title>
+<style>
+  :root {
+    --brand-a: #1CAE8F;
+    --brand-b: #2F7FE0;
+    --late: #F5A623;
+    --ink: #1F2937;
+    --ink2: #6B7280;
+    --line: #E5E7EB;
+    --surface: #FFFFFF;
+    --bg: #F3F5F7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 24px 0;
+  }
+  .phone {
+    width: 390px;
+    max-width: 100%;
+  }
+  .card {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    margin-bottom: 14px;
+  }
+  .title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 2px;
+  }
+  .subtitle {
+    font-size: 12.5px;
+    color: var(--ink2);
+    margin: 0 0 12px;
+  }
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+    font-size: 12px;
+    color: var(--ink2);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; }
+  .swatch.normal { background: var(--brand-a); }
+  .swatch.late { background: var(--late); }
+
+  .chart-wrap {
+    display: flex;
+    position: relative;
+  }
+  .y-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 22px;
+    height: 180px;
+    font-size: 9.5px;
+    color: var(--ink2);
+    text-align: right;
+    padding-right: 4px;
+    flex-shrink: 0;
+  }
+  .plot {
+    position: relative;
+    flex: 1;
+    height: 180px;
+    border-left: 1px solid var(--line);
+  }
+  .gridline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--line);
+  }
+  .gridline.baseline {
+    border-top: 1px dashed #B9C2CC;
+  }
+  .gridline .gl-label {
+    position: absolute;
+    left: 4px;
+    top: -7px;
+    font-size: 9px;
+    color: #9AA3AD;
+    background: var(--surface);
+    padding: 0 2px;
+  }
+  .bars {
+    position: absolute;
+    left: 0; right: 0; bottom: 0; top: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    padding: 0 2px;
+  }
+  .bar-col {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: stretch;
+    cursor: pointer;
+    position: relative;
+  }
+  .bar {
+    width: 100%;
+    border-radius: 2px 2px 0 0;
+    display: flex;
+    flex-direction: column-reverse;
+    overflow: hidden;
+  }
+  .seg-normal { background: var(--brand-a); }
+  .seg-late { background: var(--late); }
+  .bar-col.off .bar { background: var(--line); }
+  .bar-col.today .bar { outline: 1.5px solid var(--brand-b); outline-offset: 0.5px; }
+
+  .x-axis {
+    display: flex;
+    gap: 1.5px;
+    padding: 4px 2px 0 26px;
+  }
+  .x-label {
+    flex: 1;
+    text-align: center;
+    font-size: 8px;
+    color: var(--ink2);
+    min-width: 0;
+  }
+
+  .tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 6px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 6px 9px;
+    border-radius: 8px;
+    white-space: nowrap;
+    display: none;
+    z-index: 5;
+  }
+  .tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--ink);
+  }
+  .bar-col.active .tooltip { display: block; }
+  .tooltip .t-late { color: #FFD27A; }
+
+  .note {
+    font-size: 11.5px;
+    color: var(--ink2);
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="card">
+    <p class="title">Giờ làm theo ngày trong tháng</p>
+    <p class="subtitle">Chạm vào một cột để xem số giờ chính xác ngày đó</p>
+
+    <div class="legend">
+      <div class="legend-item"><span class="swatch normal"></span>Giờ công (tính lương)</div>
+      <div class="legend-item"><span class="swatch late"></span>Khoảng đi muộn (không tính thêm)</div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="y-axis" id="yAxis"></div>
+      <div class="plot">
+        <div id="gridlines"></div>
+        <div class="bars" id="bars"></div>
+      </div>
+    </div>
+    <div class="x-axis" id="xAxis"></div>
+
+    <p class="note">
+      Trục dọc chia nấc 2 giờ (2–14h), mốc 8h có gạch đứt làm mốc ngày công thường.
+      Cột không in số — chạm vào mới hiện số giờ chính xác. Ngày được công ty cho đi muộn,
+      đoạn cam nằm Ở DƯỚI cột = khoảng thời gian đi muộn (không tính lương), phần xanh phía trên
+      mới là giờ công thực nhận. Ví dụ: vào 9h (muộn 2h so với 7h), ra 18h, được 8h công —
+      cột sẽ cao 10h (2 cam + 8 xanh), nhưng lương chỉ tính 8 xanh.
+    </p>
+  </div>
+
+</div>
+
+<script>
+const MAX_H = 14; // trục dọc tối đa, hiển thị nấc 2
+const GRID_STEPS = [2,4,6,8,10,12,14];
+const DAYS_IN_MONTH = 30;
+const TODAY = 12;
+
+// dữ liệu mẫu: ngày -> {paid, late}
+// paid = giờ công thực nhận (tính lương, vẽ ở TRÊN); late = khoảng đi muộn, không tính lương, vẽ Ở DƯỚI.
+// Chiều cao cột = paid + late.
+const sample = {};
+for (let d = 1; d <= DAYS_IN_MONTH; d++) {
+  const isWeekend = (d % 7 === 0 || d % 7 === 6);
+  if (isWeekend && d !== 19) { sample[d] = { paid: 0, late: 0, off: true }; continue; }
+  let paid = 8 + (Math.sin(d * 0.7) * 1.3);
+  paid = Math.max(3.5, Math.round(paid * 2) / 2);
+  sample[d] = { paid, late: 0, off: false };
+}
+// vài ngày tăng ca
+sample[5].paid = 11; sample[14].paid = 12.5; sample[23].paid = 10;
+// vài ngày được phép đi muộn: ví dụ vào 9h (muộn 2h so với 7h), ra 18h -> 8h công, cột cao 10h
+sample[3] = { paid: 8, late: 1, off: false };
+sample[16] = { paid: 8, late: 2, off: false };
+sample[27] = { paid: 7.5, late: 0.5, off: false };
+
+const yAxis = document.getElementById('yAxis');
+const gridlines = document.getElementById('gridlines');
+const bars = document.getElementById('bars');
+const xAxis = document.getElementById('xAxis');
+
+// trục Y (vẽ từ trên xuống nên đảo ngược mảng)
+[...GRID_STEPS].reverse().forEach(v => {
+  const el = document.createElement('div');
+  el.textContent = v;
+  yAxis.appendChild(el);
+});
+
+GRID_STEPS.forEach(v => {
+  const pct = (v / MAX_H) * 100;
+  const line = document.createElement('div');
+  line.className = 'gridline' + (v === 8 ? ' baseline' : '');
+  line.style.bottom = pct + '%';
+  if (v === 8) {
+    const lbl = document.createElement('span');
+    lbl.className = 'gl-label';
+    lbl.textContent = '8h · ngày thường';
+    line.appendChild(lbl);
+  }
+  gridlines.appendChild(line);
+});
+
+for (let d = 1; d <= DAYS_IN_MONTH; d++) {
+  const info = sample[d];
+  const col = document.createElement('div');
+  col.className = 'bar-col' + (info.off ? ' off' : '') + (d === TODAY ? ' today' : '');
+
+  const bar = document.createElement('div');
+  const totalH = info.off ? 0 : (info.paid + info.late);
+  const totalPct = Math.min(totalH / MAX_H, 1) * 100;
+  bar.className = 'bar';
+  bar.style.height = totalPct + '%';
+
+  if (!info.off) {
+    // column-reverse: phần tử thêm vào trước nằm Ở DƯỚI -> thêm late trước, paid sau.
+    if (info.late > 0) {
+      const segLate = document.createElement('div');
+      segLate.className = 'seg-late';
+      segLate.style.height = (info.late / totalH) * 100 + '%';
+      bar.appendChild(segLate);
+    }
+    const segNormal = document.createElement('div');
+    segNormal.className = 'seg-normal';
+    segNormal.style.height = (info.paid / totalH) * 100 + '%';
+    bar.appendChild(segNormal);
+  }
+  col.appendChild(bar);
+
+  const tip = document.createElement('div');
+  tip.className = 'tooltip';
+  tip.innerHTML = info.off
+    ? `Ngày ${d}: nghỉ`
+    : (info.late > 0
+        ? `Ngày ${d}: <b>${info.paid}h công</b> <span class="t-late">(đi muộn ${info.late}h)</span>`
+        : `Ngày ${d}: ${info.paid}h công`);
+  col.appendChild(tip);
+
+  col.addEventListener('click', () => {
+    const wasActive = col.classList.contains('active');
+    document.querySelectorAll('.bar-col.active').forEach(c => c.classList.remove('active'));
+    if (!wasActive) col.classList.add('active');
+  });
+
+  bars.appendChild(col);
+
+  const xl = document.createElement('div');
+  xl.className = 'x-label';
+  xl.textContent = (d % 5 === 0 || d === 1) ? d : '';
+  xAxis.appendChild(xl);
+}
+</script>
+</body>
+</html>

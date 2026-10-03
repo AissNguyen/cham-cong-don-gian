@@ -48,6 +48,8 @@ class DayCalcResult {
     required this.overtimeMinutes,
     required this.lateDeductionMoney,
     required this.pay,
+    this.breakRuleWarning = false,
+    this.breakRuleDeltaMinutes = 0,
   });
 
   final DayType dayType;
@@ -55,6 +57,13 @@ class DayCalcResult {
   final int overtimeMinutes;
   final double lateDeductionMoney;
   final double pay;
+
+  /// true nếu giờ vào/ra không khớp chính xác khung cộng-trừ giờ nào, phải dùng khung cuối
+  /// (dự phòng) để tính tạm — cần cảnh báo người dùng chấm lại cho đúng.
+  final bool breakRuleWarning;
+
+  /// Số phút cộng/trừ đã áp dụng (dù khớp đúng khung hay dùng khung dự phòng), để hiện trong cảnh báo.
+  final int breakRuleDeltaMinutes;
 
   double get normalHours => normalMinutes / 60;
   double get overtimeHours => overtimeMinutes / 60;
@@ -66,6 +75,25 @@ class DayCalcResult {
     lateDeductionMoney: 0,
     pay: 0,
   );
+}
+
+/// Tìm cách cộng-trừ giờ áp dụng cho ca [checkInDt]-[checkOutDt]: khớp khung cố định nào (giờ vào
+/// VÀ giờ ra đều nằm trong khoảng đã cài) thì dùng khung đó; không khung nào khớp thì chuyển qua
+/// tính theo "khung nhiều mục" (cộng dồn các đoạn mà giờ làm có chạm vào), kèm cảnh báo.
+(int deltaMinutes, bool warning) _resolveBreakRule(AppSettings settings, DateTime checkInDt, DateTime checkOutDt) {
+  final checkIn = Clock(checkInDt.hour, checkInDt.minute);
+  final checkOut = Clock(checkOutDt.hour, checkOutDt.minute);
+  for (final r in settings.fixedBreakRules) {
+    if (r.matches(checkIn, checkOut, normalEnd: settings.workEnd)) return (r.deltaMinutes, false);
+  }
+  if (settings.fixedBreakRules.isEmpty && settings.breakSegments.isEmpty) return (0, false);
+
+  var segDelta = 0;
+  for (final seg in settings.breakSegments) {
+    final (sStart, sEnd) = _span(seg.from, seg.to, dateOnly(checkInDt));
+    if (_overlapMinutes(checkInDt, checkOutDt, sStart, sEnd) > 0) segDelta -= seg.breakMinutes;
+  }
+  return (segDelta, true);
 }
 
 DayCalcResult computeDay(DayRecord record, AppSettings settings) {
@@ -81,12 +109,10 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
 
   var normalMinutes = _overlapMinutes(checkIn, checkOut, windowStart, windowEnd);
 
-  // Chỉ một khung khớp giờ vào được áp dụng (không cộng dồn nhiều khung).
-  final checkInClock = Clock(checkIn.hour, checkIn.minute);
-  final matchingRules = settings.breakRules.where((r) => r.matches(checkInClock));
-  if (matchingRules.isNotEmpty) {
-    normalMinutes += matchingRules.first.deltaMinutes;
-  }
+  // Khớp khung cố định (giờ vào & giờ ra đều trong khoảng đã cài) thì dùng khung đó; không khớp
+  // khung nào thì chuyển qua "khung nhiều mục" làm dự phòng, kèm cảnh báo để chấm lại cho đúng.
+  final (breakRuleDelta, breakRuleWarning) = _resolveBreakRule(settings, checkIn, checkOut);
+  normalMinutes += breakRuleDelta;
 
   var lateDeductionMoney = 0.0;
   if (record.isLate) {
@@ -134,6 +160,8 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
     overtimeMinutes: overtimeMinutes,
     lateDeductionMoney: lateDeductionMoney,
     pay: pay,
+    breakRuleWarning: breakRuleWarning,
+    breakRuleDeltaMinutes: breakRuleDelta,
   );
 }
 
@@ -154,11 +182,20 @@ double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
   final normalEnd = now.isBefore(windowEnd) ? now : windowEnd;
   var normalSeconds = normalEnd.isAfter(normalStart) ? normalEnd.difference(normalStart).inSeconds : 0;
 
-  // Đúng 1 khung cộng trừ giờ khớp giờ vào — giống computeDay.
-  final checkInClock = Clock(checkIn.hour, checkIn.minute);
-  final matchingRules = settings.breakRules.where((r) => r.matches(checkInClock));
-  if (matchingRules.isNotEmpty) {
-    normalSeconds += matchingRules.first.deltaMinutes * 60;
+  // Ca đang mở, chưa có giờ ra nên chưa thể biết khớp khung cố định nào — tạm tính theo "khung
+  // nhiều mục" (nếu có) để số chạy mượt; nếu lúc chấm ra khớp đúng khung cố định, số sẽ chốt lại
+  // theo khung đó, có thể nhảy nhẹ đúng lúc đó.
+  // Trừ dần theo tỷ lệ đã đi qua đoạn đó (không trừ nguyên cả đoạn ngay khi vừa chạm vào), để số
+  // không bị kẹp về 0 đứng yên một lúc rồi mới nhảy — khi đã đi hết đoạn, tỷ lệ = 1 nên trừ đủ
+  // nguyên, khớp đúng số chính thức (computeDay) lúc chấm ra.
+  for (final seg in settings.breakSegments) {
+    final (sStart, sEnd) = _span(seg.from, seg.to, dateOnly(record.date));
+    final overlap = _overlapSeconds(checkIn, now, sStart, sEnd);
+    if (overlap <= 0) continue;
+    final segSeconds = sEnd.difference(sStart).inSeconds;
+    if (segSeconds <= 0) continue;
+    final fraction = overlap / segSeconds;
+    normalSeconds -= (seg.breakMinutes * 60 * fraction).round();
   }
 
   var lateDeductionMoney = 0.0;
@@ -199,6 +236,57 @@ double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
   return pay < 0 ? 0 : pay;
 }
 
+/// Phần thu nhập/khấu trừ tự tạo tính cho riêng hôm nay, chạy mượt theo giây — chỉ dùng để cộng
+/// thêm vào số "hôm nay"/số chạy sống trên màn chính (không đụng tới tổng chính thức của cả kỳ,
+/// vốn đã cộng trọn phần của mỗi khoản qua [computePeriodStats]).
+///
+/// Mỗi khoản được chia đều cho [workDayCountInPeriod] ngày công của kỳ để ra "phần của hôm nay",
+/// rồi phần đó chạy dần từ lúc chấm vào (hoặc từ [IncomeItem.activeAfter] nếu khoản có mốc giờ,
+/// ví dụ tiền cơm trưa chỉ tính từ 13:00) tới giờ ra chuẩn — chạm mốc giờ ra là nhận đủ, không chờ
+/// qua kỳ mới thấy.
+double liveItemsEstimate(DayRecord record, AppSettings settings, DateTime now, int workDayCountInPeriod) {
+  if (!settings.includeItemsInEstimate) return 0;
+  if (record.isDayOff || record.checkIn == null || workDayCountInPeriod <= 0) return 0;
+
+  final (windowStart, windowEnd) = _span(settings.workStart, settings.workEnd, dateOnly(record.date));
+  final checkIn = record.checkIn!;
+  final shiftStart = checkIn.isBefore(windowStart) ? windowStart : checkIn;
+  if (!windowEnd.isAfter(shiftStart)) return 0;
+  final nowCapped = record.checkOut ?? now;
+
+  var total = 0.0;
+  for (final item in settings.incomeItems) {
+    final sign = item.type == IncomeItemType.income ? 1 : -1;
+    double periodAmount;
+    switch (item.calcMethod) {
+      case IncomeCalcMethod.fixed:
+        periodAmount = item.amount;
+      case IncomeCalcMethod.perWorkDay:
+        periodAmount = item.amount * workDayCountInPeriod;
+      case IncomeCalcMethod.percentOfBaseSalary:
+        periodAmount = settings.baseSalary * (item.amount / 100);
+    }
+    final dailyShare = periodAmount / workDayCountInPeriod;
+
+    var itemStart = shiftStart;
+    if (item.activeAfter != null) {
+      final gate = _anchor(item.activeAfter!, dateOnly(record.date));
+      if (gate.isAfter(itemStart)) itemStart = gate;
+    }
+    // Mẫu số là khoảng hoạt động CỦA RIÊNG khoản này (không phải cả ca) — để khoản có mốc giờ
+    // (vd tiền cơm sau 13h) vẫn nhận đủ phần của ngày đúng lúc tới giờ ra chuẩn, không bị "ăn non"
+    // vì mốc giờ bắt đầu muộn hơn đầu ca.
+    final itemWindowSeconds = windowEnd.difference(itemStart).inSeconds;
+    if (itemWindowSeconds <= 0) continue;
+    var itemEnd = nowCapped.isBefore(itemStart) ? itemStart : nowCapped;
+    if (itemEnd.isAfter(windowEnd)) itemEnd = windowEnd;
+    final elapsed = itemEnd.difference(itemStart).inSeconds;
+    final fraction = (elapsed <= 0 ? 0.0 : elapsed / itemWindowSeconds).clamp(0.0, 1.0);
+    total += sign * dailyShare * fraction;
+  }
+  return total;
+}
+
 class PeriodStats {
   const PeriodStats({
     required this.period,
@@ -226,13 +314,7 @@ class PeriodStats {
 }
 
 /// [recordsInPeriod] chỉ cần chứa các bản ghi có trong khoảng [period]; ngày không có bản ghi coi như chưa chấm.
-/// [manualItemAmount] trả về số tiền đã nhập tay cho khoản có calcMethod = manual trong kỳ này (null nếu chưa nhập).
-PeriodStats computePeriodStats(
-  PayPeriod period,
-  Iterable<DayRecord> recordsInPeriod,
-  AppSettings settings, {
-  double? Function(IncomeItem item)? manualItemAmount,
-}) {
+PeriodStats computePeriodStats(PayPeriod period, Iterable<DayRecord> recordsInPeriod, AppSettings settings) {
   var normalMinutes = 0;
   var overtimeMinutes = 0;
   var daysOff = 0;
@@ -253,19 +335,23 @@ PeriodStats computePeriodStats(
     attendanceIncome += result.pay;
   }
 
+  // Khoản thu nhập/khấu trừ tự tạo chỉ cộng vào số ước tính khi người dùng bật "cộng thêm thu
+  // nhập/khấu trừ" trong Cài đặt — tắt thì các khoản này chỉ để tham khảo.
   var itemsIncome = 0.0;
-  for (final item in settings.incomeItems) {
-    final sign = item.type == IncomeItemType.income ? 1 : -1;
-    double amount;
-    switch (item.calcMethod) {
-      case IncomeCalcMethod.fixed:
-        amount = item.amount;
-      case IncomeCalcMethod.perWorkDay:
-        amount = item.amount * workDayCount;
-      case IncomeCalcMethod.manual:
-        amount = manualItemAmount?.call(item) ?? 0;
+  if (settings.includeItemsInEstimate) {
+    for (final item in settings.incomeItems) {
+      final sign = item.type == IncomeItemType.income ? 1 : -1;
+      double amount;
+      switch (item.calcMethod) {
+        case IncomeCalcMethod.fixed:
+          amount = item.amount;
+        case IncomeCalcMethod.perWorkDay:
+          amount = item.amount * workDayCount;
+        case IncomeCalcMethod.percentOfBaseSalary:
+          amount = settings.baseSalary * (item.amount / 100);
+      }
+      itemsIncome += sign * amount;
     }
-    itemsIncome += sign * amount;
   }
 
   return PeriodStats(

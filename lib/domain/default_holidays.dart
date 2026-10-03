@@ -25,3 +25,44 @@ List<Holiday> defaultVietnameseHolidays(Iterable<int> years) {
   result.sort((a, b) => a.date.compareTo(b.date));
   return result;
 }
+
+/// Bù thêm ngày lễ mặc định còn thiếu vào [existing] — để dữ liệu cũ (từ trước khi có tính năng
+/// gợi ý sẵn, hoặc đã lâu chưa mở app qua năm mới) cũng tự được phủ đủ mà không cần đợi "lần đầu
+/// mở app". So khớp theo đúng ngày (không phải theo năm) — ngày nào đã có sẵn (kể cả tự thêm tay,
+/// hoặc tên khác) thì bỏ qua, không cộng dồn trùng ngày.
+///
+/// Ngày lễ tự thêm có đánh dấu lặp hằng năm ([HolidayRecurrence.solarYearly]/[lunarYearly]) cũng
+/// được tự sinh thêm cho các năm còn thiếu trong [years] — bản sinh ra luôn là [HolidayRecurrence.once]
+/// (chỉ bản gốc do người dùng tự thêm mới tiếp tục sinh thêm năm sau; xóa một năm cụ thể không bị
+/// "mọc lại" do năm khác, xóa bản gốc thì ngừng sinh thêm nhưng các năm đã sinh trước đó vẫn giữ).
+List<Holiday> backfillMissingYears(List<Holiday> existing, Iterable<int> years) {
+  final existingDates = existing.map((h) => DateTime(h.date.year, h.date.month, h.date.day)).toSet();
+  final yearsList = years.toList();
+
+  final missingDefaults = defaultVietnameseHolidays(
+    yearsList,
+  ).where((h) => !existingDates.contains(DateTime(h.date.year, h.date.month, h.date.day)));
+
+  final generated = <Holiday>[];
+  for (final h in existing) {
+    if (h.recurrence == HolidayRecurrence.once) continue;
+    for (final y in yearsList) {
+      if (y == h.date.year) continue;
+      DateTime? newDate;
+      if (h.recurrence == HolidayRecurrence.solarYearly) {
+        newDate = DateTime(y, h.date.month, h.date.day);
+      } else {
+        final origin = lunar.solarToLunar(h.date.day, h.date.month, h.date.year);
+        newDate = lunar.lunarToSolar(origin.day, origin.month, y, leap: origin.leap);
+      }
+      if (newDate == null) continue;
+      final key = DateTime(newDate.year, newDate.month, newDate.day);
+      if (!existingDates.add(key)) continue;
+      generated.add(Holiday(date: newDate, name: h.name));
+    }
+  }
+
+  final missing = [...missingDefaults, ...generated];
+  if (missing.isEmpty) return existing;
+  return [...existing, ...missing]..sort((a, b) => a.date.compareTo(b.date));
+}

@@ -6,6 +6,7 @@ import '../../data/store.dart';
 import '../../domain/models.dart';
 import '../../gps/gps_scheduler.dart';
 import 'settings_card.dart';
+import 'share_section.dart';
 
 TimeOfDay _toTod(Clock c) => TimeOfDay(hour: c.hour, minute: c.minute);
 Clock _toClock(TimeOfDay t) => Clock(t.hour, t.minute);
@@ -21,24 +22,23 @@ class GpsSection extends StatelessWidget {
     await rescheduleGpsAlarms(store.settings.gps);
   }
 
-  Future<void> _openWindowForm(BuildContext context, {required bool isCheckIn, TimeWindow? editing}) async {
-    var from = editing?.from ?? (isCheckIn ? const Clock(6, 50) : const Clock(16, 0));
-    var to = editing?.to ?? (isCheckIn ? const Clock(7, 0) : const Clock(16, 15));
-
-    List<TimeWindow> currentList(GpsConfig gps) => isCheckIn ? gps.checkInWindows : gps.checkOutWindows;
-    GpsConfig applyList(GpsConfig gps, List<TimeWindow> list) =>
-        isCheckIn ? gps.copyWith(checkInWindows: list) : gps.copyWith(checkOutWindows: list);
+  Future<void> _openWindowForm(BuildContext context, {TimeWindow? editing}) async {
+    var from = editing?.from ?? const Clock(6, 50);
+    var to = editing?.to ?? const Clock(7, 0);
 
     await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text(isCheckIn ? 'Khung giờ chấm vào' : 'Khung giờ chấm ra'),
+          title: const Text('Khung giờ bật GPS'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Dùng cho khung đúng giờ, hoặc thêm khung dự phòng cho người được phép đi muộn hơn.'),
+              const Text(
+                'Máy chỉ kiểm tra vị trí trong các khung này. Lần xác nhận đầu tiên trong ngày tính '
+                'là chấm vào, lần tiếp theo tính là chấm ra — không cần khai riêng khung nào là vào/ra.',
+              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -53,7 +53,7 @@ class GpsSection extends StatelessWidget {
             if (editing != null)
               TextButton(
                 onPressed: () {
-                  _updateGps((gps) => applyList(gps, currentList(gps).where((w) => w != editing).toList()));
+                  _updateGps((gps) => gps.copyWith(activeWindows: gps.activeWindows.where((w) => w != editing).toList()));
                   Navigator.pop(context);
                 },
                 child: const Text('Xóa'),
@@ -63,14 +63,14 @@ class GpsSection extends StatelessWidget {
               onPressed: () {
                 final window = TimeWindow(from: from, to: to);
                 _updateGps((gps) {
-                  final list = [...currentList(gps)];
+                  final list = [...gps.activeWindows];
                   if (editing != null) {
                     final i = list.indexOf(editing);
                     if (i >= 0) list[i] = window;
                   } else {
                     list.add(window);
                   }
-                  return applyList(gps, list);
+                  return gps.copyWith(activeWindows: list);
                 });
                 Navigator.pop(context);
               },
@@ -82,26 +82,23 @@ class GpsSection extends StatelessWidget {
     );
   }
 
-  Widget _windowList(BuildContext context, {required bool isCheckIn, required List<TimeWindow> windows}) {
+  Widget _windowList(BuildContext context, {required List<TimeWindow> windows}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          isCheckIn ? 'Khung giờ kiểm tra chấm vào' : 'Khung giờ kiểm tra chấm ra',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
+        const Text('Khung giờ bật GPS', style: TextStyle(fontWeight: FontWeight.w600)),
         for (final w in windows)
           ListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,
             title: Text('${w.from.formatted}–${w.to.formatted}'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openWindowForm(context, isCheckIn: isCheckIn, editing: w),
+            onTap: () => _openWindowForm(context, editing: w),
           ),
         OutlinedButton.icon(
           icon: const Icon(Icons.add),
-          label: Text(isCheckIn ? 'Thêm khung chấm vào' : 'Thêm khung chấm ra'),
-          onPressed: () => _openWindowForm(context, isCheckIn: isCheckIn),
+          label: const Text('Thêm khung giờ'),
+          onPressed: () => _openWindowForm(context),
         ),
       ],
     );
@@ -169,6 +166,7 @@ class GpsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const AutoLockNotice(),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Bật chấm công GPS'),
@@ -198,20 +196,36 @@ class GpsSection extends StatelessWidget {
             TextFormField(
               initialValue: gps.radiusMeters.round().toString(),
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Bán kính (mét)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Bán kính coi là "đang ở đó" (mét)',
+                border: OutlineInputBorder(),
+              ),
               onChanged: (v) {
                 final r = double.tryParse(v.replaceAll(RegExp(r'[^0-9]'), '')) ?? gps.radiusMeters;
                 _updateGps((gps) => gps.copyWith(radiusMeters: r));
               },
             ),
             const SizedBox(height: 12),
-            _windowList(context, isCheckIn: true, windows: gps.checkInWindows),
+            TextFormField(
+              initialValue: gps.departRadiusMeters.round().toString(),
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Cách bao xa (mét) mới coi là đã rời đi hẳn — dùng xác nhận chấm ra',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) {
+                final r = double.tryParse(v.replaceAll(RegExp(r'[^0-9]'), '')) ?? gps.departRadiusMeters;
+                _updateGps((gps) => gps.copyWith(departRadiusMeters: r));
+              },
+            ),
             const SizedBox(height: 12),
-            _windowList(context, isCheckIn: false, windows: gps.checkOutWindows),
+            _windowList(context, windows: gps.activeWindows),
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Trong khung chấm ra, máy chỉ tự chấm nếu hôm đó đã có chấm vào rồi. Lúc kiểm tra, máy hiện một thông báo nhỏ, tự tắt khi hết khung giờ.',
+                'Lần đầu vào bán kính trong khung giờ là chấm ngay (chấm vào nếu chưa có giờ vào hôm '
+                'nay, chấm ra nếu đã có). Sau khi chấm vào, máy theo dõi tiếp tới khi thấy cách xa hẳn '
+                'mới xác nhận chấm ra, tránh chấm nhầm lúc đang di chuyển gần đó.',
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),

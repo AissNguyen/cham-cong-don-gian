@@ -1,5 +1,6 @@
 import 'package:cham_cong_don_gian/domain/calc.dart';
 import 'package:cham_cong_don_gian/domain/models.dart';
+import 'package:cham_cong_don_gian/domain/pay_period.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 AppSettings baseSettings() {
@@ -159,9 +160,17 @@ void main() {
     expect(result.pay, closeTo(9 * 90000, 0.01));
   });
 
-  test('cộng trừ giờ theo giờ vào (giải lao)', () {
+  test('khung cố định: giờ vào/ra đúng 1 điểm (từ = đến) -> khớp, không cảnh báo', () {
     final settings = baseSettings().copyWith(
-      breakRules: [const BreakRule(from: Clock(7, 0), to: Clock(8, 59), deltaMinutes: -15)],
+      fixedBreakRules: [
+        const FixedBreakRule(
+          checkInFrom: Clock(7, 0),
+          checkInTo: Clock(7, 0),
+          checkOutFrom: Clock(16, 0),
+          checkOutTo: Clock(16, 0),
+          deltaMinutes: -15,
+        ),
+      ],
     );
     final record = DayRecord(
       date: DateTime(2026, 9, 21),
@@ -170,6 +179,85 @@ void main() {
     );
     final result = computeDay(record, settings);
     expect(result.normalMinutes, 9 * 60 - 15);
+    expect(result.breakRuleWarning, false);
+    expect(result.breakRuleDeltaMinutes, -15);
+  });
+
+  test('khung cố định: giờ vào/ra nằm trong khoảng (không cần trùng chính xác) -> vẫn khớp', () {
+    final settings = baseSettings().copyWith(
+      fixedBreakRules: [
+        const FixedBreakRule(
+          checkInFrom: Clock(7, 0),
+          checkInTo: Clock(8, 0),
+          checkOutFrom: Clock(11, 0),
+          checkOutTo: Clock(12, 0),
+          deltaMinutes: -15,
+        ),
+      ],
+    );
+    final record = DayRecord(
+      date: DateTime(2026, 9, 21),
+      checkIn: DateTime(2026, 9, 21, 7, 30), // trong khoảng 7:00-8:00
+      checkOut: DateTime(2026, 9, 21, 11, 45), // trong khoảng 11:00-12:00
+    );
+    final result = computeDay(record, settings);
+    // 7:30-11:45 trong khung chuẩn (7:00-16:00) = 4h15, trừ 15p.
+    expect(result.normalMinutes, 4 * 60 + 15 - 15);
+    expect(result.breakRuleWarning, false);
+  });
+
+  test('không khung cố định nào khớp -> chuyển qua khung nhiều mục, cộng dồn các đoạn có chạm vào, kèm cảnh báo', () {
+    final settings = baseSettings().copyWith(
+      fixedBreakRules: [
+        const FixedBreakRule(
+          checkInFrom: Clock(9, 0),
+          checkInTo: Clock(9, 0),
+          checkOutFrom: Clock(16, 0),
+          checkOutTo: Clock(16, 0),
+          deltaMinutes: -30,
+        ),
+      ],
+      breakSegments: [
+        const BreakSegment(from: Clock(7, 0), to: Clock(12, 0), breakMinutes: 15),
+        const BreakSegment(from: Clock(12, 0), to: Clock(16, 0), breakMinutes: 30),
+      ],
+    );
+    final record = DayRecord(
+      date: DateTime(2026, 9, 21),
+      checkIn: DateTime(2026, 9, 21, 7, 0), // không khớp khung cố định (cần đúng 9:00)
+      checkOut: DateTime(2026, 9, 21, 16, 0),
+    );
+    final result = computeDay(record, settings);
+    // Chạm cả 2 đoạn của khung nhiều mục -> trừ 15 + 30 = 45p.
+    expect(result.breakRuleWarning, true);
+    expect(result.breakRuleDeltaMinutes, -45);
+    expect(result.normalMinutes, 9 * 60 - 45);
+  });
+
+  test('giờ ra muộn hơn giờ ra chuẩn (tăng ca) vẫn coi là khớp khung cố định, không rơi xuống dự phòng', () {
+    final settings = baseSettings().copyWith(
+      fixedBreakRules: [
+        const FixedBreakRule(
+          checkInFrom: Clock(9, 0),
+          checkInTo: Clock(9, 0),
+          checkOutFrom: Clock(16, 0), // trùng đúng giờ ra chuẩn (workEnd) -> hiểu là "từ đó trở lên"
+          checkOutTo: Clock(16, 0),
+          deltaMinutes: -30,
+        ),
+      ],
+      overtimeBrackets: [const OvertimeBracket(from: Clock(16, 0), to: Clock(20, 0), breakMinutes: 0)],
+    );
+    final record = DayRecord(
+      date: DateTime(2026, 9, 21),
+      checkIn: DateTime(2026, 9, 21, 9, 0),
+      checkOut: DateTime(2026, 9, 21, 19, 0), // ra muộn hơn 16:00 vì tăng ca
+    );
+    final result = computeDay(record, settings);
+    expect(result.breakRuleWarning, false);
+    expect(result.breakRuleDeltaMinutes, -30);
+    // 9:00-16:00 trong khung chuẩn = 7h, trừ 30p.
+    expect(result.normalMinutes, 7 * 60 - 30);
+    expect(result.overtimeMinutes, 3 * 60); // 16:00-19:00
   });
 
   group('liveEstimatedPay', () {
@@ -212,7 +300,18 @@ void main() {
 
     test('có cộng trừ giờ và đi muộn -> số lúc đang chạy khớp số chính thức ngay khi chấm ra (không tụt đột ngột)', () {
       final settings = baseSettings().copyWith(
-        breakRules: [const BreakRule(from: Clock(7, 0), to: Clock(8, 59), deltaMinutes: -15)],
+        // Ca đang mở chưa biết giờ ra nên số chạy tạm theo "khung nhiều mục" — cấu hình đoạn này
+        // trùng khớp với khung cố định (cùng tổng trừ 15p cho cả ca) để số không nhảy lúc chấm ra.
+        fixedBreakRules: [
+          const FixedBreakRule(
+            checkInFrom: Clock(7, 0),
+            checkInTo: Clock(7, 0),
+            checkOutFrom: Clock(16, 0),
+            checkOutTo: Clock(16, 0),
+            deltaMinutes: -15,
+          ),
+        ],
+        breakSegments: [const BreakSegment(from: Clock(7, 0), to: Clock(16, 0), breakMinutes: 15)],
         lateRule: const LateRule(after: Clock(7, 0), unit: LateUnit.minutes, amount: 30),
       );
       final checkIn = DateTime(2026, 9, 21, 7, 0);
@@ -226,6 +325,22 @@ void main() {
       expect(liveJustBefore, closeTo(official, 0.01));
     });
 
+    test('ca đang mở -> tạm cộng dồn theo khung nhiều mục, trừ dần theo tỷ lệ (không đứng yên chờ đủ)', () {
+      final settings = baseSettings().copyWith(
+        breakSegments: [const BreakSegment(from: Clock(7, 0), to: Clock(9, 0), breakMinutes: 15)],
+      );
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      // Vừa chấm vào 2 phút: đã đi 2/120 phút của đoạn 7:00-9:00 -> trừ 2/120*15 = 0.25p, số vẫn
+      // phải chạy dương ngay, không kẹp về 0 chờ đủ 15 phút rồi mới nhảy lên.
+      final at7h2m = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 7, 2));
+      expect(at7h2m, greaterThan(0));
+
+      // Đi hết nguyên đoạn (tới 9:00) thì phải trừ đủ nguyên 15p, khớp cách tính cũ/chính thức.
+      final at9h = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 9, 0));
+      // 2h trong khung - 15p = 1h45p, lương 30.000đ/giờ = 52.500đ.
+      expect(at9h, closeTo(52500, 1));
+    });
+
     test('còn mở ca sau khi qua hết mọi khung tăng ca đã cài -> vẫn tăng tiếp, không đứng yên', () {
       final settings = baseSettings().copyWith(
         overtimeBrackets: [const OvertimeBracket(from: Clock(18, 0), to: Clock(19, 0), breakMinutes: 0)],
@@ -234,6 +349,95 @@ void main() {
       final at2000 = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 20, 0));
       final at2010 = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 20, 10));
       expect(at2010, greaterThan(at2000));
+    });
+  });
+
+  group('computePeriodStats khoản thu nhập/khấu trừ', () {
+    test('% lương cơ bản -> tính theo baseSalary, chỉ cộng khi bật includeItemsInEstimate', () {
+      final settings = baseSettings().copyWith(
+        baseSalary: 3000000,
+        incomeItems: [
+          const IncomeItem(
+            id: '1',
+            name: 'Bảo hiểm',
+            type: IncomeItemType.deduction,
+            calcMethod: IncomeCalcMethod.percentOfBaseSalary,
+            amount: 10,
+          ),
+        ],
+      );
+      final period = PayPeriod(DateTime(2026, 9, 1), DateTime(2026, 9, 30));
+
+      final off = computePeriodStats(period, const [], settings);
+      expect(off.itemsIncome, 0);
+
+      final on = computePeriodStats(period, const [], settings.copyWith(includeItemsInEstimate: true));
+      expect(on.itemsIncome, -300000);
+    });
+  });
+
+  group('liveItemsEstimate', () {
+    test('tắt includeItemsInEstimate -> luôn 0', () {
+      final settings = baseSettings().copyWith(
+        incomeItems: [const IncomeItem(id: '1', name: 'Phụ cấp', amount: 900000)],
+      );
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      expect(liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 12, 0), 20), 0);
+    });
+
+    test('khoản cố định chia đều theo ngày công, chạy dần trong ca và nhận đủ lúc hết ca', () {
+      final settings = baseSettings().copyWith(
+        includeItemsInEstimate: true,
+        incomeItems: [const IncomeItem(id: '1', name: 'Phụ cấp', amount: 900000)],
+      );
+      // Kỳ có 20 ngày công -> phần của hôm nay = 900.000/20 = 45.000. Ca chuẩn 7:00-16:00 = 9 giờ.
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      final half = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 11, 30), 20);
+      expect(half, closeTo(22500, 1));
+      final atEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 16, 0), 20);
+      expect(atEnd, closeTo(45000, 1));
+      final afterEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 20, 0), 20);
+      expect(afterEnd, closeTo(45000, 1)); // không chạy quá phần của ngày dù còn đang tăng ca
+    });
+
+    test('khoản có mốc giờ (vd tiền cơm trưa sau 13h) -> trước mốc chưa tính, nhận đủ lúc hết ca', () {
+      final settings = baseSettings().copyWith(
+        includeItemsInEstimate: true,
+        incomeItems: [
+          const IncomeItem(id: '1', name: 'Tiền cơm trưa', amount: 450000, activeAfter: Clock(13, 0)),
+        ],
+      );
+      // Kỳ 15 ngày công -> phần/ngày = 30.000.
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      expect(liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 12, 0), 15), 0); // chưa tới 13h
+      expect(liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 13, 0), 15), 0); // vừa chạm mốc
+
+      final mid = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 14, 30), 15);
+      expect(mid, greaterThan(0));
+      expect(mid, lessThan(30000));
+
+      final atEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 16, 0), 15);
+      expect(atEnd, closeTo(30000, 1)); // hết ca là nhận đủ, không bị "ăn non" vì mốc giờ bắt đầu muộn
+    });
+
+    test('khoản khấu trừ -> trả về số âm', () {
+      final settings = baseSettings().copyWith(
+        includeItemsInEstimate: true,
+        baseSalary: 3000000,
+        incomeItems: [
+          const IncomeItem(
+            id: '1',
+            name: 'Bảo hiểm',
+            type: IncomeItemType.deduction,
+            calcMethod: IncomeCalcMethod.percentOfBaseSalary,
+            amount: 10,
+          ),
+        ],
+      );
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      // 3.000.000*10% = 300.000 / 20 ngày = 15.000/ngày, hết ca thì đủ -15.000.
+      final atEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 16, 0), 20);
+      expect(atEnd, closeTo(-15000, 1));
     });
   });
 }

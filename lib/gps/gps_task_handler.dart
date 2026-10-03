@@ -5,8 +5,10 @@ library;
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../analytics/analytics_service.dart' show eventGpsUsed;
 import '../data/data_file.dart';
 import '../domain/gps_engine.dart';
+import '../share/share_state_file.dart';
 import '../widget/widget_sync.dart';
 import 'gps_notify.dart';
 
@@ -33,7 +35,7 @@ class GpsTaskHandler extends TaskHandler {
       var now = DateTime.now();
       final record = recordFromJson(json, now);
 
-      if (!hasWindowLeftToday(settings: settings, todayRecord: record, now: now)) {
+      if (!hasWindowLeftToday(settings: settings, todayRecord: record, now: now) || !await autoFeatureAllowed()) {
         await FlutterForegroundTask.stopService();
         return;
       }
@@ -42,7 +44,7 @@ class GpsTaskHandler extends TaskHandler {
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 25)),
       );
       now = DateTime.now();
-      final action = decideGpsAction(
+      final decision = decideGpsAction(
         settings: settings,
         todayRecord: record,
         now: now,
@@ -50,16 +52,25 @@ class GpsTaskHandler extends TaskHandler {
         currentLng: position.longitude,
       );
 
-      if (action == GpsAction.none) return;
+      if (decision.action == GpsAction.none) {
+        // Vẫn đang trong khoảng chưa rời hẳn -> chỉ cập nhật mốc "lần cuối còn gần đó", chưa chấm.
+        if (decision.lastSeenNearby != null) {
+          final updated = record.copyWith(gpsLastSeenNearby: decision.lastSeenNearby);
+          await writeDataJson(putRecordJson(json, updated));
+        }
+        return;
+      }
 
-      final updated = action == GpsAction.checkIn
-          ? record.copyWith(checkIn: now, isDayOff: false)
-          : record.copyWith(checkOut: now);
-      await writeDataJson(putRecordJson(json, updated));
+      final updated = decision.action == GpsAction.checkIn
+          ? record.copyWith(checkIn: decision.time, isDayOff: false)
+          : record.copyWith(checkOut: decision.time, clearGpsLastSeenNearby: true);
+      await writeDataJson(markPendingAnalyticsEvent(putRecordJson(json, updated), eventGpsUsed));
+      await recordAutoUse();
+      await recordUsage(usageGpsUses);
       await refreshWidgetDisplay();
       await showGpsPunchNotification(
-        isCheckIn: action == GpsAction.checkIn,
-        time: now,
+        isCheckIn: decision.action == GpsAction.checkIn,
+        time: decision.time!,
         soundEnabled: settings.gps.soundEnabled,
       );
 
