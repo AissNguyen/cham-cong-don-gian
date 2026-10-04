@@ -30,6 +30,20 @@ DateTime roundToHalfHour(DateTime t) {
   return dayOverflow > 0 ? base.add(Duration(days: dayOverflow)) : base;
 }
 
+/// Địa điểm khác mà điện thoại đang ở trong bán kính; ở trong nhiều địa điểm thì lấy cái gần nhất.
+GpsPlace? _extraPlaceAt(GpsConfig gps, double lat, double lng) {
+  GpsPlace? best;
+  double? bestDist;
+  for (final p in gps.extraPlaces) {
+    final d = distanceMeters(lat, lng, p.latitude, p.longitude);
+    if (d <= p.radiusMeters && (bestDist == null || d < bestDist)) {
+      best = p;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
 enum GpsAction { none, checkIn, checkOut }
 
 /// Kết quả 1 lượt quyết định: hành động cần ghi (nếu có, giờ đã làm tròn) và mốc "lần cuối còn
@@ -50,6 +64,8 @@ class GpsDecision {
 /// là chắc chắn đã rời đi, lúc đó chấm ra bằng giờ lần quét gần nhất còn chưa rời xa (không phải
 /// giờ hiện tại) — còn trong khoảng ≤ departRadiusMeters (dù trong hay ngoài bán kính chính) thì
 /// coi là vẫn đang ở/làm gần đó, chưa chấm ra, chỉ cập nhật lại mốc "lần cuối còn gần đó".
+/// Riêng khi đang ở một [GpsConfig.extraPlaces] thì địa điểm đó quyết định: "chấm về" thì chấm ra
+/// ngay, "không chấm về" thì coi như vẫn đang làm. Chấm vào không bị địa điểm khác ảnh hưởng.
 GpsDecision decideGpsAction({
   required AppSettings settings,
   required DayRecord todayRecord,
@@ -74,6 +90,15 @@ GpsDecision decideGpsAction({
   }
 
   if (todayRecord.checkOut == null) {
+    // Đang ở một địa điểm khác (nhà trọ, xưởng xa...) thì địa điểm đó quyết định, bỏ qua vòng
+    // "rời đi hẳn" của điểm chính.
+    final place = _extraPlaceAt(gps, currentLat, currentLng);
+    if (place != null && place.checkOut) {
+      final base = todayRecord.gpsLastSeenNearby ?? now;
+      return GpsDecision(action: GpsAction.checkOut, time: roundToHalfHour(base));
+    }
+    if (place != null) return GpsDecision(lastSeenNearby: now);
+
     if (dist > gps.departRadiusMeters) {
       final base = todayRecord.gpsLastSeenNearby ?? now;
       return GpsDecision(action: GpsAction.checkOut, time: roundToHalfHour(base));
