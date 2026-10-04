@@ -11,6 +11,8 @@ import 'share_section.dart';
 TimeOfDay _toTod(Clock c) => TimeOfDay(hour: c.hour, minute: c.minute);
 Clock _toClock(TimeOfDay t) => Clock(t.hour, t.minute);
 
+const _maxExtraPlaces = 10;
+
 /// Chấm công tự động bằng GPS: vị trí, bán kính, khung giờ kiểm tra chấm vào/ra riêng, tần suất.
 class GpsSection extends StatelessWidget {
   const GpsSection({super.key, required this.store});
@@ -104,7 +106,8 @@ class GpsSection extends StatelessWidget {
     );
   }
 
-  Future<void> _pickCurrentLocation(BuildContext context) async {
+  /// Lấy tọa độ hiện tại (xin quyền nếu cần); lỗi thì báo lên màn hình và trả về null.
+  Future<Position?> _currentPosition(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       var permission = await Geolocator.checkPermission();
@@ -113,17 +116,169 @@ class GpsSection extends StatelessWidget {
       }
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
         messenger.showSnackBar(const SnackBar(content: Text('Chưa cấp quyền vị trí.')));
-        return;
+        return null;
       }
       if (!await Geolocator.isLocationServiceEnabled()) {
         messenger.showSnackBar(const SnackBar(content: Text('Hãy bật định vị (GPS) trên máy.')));
-        return;
+        return null;
       }
-      final pos = await Geolocator.getCurrentPosition();
-      await _updateGps((gps) => gps.copyWith(latitude: pos.latitude, longitude: pos.longitude));
+      return await Geolocator.getCurrentPosition();
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Không lấy được vị trí: $e')));
+      return null;
     }
+  }
+
+  Future<void> _pickCurrentLocation(BuildContext context) async {
+    final pos = await _currentPosition(context);
+    if (pos == null) return;
+    await _updateGps((gps) => gps.copyWith(latitude: pos.latitude, longitude: pos.longitude));
+  }
+
+  Future<void> _openPlaceForm(BuildContext context, {int? editingIndex}) async {
+    final editing = editingIndex != null ? store.settings.gps.extraPlaces[editingIndex] : null;
+    final nameCtrl = TextEditingController(text: editing?.name ?? '');
+    final radiusCtrl = TextEditingController(text: (editing?.radiusMeters ?? 50).round().toString());
+    var lat = editing?.latitude;
+    var lng = editing?.longitude;
+    var checkOut = editing?.checkOut ?? true;
+    var loading = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) => AlertDialog(
+          title: const Text('Địa điểm khác'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Tên (vd: Nhà trọ, Xưởng B)', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  lat != null ? 'Vị trí: ${lat!.toStringAsFixed(5)}, ${lng!.toStringAsFixed(5)}' : 'Chưa có vị trí',
+                  style: TextStyle(color: Theme.of(dialogContext).colorScheme.onSurfaceVariant, fontSize: 12.5),
+                ),
+                const SizedBox(height: 6),
+                OutlinedButton.icon(
+                  icon: loading
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location),
+                  label: const Text('Lấy vị trí hiện tại'),
+                  onPressed: loading
+                      ? null
+                      : () async {
+                          setState(() => loading = true);
+                          final pos = await _currentPosition(context);
+                          if (!dialogContext.mounted) return;
+                          setState(() {
+                            loading = false;
+                            if (pos != null) {
+                              lat = pos.latitude;
+                              lng = pos.longitude;
+                            }
+                          });
+                        },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: radiusCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Bán kính (mét)', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('Chấm về')),
+                    ButtonSegment(value: false, label: Text('Không chấm về')),
+                  ],
+                  selected: {checkOut},
+                  onSelectionChanged: (v) => setState(() => checkOut = v.first),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  checkOut
+                      ? 'Đã chấm vào mà tới đây thì chấm ra ngay (vd: nhà trọ sát công ty).'
+                      : 'Ở đây thì không chấm ra dù đã xa điểm chấm công (vd: xưởng ở xa máy chấm công).',
+                  style: TextStyle(fontSize: 12, color: Theme.of(dialogContext).colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (editingIndex != null)
+              TextButton(
+                onPressed: () {
+                  _updateGps((gps) => gps.copyWith(extraPlaces: [...gps.extraPlaces]..removeAt(editingIndex)));
+                  Navigator.pop(dialogContext);
+                },
+                child: const Text('Xóa'),
+              ),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
+            FilledButton(
+              onPressed: lat == null
+                  ? null
+                  : () {
+                      final radius = double.tryParse(radiusCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 50;
+                      final place = GpsPlace(
+                        name: nameCtrl.text.trim(),
+                        latitude: lat!,
+                        longitude: lng!,
+                        radiusMeters: radius,
+                        checkOut: checkOut,
+                      );
+                      _updateGps((gps) {
+                        final list = [...gps.extraPlaces];
+                        if (editingIndex != null) {
+                          list[editingIndex] = place;
+                        } else {
+                          list.add(place);
+                        }
+                        return gps.copyWith(extraPlaces: list);
+                      });
+                      Navigator.pop(dialogContext);
+                    },
+              child: const Text('Lưu'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _placeList(BuildContext context, {required List<GpsPlace> places}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Địa điểm khác', style: TextStyle(fontWeight: FontWeight.w600)),
+        Text(
+          'Chỉ dùng cho chấm ra. Ví dụ nhà trọ sát công ty (chấm về) hoặc xưởng ở xa máy chấm công '
+          '(không chấm về).',
+          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+        for (var i = 0; i < places.length; i++)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text(places[i].name.isEmpty ? 'Địa điểm ${i + 1}' : places[i].name),
+            subtitle: Text(
+              '${places[i].checkOut ? 'Chấm về' : 'Không chấm về'} · bán kính ${places[i].radiusMeters.round()} m',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _openPlaceForm(context, editingIndex: i),
+          ),
+        if (places.length < _maxExtraPlaces)
+          OutlinedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('Thêm địa điểm'),
+            onPressed: () => _openPlaceForm(context),
+          ),
+      ],
+    );
   }
 
   Future<void> _requestPermissions(BuildContext context) async {
@@ -218,6 +373,8 @@ class GpsSection extends StatelessWidget {
                 _updateGps((gps) => gps.copyWith(departRadiusMeters: r));
               },
             ),
+            const SizedBox(height: 12),
+            _placeList(context, places: gps.extraPlaces),
             const SizedBox(height: 12),
             _windowList(context, windows: gps.activeWindows),
             Padding(

@@ -2,7 +2,7 @@ import 'package:cham_cong_don_gian/domain/gps_engine.dart';
 import 'package:cham_cong_don_gian/domain/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-AppSettings settingsWithGps({bool enabled = true}) {
+AppSettings settingsWithGps({bool enabled = true, List<GpsPlace> extraPlaces = const []}) {
   return AppSettings(
     gps: GpsConfig(
       enabled: enabled,
@@ -14,9 +14,22 @@ AppSettings settingsWithGps({bool enabled = true}) {
         const TimeWindow(from: Clock(6, 50), to: Clock(7, 0)),
         const TimeWindow(from: Clock(16, 0), to: Clock(16, 15)),
       ],
+      extraPlaces: extraPlaces,
     ),
   );
 }
+
+/// Địa điểm khác đặt cách tâm [metersNorth] mét về phía bắc.
+GpsPlace placeNorth(double metersNorth, {required bool checkOut, double radius = 30}) {
+  final (lat, lng) = pointNorth(metersNorth);
+  return GpsPlace(latitude: lat, longitude: lng, radiusMeters: radius, checkOut: checkOut);
+}
+
+DayRecord checkedInRecord() => DayRecord(
+  date: DateTime(2026, 9, 21),
+  checkIn: DateTime(2026, 9, 21, 7, 0),
+  gpsLastSeenNearby: DateTime(2026, 9, 21, 16, 8),
+);
 
 /// Tọa độ cách tâm (21.0285, 105.8542) một khoảng xấp xỉ [meters] mét về phía bắc.
 (double, double) pointNorth(double meters) => (21.0285 + meters / 111000, 105.8542);
@@ -170,6 +183,94 @@ void main() {
         currentLng: 105.8542,
       );
       expect(decision.action, GpsAction.none);
+    });
+  });
+
+  group('địa điểm khác', () {
+    test('nhà trọ "chấm về" nằm trong vòng rời đi hẳn -> về tới đó là chấm ra, giờ lần cuối còn ở chỗ làm', () {
+      final settings = settingsWithGps(extraPlaces: [placeNorth(120, checkOut: true)]);
+      final (lat, lng) = pointNorth(125);
+      final decision = decideGpsAction(
+        settings: settings,
+        todayRecord: checkedInRecord(),
+        now: DateTime(2026, 9, 21, 16, 12),
+        currentLat: lat,
+        currentLng: lng,
+      );
+      expect(decision.action, GpsAction.checkOut);
+      expect(decision.time, DateTime(2026, 9, 21, 16, 0));
+    });
+
+    test('xưởng "không chấm về" ở xa hơn vòng rời đi hẳn -> không chấm ra, coi như vẫn đang làm', () {
+      final settings = settingsWithGps(extraPlaces: [placeNorth(500, checkOut: false)]);
+      final (lat, lng) = pointNorth(510);
+      final decision = decideGpsAction(
+        settings: settings,
+        todayRecord: checkedInRecord(),
+        now: DateTime(2026, 9, 21, 16, 12),
+        currentLat: lat,
+        currentLng: lng,
+      );
+      expect(decision.action, GpsAction.none);
+      expect(decision.lastSeenNearby, DateTime(2026, 9, 21, 16, 12));
+    });
+
+    test('ngoài mọi địa điểm khác -> chạy như cũ (cách 100m thì chưa chấm ra)', () {
+      final settings = settingsWithGps(extraPlaces: [placeNorth(500, checkOut: true)]);
+      final (lat, lng) = pointNorth(100);
+      final decision = decideGpsAction(
+        settings: settings,
+        todayRecord: checkedInRecord(),
+        now: DateTime(2026, 9, 21, 16, 12),
+        currentLat: lat,
+        currentLng: lng,
+      );
+      expect(decision.action, GpsAction.none);
+      expect(decision.lastSeenNearby, DateTime(2026, 9, 21, 16, 12));
+    });
+
+    test('nằm trong 2 địa điểm chồng nhau -> theo địa điểm gần nhất', () {
+      final settings = settingsWithGps(
+        extraPlaces: [placeNorth(100, checkOut: true, radius: 60), placeNorth(140, checkOut: false, radius: 60)],
+      );
+      final (lat, lng) = pointNorth(135); // gần xưởng (140) hơn nhà trọ (100)
+      final decision = decideGpsAction(
+        settings: settings,
+        todayRecord: checkedInRecord(),
+        now: DateTime(2026, 9, 21, 16, 12),
+        currentLat: lat,
+        currentLng: lng,
+      );
+      expect(decision.action, GpsAction.none);
+    });
+
+    test('địa điểm khác không ảnh hưởng chấm vào: đứng ở nhà trọ "chấm về" lúc chưa chấm vào -> không chấm', () {
+      final settings = settingsWithGps(extraPlaces: [placeNorth(120, checkOut: true)]);
+      final (lat, lng) = pointNorth(120);
+      final decision = decideGpsAction(
+        settings: settings,
+        todayRecord: DayRecord(date: DateTime(2026, 9, 21)),
+        now: DateTime(2026, 9, 21, 6, 55),
+        currentLat: lat,
+        currentLng: lng,
+      );
+      expect(decision.action, GpsAction.none);
+    });
+
+    test('lưu rồi đọc lại cấu hình giữ nguyên địa điểm; dữ liệu cũ không có mục này -> danh sách rỗng', () {
+      final gps = GpsConfig(
+        latitude: 21.0285,
+        longitude: 105.8542,
+        extraPlaces: [const GpsPlace(name: 'Nhà trọ', latitude: 21.03, longitude: 105.85, radiusMeters: 40, checkOut: true)],
+      );
+      final back = GpsConfig.fromJson(gps.toJson());
+      expect(back.extraPlaces, hasLength(1));
+      expect(back.extraPlaces.first.name, 'Nhà trọ');
+      expect(back.extraPlaces.first.radiusMeters, 40);
+      expect(back.extraPlaces.first.checkOut, isTrue);
+
+      final old = GpsConfig.fromJson({'enabled': true, 'lat': 21.0285, 'lng': 105.8542});
+      expect(old.extraPlaces, isEmpty);
     });
   });
 

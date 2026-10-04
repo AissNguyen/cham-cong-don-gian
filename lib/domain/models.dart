@@ -248,6 +248,52 @@ class TimeWindow {
   );
 }
 
+/// Một địa điểm khác ngoài điểm chấm công chính, chỉ dùng khi đã chấm vào và đang chờ chấm ra.
+/// Ví dụ nhà trọ sát công ty ([checkOut] = true: về tới đây là chấm ra ngay, dù còn trong vòng
+/// "rời đi hẳn") hoặc xưởng ở xa máy chấm công ([checkOut] = false: ở đây thì không chấm ra, dù
+/// đã xa điểm chính hơn vòng "rời đi hẳn").
+class GpsPlace {
+  const GpsPlace({
+    this.name = '',
+    required this.latitude,
+    required this.longitude,
+    this.radiusMeters = 50,
+    this.checkOut = true,
+  });
+
+  final String name;
+  final double latitude;
+  final double longitude;
+  final double radiusMeters;
+
+  /// true: ở đây là chấm về. false: ở đây thì không chấm về.
+  final bool checkOut;
+
+  GpsPlace copyWith({String? name, double? latitude, double? longitude, double? radiusMeters, bool? checkOut}) => GpsPlace(
+    name: name ?? this.name,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    radiusMeters: radiusMeters ?? this.radiusMeters,
+    checkOut: checkOut ?? this.checkOut,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'lat': latitude,
+    'lng': longitude,
+    'radius': radiusMeters,
+    'checkOut': checkOut,
+  };
+
+  factory GpsPlace.fromJson(Map<String, dynamic> json) => GpsPlace(
+    name: json['name'] as String? ?? '',
+    latitude: (json['lat'] as num).toDouble(),
+    longitude: (json['lng'] as num).toDouble(),
+    radiusMeters: (json['radius'] as num?)?.toDouble() ?? 50,
+    checkOut: json['checkOut'] as bool? ?? true,
+  );
+}
+
 /// Cài đặt chấm công tự động bằng GPS. Một danh sách khung giờ bật GPS duy nhất (không tách
 /// riêng vào/ra): lần chấm được xác nhận đầu tiên trong ngày là chấm vào, lần tiếp theo là chấm
 /// ra — máy tự phân biệt, không cần khai báo khung nào dùng để làm gì.
@@ -261,6 +307,7 @@ class GpsConfig {
     List<TimeWindow>? activeWindows,
     this.frequencyMinutes = 2,
     this.soundEnabled = true,
+    this.extraPlaces = const [],
   }) : activeWindows =
            activeWindows ?? [const TimeWindow(from: Clock(6, 50), to: Clock(7, 0)), const TimeWindow(from: Clock(16, 0), to: Clock(16, 15))];
 
@@ -280,6 +327,9 @@ class GpsConfig {
   /// Có kêu chuông/rung khi máy tự chấm công hay không (chỉ áp dụng cho GPS tự động).
   final bool soundEnabled;
 
+  /// Các địa điểm khác (nhà trọ, xưởng xa...), chỉ ảnh hưởng tới việc chấm ra.
+  final List<GpsPlace> extraPlaces;
+
   GpsConfig copyWith({
     bool? enabled,
     double? latitude,
@@ -289,6 +339,7 @@ class GpsConfig {
     List<TimeWindow>? activeWindows,
     int? frequencyMinutes,
     bool? soundEnabled,
+    List<GpsPlace>? extraPlaces,
   }) => GpsConfig(
     enabled: enabled ?? this.enabled,
     latitude: latitude ?? this.latitude,
@@ -298,6 +349,7 @@ class GpsConfig {
     activeWindows: activeWindows ?? this.activeWindows,
     frequencyMinutes: frequencyMinutes ?? this.frequencyMinutes,
     soundEnabled: soundEnabled ?? this.soundEnabled,
+    extraPlaces: extraPlaces ?? this.extraPlaces,
   );
 
   Map<String, dynamic> toJson() => {
@@ -309,6 +361,7 @@ class GpsConfig {
     'activeWindows': activeWindows.map((w) => w.toJson()).toList(),
     'freq': frequencyMinutes,
     'sound': soundEnabled,
+    'extraPlaces': extraPlaces.map((p) => p.toJson()).toList(),
   };
 
   factory GpsConfig.fromJson(Map<String, dynamic> json) {
@@ -331,6 +384,9 @@ class GpsConfig {
       activeWindows: windows,
       soundEnabled: json['sound'] as bool? ?? true,
       frequencyMinutes: json['freq'] as int? ?? 2,
+      extraPlaces: [
+        ...?(json['extraPlaces'] as List?)?.map((p) => GpsPlace.fromJson(p as Map<String, dynamic>)),
+      ],
     );
   }
 }
