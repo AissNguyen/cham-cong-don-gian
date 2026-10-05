@@ -1,11 +1,11 @@
 {
-    "name": "cham_cong_don_gian",
-    "short_name": "cham_cong_don_gian",
+    "name": "Chấm Công Đơn Giản",
+    "short_name": "Chấm Công",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#1CAE8F",
     "theme_color": "#1CAE8F",
-    "description": "A new Flutter project.",
+    "description": "Chấm công đơn giản: ghi giờ vào/ra, tăng ca, ngày nghỉ và ước tính lương theo kỳ.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
@@ -31,5 +31,6 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-    ]
+    ],
+    "lang": "vi"
 }

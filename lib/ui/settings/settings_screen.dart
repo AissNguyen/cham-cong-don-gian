@@ -8,6 +8,7 @@ import 'config_share_section.dart';
 import 'feedback_section.dart';
 import 'help_screen.dart';
 import 'income_items_section.dart';
+import 'notice_section.dart';
 import 'settings_sections_extra.dart';
 import 'settings_sections_rules.dart';
 import 'settings_sections_time.dart';
@@ -24,6 +25,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const NoticeSection(),
           if (kIsWeb) const AndroidDownloadSection(),
           const ShareSection(),
           ConfigShareSection(store: store),

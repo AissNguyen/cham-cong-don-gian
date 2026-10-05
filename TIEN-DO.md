@@ -1,6 +1,6 @@
 # Tổng hợp — Chấm Công Đơn Giản
 
-**Cập nhật lần cuối: 2026-10-03.** Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
+**Cập nhật lần cuối: 2026-10-05.** Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
 
 App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, tăng ca, ngày nghỉ, đi muộn, và ước tính lương theo kỳ. Tách riêng khỏi dự án `so_cong` (bản đầy đủ, đang để đó); chỉ dùng chung `domain/lunar.dart` và font Be Vietnam Pro.
 
@@ -36,7 +36,8 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 | `share_trial_days` | 10 | Y: số ngày dùng thử GPS/widget. Đặt 0 là tắt hẳn tính năng giới hạn |
 | `share_entry_hours` | 0 | Thời hạn ô nhập mã tính từ lúc cài (giờ); 0 là không hạn |
 | `share_url` | https://cham-cong-don-gian.web.app | Link trong tin nhắn chia sẻ |
-| `notice_text`, `notice_title`, `notice_url`, `notice_button` | không có thông báo | Băng thông báo ở đầu màn chính |
+| `notice_text`, `notice_title`, `notice_links` (và kiểu cũ `notice_url`, `notice_button`) | không có thông báo | Băng thông báo ở đầu màn chính, xem lại được ở Cài đặt › Thông báo |
+| `help_text` | hướng dẫn có sẵn trong app | Nội dung màn "Hướng dẫn sử dụng" |
 
 App tải lại Remote Config tối đa 6 giờ một lần.
 
@@ -85,10 +86,24 @@ Băng thông báo ở đầu màn chính (cả Android lẫn web), soạn trên 
 
 - `notice_text`: nội dung; để trống là không có thông báo. Gõ `\n` để xuống dòng.
 - `notice_title`: tiêu đề in đậm (không bắt buộc).
-- `notice_url` + `notice_button`: link (phải bắt đầu bằng `https://`) và chữ trên nút; không đặt chữ thì nút ghi "Xem".
-- Người dùng bấm × thì thông báo đó ẩn hẳn trên máy họ; đổi nội dung, tiêu đề hoặc link là thành thông báo mới và hiện lại cho mọi người.
+- `notice_links`: nhiều link, mỗi link một nút. Mỗi dòng một link dạng `Nhóm Zalo | https://zalo.me/g/...` (ô nhập một dòng thì gõ `\n` giữa các link). Không có chữ trước `|` thì nút ghi "Mở link"; link phải bắt đầu bằng `https://`.
+- Kiểu cũ `notice_url` + `notice_button` (một link) vẫn dùng được, nút này đứng trước các nút của `notice_links`.
+- Băng chỉ hiện 3 dòng đầu của nội dung; dài hơn thì có nút "Xem thêm" mở toàn bộ.
+- Người dùng bấm × thì băng ẩn hẳn trên máy họ và app nhắc "xem lại trong Cài đặt › Thông báo". Mục **Cài đặt › Thông báo** luôn hiện đủ thông báo đang đặt (kể cả đã tắt băng); để trống `notice_text` thì mục này ẩn. Đổi nội dung, tiêu đề hoặc link là thành thông báo mới và băng hiện lại cho mọi người.
 - App tải lại Remote Config tối đa 6 giờ một lần, nên thông báo tới dần trong ngày. Chỉ người mở app mới thấy (chưa có thông báo đẩy).
 - Bản web đã deploy ngày 2026-10-03 (`flutter build web --release` rồi `firebase deploy --only hosting`), gồm băng thông báo và mục "Chia sẻ app" (trên web là nút sao chép link). Bản Android mới đã cài lên điện thoại của người dùng, chưa đưa lên GitHub releases.
+
+## Hướng dẫn sử dụng soạn trên Firebase (2026-10-05)
+
+Tham số `help_text`: để trống thì màn "Hướng dẫn sử dụng" dùng nội dung có sẵn trong app (`lib/ui/settings/help_screen.dart`); có nội dung thì **thay toàn bộ** nội dung có sẵn. Mỗi mục một dòng dạng `Tiêu đề | Nội dung` (ô nhập một dòng thì gõ `\n` giữa các mục); dòng không có `|` được nối vào nội dung mục ngay trên. Các mục soạn trên Firebase dùng chung một icon. Code và test: `lib/notice/help_text.dart`, `test/help_text_test.dart`.
+
+## Bản web mở nhanh và dùng được khi mất mạng (2026-10-05)
+
+- `web/sw.js`: service worker tự viết, lưu sẵn mọi file của app trong máy; lần sau mở ngay từ bản đã lưu (kể cả mất mạng) và tải bản mới ngầm, bản deploy mới có hiệu lực ở lần mở kế tiếp. Lần đầu tiên vẫn cần mạng. (Service worker mặc định của Flutter đã bị bỏ, chỉ còn file tự gỡ `flutter_service_worker.js` không được dùng.)
+- `web/flutter_bootstrap.js`: lấy CanvasKit (phần vẽ giao diện) từ chính trang web thay vì `gstatic.com`, để lưu sẵn được.
+- `web/index.html`: màn chờ có logo trong lúc tải; tên app "Chấm Công Đơn Giản" (cả `manifest.json`).
+- `lib/main.dart`: trên web app hiện lên ngay, không chờ Firebase (trước đây chờ tối đa 5 giây); thống kê/thông báo/mã giới thiệu chạy sau khi Firebase sẵn sàng. Android giữ như cũ.
+- Đã thử trên cloud bằng Chromium (bản build release, chạy ở localhost): lần đầu app hiện sau ~1,2 giây, mở lại ~0,9 giây, **ngắt mạng rồi mở lại vẫn hiện app** (~0,5 giây). Chưa thử trên điện thoại thật và trên tên miền thật.
 
 ## Cách build, cài và đưa lên
 
