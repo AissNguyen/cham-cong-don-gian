@@ -220,6 +220,7 @@ class _BackupSectionState extends State<BackupSection> {
   Widget build(BuildContext context) {
     return SettingsCard(
       title: 'Sao lưu dữ liệu',
+      collapsible: true,
       subtitle:
           'Xuất toàn bộ giờ chấm ra file Excel để cất giữ, xem lại sau này, hoặc khôi phục khi đổi máy, cài lại app.',
       child: Wrap(

@@ -58,11 +58,11 @@ class DayCalcResult {
   final double lateDeductionMoney;
   final double pay;
 
-  /// true nếu giờ vào/ra không khớp chính xác khung cộng-trừ giờ nào, phải dùng khung cuối
-  /// (dự phòng) để tính tạm — cần cảnh báo người dùng chấm lại cho đúng.
+  /// true nếu đã cài khung cộng-trừ giờ mà giờ vào/ra không khớp khung nào (khi đó không tính
+  /// giờ nghỉ trưa mặc định) — cần cảnh báo người dùng chấm lại cho đúng.
   final bool breakRuleWarning;
 
-  /// Số phút cộng/trừ đã áp dụng (dù khớp đúng khung hay dùng khung dự phòng), để hiện trong cảnh báo.
+  /// Số phút cộng/trừ đã áp dụng (theo khung khớp, hoặc phần giờ nghỉ trưa bị trừ khi không khớp).
   final int breakRuleDeltaMinutes;
 
   double get normalHours => normalMinutes / 60;
@@ -77,23 +77,33 @@ class DayCalcResult {
   );
 }
 
+/// Giờ nghỉ trưa mặc định: đã cài khung cộng-trừ giờ mà giờ vào/ra không khớp khung nào thì
+/// khoảng này không được tính giờ công.
+const unmatchedBreakFrom = Clock(11, 30);
+const unmatchedBreakTo = Clock(12, 30);
+
 /// Tìm cách cộng-trừ giờ áp dụng cho ca [checkInDt]-[checkOutDt]: khớp khung cố định nào (giờ vào
-/// VÀ giờ ra đều nằm trong khoảng đã cài) thì dùng khung đó; không khung nào khớp thì chuyển qua
-/// tính theo "khung nhiều mục" (cộng dồn các đoạn mà giờ làm có chạm vào), kèm cảnh báo.
-(int deltaMinutes, bool warning) _resolveBreakRule(AppSettings settings, DateTime checkInDt, DateTime checkOutDt) {
+/// VÀ giờ ra đều nằm trong khoảng đã cài) thì dùng khung đó; đã cài khung mà không khung nào khớp
+/// thì trừ đúng phần giờ làm (trong khung chuẩn [windowStart]-[windowEnd]) rơi vào giờ nghỉ trưa
+/// mặc định, kèm cảnh báo.
+(int deltaMinutes, bool warning) _resolveBreakRule(
+  AppSettings settings,
+  DateTime checkInDt,
+  DateTime checkOutDt,
+  DateTime windowStart,
+  DateTime windowEnd,
+) {
   final checkIn = Clock(checkInDt.hour, checkInDt.minute);
   final checkOut = Clock(checkOutDt.hour, checkOutDt.minute);
   for (final r in settings.fixedBreakRules) {
     if (r.matches(checkIn, checkOut, normalEnd: settings.workEnd)) return (r.deltaMinutes, false);
   }
-  if (settings.fixedBreakRules.isEmpty && settings.breakSegments.isEmpty) return (0, false);
+  if (settings.fixedBreakRules.isEmpty) return (0, false);
 
-  var segDelta = 0;
-  for (final seg in settings.breakSegments) {
-    final (sStart, sEnd) = _span(seg.from, seg.to, dateOnly(checkInDt));
-    if (_overlapMinutes(checkInDt, checkOutDt, sStart, sEnd) > 0) segDelta -= seg.breakMinutes;
-  }
-  return (segDelta, true);
+  final from = checkInDt.isAfter(windowStart) ? checkInDt : windowStart;
+  final to = checkOutDt.isBefore(windowEnd) ? checkOutDt : windowEnd;
+  final (breakStart, breakEnd) = _span(unmatchedBreakFrom, unmatchedBreakTo, dateOnly(windowStart));
+  return (-_overlapMinutes(from, to, breakStart, breakEnd), true);
 }
 
 DayCalcResult computeDay(DayRecord record, AppSettings settings) {
@@ -110,8 +120,8 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
   var normalMinutes = _overlapMinutes(checkIn, checkOut, windowStart, windowEnd);
 
   // Khớp khung cố định (giờ vào & giờ ra đều trong khoảng đã cài) thì dùng khung đó; không khớp
-  // khung nào thì chuyển qua "khung nhiều mục" làm dự phòng, kèm cảnh báo để chấm lại cho đúng.
-  final (breakRuleDelta, breakRuleWarning) = _resolveBreakRule(settings, checkIn, checkOut);
+  // khung nào thì không tính giờ nghỉ trưa mặc định, kèm cảnh báo để chấm lại cho đúng.
+  final (breakRuleDelta, breakRuleWarning) = _resolveBreakRule(settings, checkIn, checkOut, windowStart, windowEnd);
   normalMinutes += breakRuleDelta;
 
   var lateDeductionMoney = 0.0;
@@ -166,9 +176,9 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
 }
 
 /// Ước tính lương đang kiếm được tính tới [now], chính xác theo **giây** — chỉ để hiện số chạy
-/// mượt trên màn chính (khi ca đang mở). Áp dụng đúng các khoản cộng/trừ như [computeDay] (cộng
-/// trừ giờ vào, đi muộn, tăng ca theo khung) để không bị tụt đột ngột lúc chấm ra và chuyển sang
-/// số chính thức (tính theo phút).
+/// mượt trên màn chính (khi ca đang mở). Áp dụng đi muộn và tăng ca theo khung như [computeDay];
+/// riêng cộng trừ giờ theo khung cố định phải chờ có giờ ra mới biết khớp khung nào, nên trong
+/// lúc ca mở chỉ ngừng tính ở giờ nghỉ trưa mặc định, lúc chấm ra mới chốt theo số chính thức.
 double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
   if (record.isDayOff || record.checkIn == null) return 0;
   if (record.checkOut != null) return computeDay(record, settings).pay;
@@ -182,20 +192,12 @@ double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
   final normalEnd = now.isBefore(windowEnd) ? now : windowEnd;
   var normalSeconds = normalEnd.isAfter(normalStart) ? normalEnd.difference(normalStart).inSeconds : 0;
 
-  // Ca đang mở, chưa có giờ ra nên chưa thể biết khớp khung cố định nào — tạm tính theo "khung
-  // nhiều mục" (nếu có) để số chạy mượt; nếu lúc chấm ra khớp đúng khung cố định, số sẽ chốt lại
-  // theo khung đó, có thể nhảy nhẹ đúng lúc đó.
-  // Trừ dần theo tỷ lệ đã đi qua đoạn đó (không trừ nguyên cả đoạn ngay khi vừa chạm vào), để số
-  // không bị kẹp về 0 đứng yên một lúc rồi mới nhảy — khi đã đi hết đoạn, tỷ lệ = 1 nên trừ đủ
-  // nguyên, khớp đúng số chính thức (computeDay) lúc chấm ra.
-  for (final seg in settings.breakSegments) {
-    final (sStart, sEnd) = _span(seg.from, seg.to, dateOnly(record.date));
-    final overlap = _overlapSeconds(checkIn, now, sStart, sEnd);
-    if (overlap <= 0) continue;
-    final segSeconds = sEnd.difference(sStart).inSeconds;
-    if (segSeconds <= 0) continue;
-    final fraction = overlap / segSeconds;
-    normalSeconds -= (seg.breakMinutes * 60 * fraction).round();
+  // Ca đang mở, chưa có giờ ra nên chưa thể biết khớp khung cố định nào — tạm ngừng tính trong
+  // giờ nghỉ trưa mặc định (số đứng yên suốt khoảng đó). Lúc chấm ra nếu khớp một khung cố định
+  // thì số chốt lại theo khung đó, có thể nhảy nhẹ đúng lúc đó.
+  if (settings.fixedBreakRules.isNotEmpty) {
+    final (breakStart, breakEnd) = _span(unmatchedBreakFrom, unmatchedBreakTo, dateOnly(record.date));
+    normalSeconds -= _overlapSeconds(normalStart, normalEnd, breakStart, breakEnd);
   }
 
   var lateDeductionMoney = 0.0;

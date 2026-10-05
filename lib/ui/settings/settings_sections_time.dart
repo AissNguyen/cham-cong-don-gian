@@ -20,6 +20,7 @@ class WorkHoursSection extends StatelessWidget {
     final s = store.settings;
     return SettingsCard(
       title: 'Khung giờ ra vào',
+      collapsible: true,
       subtitle: 'Giờ chuẩn để tính giờ công và tăng ca.',
       child: Wrap(
         spacing: 10,
@@ -101,6 +102,7 @@ class _WageTableSectionState extends State<WageTableSection> {
   Widget build(BuildContext context) {
     return SettingsCard(
       title: 'Bảng lương/giờ',
+      collapsible: true,
       subtitle: 'Nhập theo đơn vị trăm đồng cho gọn: gõ 450 nghĩa là 45.000đ/giờ, gõ 375 nghĩa là 37.500đ/giờ.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -298,6 +300,7 @@ class _HolidaysSectionState extends State<HolidaysSection> {
     }
     return SettingsCard(
       title: 'Ngày lễ',
+      collapsible: true,
       subtitle: 'Những ngày được tính theo hệ số "Ngày lễ" ở bảng lương.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

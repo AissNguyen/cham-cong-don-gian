@@ -135,10 +135,11 @@ class BreakRulesSection extends StatelessWidget {
     final rules = store.settings.fixedBreakRules;
     return SettingsCard(
       title: 'Cộng trừ giờ theo giờ vào (khung cố định)',
+      collapsible: true,
       subtitle:
           'Giờ vào và giờ ra đều nằm trong khoảng đã cài thì tính theo khung đó. Không khung nào '
-          'khớp thì hệ thống chuyển qua tính theo "Khung nhiều mục" ở dưới (kèm cảnh báo đỏ). Ra '
-          'muộn hơn giờ ra chuẩn do tăng ca vẫn tính là khớp, không bị đẩy xuống dự phòng.',
+          'khớp thì tạm không tính giờ nghỉ 11:30–12:30 và màn chính hiện cảnh báo đỏ để chấm lại cho đúng. Ra '
+          'muộn hơn giờ ra chuẩn do tăng ca vẫn tính là khớp.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -162,112 +163,6 @@ class BreakRulesSection extends StatelessWidget {
   }
 }
 
-/// Khung nhiều mục: danh sách các đoạn nối tiếp nhau (từ giờ nào tới giờ nào thì nghỉ mấy phút),
-/// dùng làm dự phòng khi không khung cố định nào khớp — cộng dồn các đoạn mà giờ làm có chạm vào.
-class BreakSegmentsSection extends StatelessWidget {
-  const BreakSegmentsSection({super.key, required this.store});
-
-  final AppStore store;
-
-  Future<void> _openForm(BuildContext context, {BreakSegment? editing}) async {
-    // Thêm đoạn mới thì gợi ý nối tiếp ngay sau đoạn cuối cùng đã có, đỡ phải tự gõ lại giờ bắt đầu.
-    final segments = store.settings.breakSegments;
-    final suggestedFrom = segments.isNotEmpty ? segments.last.to : const Clock(7, 0);
-    var from = editing?.from ?? suggestedFrom;
-    var to = editing?.to ?? suggestedFrom;
-    var breakMinutes = editing?.breakMinutes ?? 15;
-
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Đoạn giờ nghỉ'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 8,
-                children: [
-                  TimeChip(label: 'Từ', time: _toTod(from), onPick: (t) => setState(() => from = _toClock(t))),
-                  TimeChip(label: 'Đến', time: _toTod(to), onPick: (t) => setState(() => to = _toClock(t))),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: breakMinutes.toString(),
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Nghỉ bao nhiêu phút', border: OutlineInputBorder()),
-                onChanged: (v) => breakMinutes = int.tryParse(v) ?? 0,
-              ),
-            ],
-          ),
-          actions: [
-            if (editing != null)
-              TextButton(
-                onPressed: () {
-                  store.updateSettings(
-                    (s) => s.copyWith(breakSegments: s.breakSegments.where((r) => r != editing).toList()),
-                  );
-                  Navigator.pop(context);
-                },
-                child: const Text('Xóa'),
-              ),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
-            FilledButton(
-              onPressed: () {
-                final segment = BreakSegment(from: from, to: to, breakMinutes: breakMinutes);
-                store.updateSettings((s) {
-                  final list = [...s.breakSegments];
-                  if (editing != null) {
-                    final i = list.indexOf(editing);
-                    if (i >= 0) list[i] = segment;
-                  } else {
-                    list.add(segment);
-                  }
-                  return s.copyWith(breakSegments: list);
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Lưu'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final segments = store.settings.breakSegments;
-    return SettingsCard(
-      title: 'Khung nhiều mục (dự phòng)',
-      subtitle:
-          'Ví dụ 7:00–11:30 nghỉ 15p, 11:30–12:30 nghỉ 30p, 12:30–16:00 nghỉ 15p... Chỉ dùng khi giờ '
-          'vào/ra không khớp khung cố định nào ở trên.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final seg in segments)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: Text('${seg.from.formatted}–${seg.to.formatted}'),
-              subtitle: Text('Nghỉ ${seg.breakMinutes} phút'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _openForm(context, editing: seg),
-            ),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Thêm đoạn'),
-            onPressed: () => _openForm(context),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Đi muộn: vào sau giờ nào thì đánh dấu, trừ bao nhiêu phút hoặc tiền khi có đánh dấu.
 class LateRuleSection extends StatelessWidget {
   const LateRuleSection({super.key, required this.store});
@@ -279,6 +174,7 @@ class LateRuleSection extends StatelessWidget {
     final rule = store.settings.lateRule;
     return SettingsCard(
       title: 'Đi muộn',
+      collapsible: true,
       subtitle: 'Số phút/tiền bị trừ được cài ở đây; ở màn chính chỉ cần bấm nút đánh dấu đi muộn.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,6 +289,7 @@ class OvertimeBracketsSection extends StatelessWidget {
     final brackets = store.settings.overtimeBrackets;
     return SettingsCard(
       title: 'Tăng ca theo khung',
+      collapsible: true,
       subtitle: 'Không có hệ số riêng — hệ số tăng ca lấy theo bảng lương/giờ ở trên.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

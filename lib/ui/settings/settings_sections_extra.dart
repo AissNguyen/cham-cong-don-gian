@@ -317,6 +317,7 @@ class GpsSection extends StatelessWidget {
     final gps = store.settings.gps;
     return SettingsCard(
       title: 'Chấm công GPS',
+      collapsible: true,
       subtitle: 'Đứng ở nơi chấm công rồi bấm lấy tọa độ. Cần cấp đủ quyền thì mới tự chấm khi app không mở.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,6 +421,7 @@ class PayPeriodSection extends StatelessWidget {
     final cfg = store.settings.payPeriod;
     return SettingsCard(
       title: 'Kỳ lương',
+      collapsible: true,
       subtitle: 'Thu nhập tạm tính ở màn chính tính từ đầu kỳ hiện tại đến hôm nay.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -55,6 +55,7 @@ class ConfigShareSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return SettingsCard(
       title: 'Sao chép / dán cấu hình',
+      collapsible: true,
       subtitle: 'Sao chép để gửi cho máy khác; ở máy nhận chỉ cần sao chép xong rồi bấm nút dưới, không cần dán tay.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

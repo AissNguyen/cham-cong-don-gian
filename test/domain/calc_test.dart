@@ -206,7 +206,7 @@ void main() {
     expect(result.breakRuleWarning, false);
   });
 
-  test('không khung cố định nào khớp -> chuyển qua khung nhiều mục, cộng dồn các đoạn có chạm vào, kèm cảnh báo', () {
+  test('không khung cố định nào khớp -> chỉ trừ phần giờ làm rơi vào giờ nghỉ 11:30-12:30, kèm cảnh báo', () {
     final settings = baseSettings().copyWith(
       fixedBreakRules: [
         const FixedBreakRule(
@@ -217,6 +217,40 @@ void main() {
           deltaMinutes: -30,
         ),
       ],
+    );
+    DayCalcResult calc(DateTime checkIn, DateTime checkOut) =>
+        computeDay(DayRecord(date: DateTime(2026, 9, 21), checkIn: checkIn, checkOut: checkOut), settings);
+
+    // Ra trước giờ nghỉ: không trừ gì, vẫn cảnh báo.
+    final morning = calc(DateTime(2026, 9, 21, 7, 0), DateTime(2026, 9, 21, 10, 0));
+    expect(morning.breakRuleWarning, true);
+    expect(morning.breakRuleDeltaMinutes, 0);
+    expect(morning.normalMinutes, 3 * 60);
+
+    // Ra giữa giờ nghỉ (12:00): chỉ trừ 30 phút đã rơi vào 11:30-12:00.
+    final half = calc(DateTime(2026, 9, 21, 7, 0), DateTime(2026, 9, 21, 12, 0));
+    expect(half.breakRuleDeltaMinutes, -30);
+    expect(half.normalMinutes, 5 * 60 - 30);
+
+    // Vào sau giờ nghỉ: không trừ gì.
+    final afternoon = calc(DateTime(2026, 9, 21, 13, 0), DateTime(2026, 9, 21, 15, 0));
+    expect(afternoon.breakRuleWarning, true);
+    expect(afternoon.breakRuleDeltaMinutes, 0);
+    expect(afternoon.normalMinutes, 2 * 60);
+  });
+
+  test('không khung cố định nào khớp, làm qua cả giờ nghỉ -> trừ đủ 60 phút (khung nhiều mục cũ bị bỏ qua)', () {
+    final settings = baseSettings().copyWith(
+      fixedBreakRules: [
+        const FixedBreakRule(
+          checkInFrom: Clock(9, 0),
+          checkInTo: Clock(9, 0),
+          checkOutFrom: Clock(16, 0),
+          checkOutTo: Clock(16, 0),
+          deltaMinutes: -30,
+        ),
+      ],
+      // Dữ liệu cũ còn lưu "khung nhiều mục": không còn dùng để tính nữa.
       breakSegments: [
         const BreakSegment(from: Clock(7, 0), to: Clock(12, 0), breakMinutes: 15),
         const BreakSegment(from: Clock(12, 0), to: Clock(16, 0), breakMinutes: 30),
@@ -228,10 +262,24 @@ void main() {
       checkOut: DateTime(2026, 9, 21, 16, 0),
     );
     final result = computeDay(record, settings);
-    // Chạm cả 2 đoạn của khung nhiều mục -> trừ 15 + 30 = 45p.
     expect(result.breakRuleWarning, true);
-    expect(result.breakRuleDeltaMinutes, -45);
-    expect(result.normalMinutes, 9 * 60 - 45);
+    expect(result.breakRuleDeltaMinutes, -60);
+    expect(result.normalMinutes, 9 * 60 - 60);
+  });
+
+  test('chưa cài khung cố định nào -> không cộng trừ, không cảnh báo (kể cả còn khung nhiều mục cũ)', () {
+    final settings = baseSettings().copyWith(
+      breakSegments: [const BreakSegment(from: Clock(7, 0), to: Clock(16, 0), breakMinutes: 15)],
+    );
+    final record = DayRecord(
+      date: DateTime(2026, 9, 21),
+      checkIn: DateTime(2026, 9, 21, 7, 0),
+      checkOut: DateTime(2026, 9, 21, 16, 0),
+    );
+    final result = computeDay(record, settings);
+    expect(result.breakRuleWarning, false);
+    expect(result.breakRuleDeltaMinutes, 0);
+    expect(result.normalMinutes, 9 * 60);
   });
 
   test('giờ ra muộn hơn giờ ra chuẩn (tăng ca) vẫn coi là khớp khung cố định, không rơi xuống dự phòng', () {
@@ -298,20 +346,8 @@ void main() {
       expect(at7h1m, closeTo(500, 1));
     });
 
-    test('có cộng trừ giờ và đi muộn -> số lúc đang chạy khớp số chính thức ngay khi chấm ra (không tụt đột ngột)', () {
+    test('có đi muộn -> số lúc đang chạy khớp số chính thức ngay khi chấm ra (không tụt đột ngột)', () {
       final settings = baseSettings().copyWith(
-        // Ca đang mở chưa biết giờ ra nên số chạy tạm theo "khung nhiều mục" — cấu hình đoạn này
-        // trùng khớp với khung cố định (cùng tổng trừ 15p cho cả ca) để số không nhảy lúc chấm ra.
-        fixedBreakRules: [
-          const FixedBreakRule(
-            checkInFrom: Clock(7, 0),
-            checkInTo: Clock(7, 0),
-            checkOutFrom: Clock(16, 0),
-            checkOutTo: Clock(16, 0),
-            deltaMinutes: -15,
-          ),
-        ],
-        breakSegments: [const BreakSegment(from: Clock(7, 0), to: Clock(16, 0), breakMinutes: 15)],
         lateRule: const LateRule(after: Clock(7, 0), unit: LateUnit.minutes, amount: 30),
       );
       final checkIn = DateTime(2026, 9, 21, 7, 0);
@@ -325,20 +361,60 @@ void main() {
       expect(liveJustBefore, closeTo(official, 0.01));
     });
 
-    test('ca đang mở -> tạm cộng dồn theo khung nhiều mục, trừ dần theo tỷ lệ (không đứng yên chờ đủ)', () {
+    test('ca đang mở, có cài khung cố định -> số đứng yên trong giờ nghỉ 11:30-12:30 rồi chạy tiếp', () {
       final settings = baseSettings().copyWith(
+        fixedBreakRules: [
+          const FixedBreakRule(
+            checkInFrom: Clock(7, 0),
+            checkInTo: Clock(7, 0),
+            checkOutFrom: Clock(16, 0),
+            checkOutTo: Clock(16, 0),
+            deltaMinutes: -60,
+          ),
+        ],
+      );
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      double at(int h, int m) => liveEstimatedPay(record, settings, DateTime(2026, 9, 21, h, m));
+      // 7:00-11:30 = 4h30, lương 30.000đ/giờ = 135.000đ; suốt giờ nghỉ số không đổi.
+      expect(at(11, 30), closeTo(135000, 1));
+      expect(at(12, 0), closeTo(135000, 1));
+      expect(at(12, 30), closeTo(135000, 1));
+      expect(at(13, 0), closeTo(150000, 1));
+
+      // Chấm ra 16:00 khớp khung cố định (trừ 60p): số chính thức bằng đúng số đang chạy, không nhảy.
+      final closed = record.copyWith(checkOut: DateTime(2026, 9, 21, 16, 0));
+      expect(computeDay(closed, settings).pay, closeTo(at(16, 0), 1));
+    });
+
+    test('ca đang mở, chưa cài khung cố định nào -> không ngừng tính ở giờ nghỉ', () {
+      final settings = baseSettings();
+      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
+      // 7:00-12:30 = 5h30 = 165.000đ.
+      expect(liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 12, 30)), closeTo(165000, 1));
+    });
+
+    test('ca đang mở -> chưa cộng trừ theo khung cố định, lúc chấm ra mới chốt theo khung khớp', () {
+      final settings = baseSettings().copyWith(
+        fixedBreakRules: [
+          const FixedBreakRule(
+            checkInFrom: Clock(7, 0),
+            checkInTo: Clock(7, 0),
+            checkOutFrom: Clock(16, 0),
+            checkOutTo: Clock(16, 0),
+            deltaMinutes: -15,
+          ),
+        ],
+        // Dữ liệu cũ còn lưu "khung nhiều mục": không ảnh hưởng số đang chạy.
         breakSegments: [const BreakSegment(from: Clock(7, 0), to: Clock(9, 0), breakMinutes: 15)],
       );
       final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
-      // Vừa chấm vào 2 phút: đã đi 2/120 phút của đoạn 7:00-9:00 -> trừ 2/120*15 = 0.25p, số vẫn
-      // phải chạy dương ngay, không kẹp về 0 chờ đủ 15 phút rồi mới nhảy lên.
-      final at7h2m = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 7, 2));
-      expect(at7h2m, greaterThan(0));
-
-      // Đi hết nguyên đoạn (tới 9:00) thì phải trừ đủ nguyên 15p, khớp cách tính cũ/chính thức.
+      // Đang mở ca lúc 9:00: đủ 2h, lương 30.000đ/giờ = 60.000đ, chưa trừ gì.
       final at9h = liveEstimatedPay(record, settings, DateTime(2026, 9, 21, 9, 0));
-      // 2h trong khung - 15p = 1h45p, lương 30.000đ/giờ = 52.500đ.
-      expect(at9h, closeTo(52500, 1));
+      expect(at9h, closeTo(60000, 1));
+
+      // Chấm ra 16:00 khớp khung cố định -> trừ 15p: 8h45p = 262.500đ.
+      final closed = record.copyWith(checkOut: DateTime(2026, 9, 21, 16, 0));
+      expect(liveEstimatedPay(closed, settings, DateTime(2026, 9, 21, 16, 0)), closeTo(262500, 1));
     });
 
     test('còn mở ca sau khi qua hết mọi khung tăng ca đã cài -> vẫn tăng tiếp, không đứng yên', () {

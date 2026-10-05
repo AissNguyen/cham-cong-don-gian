@@ -437,9 +437,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Giờ vào/ra không khớp khung cộng-trừ giờ nào đã cài — đang tạm tính theo khung '
-                    'dự phòng (${result.breakRuleDeltaMinutes < 0 ? 'trừ' : 'cộng'} '
-                    '${result.breakRuleDeltaMinutes.abs()} phút). Hãy chấm lại cho đúng giờ.',
+                    'Giờ vào/ra không khớp khung cộng-trừ giờ nào đã cài — đang tạm tính không kể giờ '
+                    'nghỉ ${unmatchedBreakFrom.formatted}–${unmatchedBreakTo.formatted} '
+                    '(trừ ${result.breakRuleDeltaMinutes.abs()} phút). Hãy chấm lại cho đúng giờ.',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: errorColor),
                   ),
                 ),

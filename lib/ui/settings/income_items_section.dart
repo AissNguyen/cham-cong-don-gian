@@ -197,6 +197,7 @@ class IncomeItemsSection extends StatelessWidget {
     final items = store.settings.incomeItems;
     return SettingsCard(
       title: 'Khoản thu nhập / khấu trừ khác',
+      collapsible: true,
       subtitle: 'Phụ cấp, thưởng, bảo hiểm... cộng/trừ vào tổng thu nhập mỗi kỳ.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

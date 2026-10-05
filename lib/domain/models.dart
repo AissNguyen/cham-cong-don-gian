@@ -115,8 +115,8 @@ class FixedBreakRule {
   final int deltaMinutes;
 
   /// Khớp khi giờ vào/ra nằm trong khoảng đã cài. Nếu [checkOutTo] trùng đúng giờ ra chuẩn
-  /// ([normalEnd], ví dụ 16:00) thì giờ ra muộn hơn (do tăng ca) vẫn coi là khớp, không bị đẩy
-  /// xuống khung dự phòng — [checkOutTo] khi đó có nghĩa là "từ giờ này trở lên".
+  /// ([normalEnd], ví dụ 16:00) thì giờ ra muộn hơn (do tăng ca) vẫn coi là khớp, không bị
+  /// cảnh báo — [checkOutTo] khi đó có nghĩa là "từ giờ này trở lên".
   bool matches(Clock checkIn, Clock checkOut, {Clock? normalEnd}) {
     final inCheckIn = checkIn >= checkInFrom && checkIn <= checkInTo;
     var inCheckOut = checkOut >= checkOutFrom && checkOut <= checkOutTo;
@@ -143,8 +143,9 @@ class FixedBreakRule {
   );
 }
 
-/// Một đoạn trong "khung nhiều mục": từ giờ nào tới giờ nào thì nghỉ bao nhiêu phút. Nhiều đoạn
-/// nối tiếp nhau phủ kín cả ngày làm, dùng làm dự phòng khi không khung cố định nào khớp.
+/// Một đoạn trong "khung nhiều mục" (dự phòng) của các bản cũ: từ giờ nào tới giờ nào thì nghỉ
+/// bao nhiêu phút. Mục này đã bỏ khỏi Cài đặt và không còn dùng để tính; chỉ giữ lại để đọc/ghi
+/// dữ liệu và file sao lưu cũ không bị lỗi.
 class BreakSegment {
   const BreakSegment({required this.from, required this.to, required this.breakMinutes});
 

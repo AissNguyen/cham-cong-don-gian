@@ -9,8 +9,8 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 | Thứ | Ở đâu |
 |---|---|
 | Mã nguồn | GitHub `AissNguyen/cham-cong-don-gian`, nhánh `master` |
-| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-03) |
-| Bản Android | File APK ở GitHub Releases, hiện là `v1.0.0` (bản cũ, chưa có các phần làm ngày 2026-10-02 và 03). Chưa lên Google Play |
+| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-05) |
+| Bản Android | File APK ở GitHub Releases, hiện là `v1.0.0` (bản cũ, chưa có các phần làm từ ngày 2026-10-02 tới nay). Trên điện thoại của người dùng (Realme RMX2021) là bản build trên PC tối 2026-10-05 (code `master` commit `d1d82ad` cộng phần sửa màn Cài đặt cùng ngày), chưa đưa lên Releases. Chưa lên Google Play |
 | Firebase | Dự án `cham-cong-don-gian`: Analytics, Crashlytics, Remote Config, Firestore (máy chủ nam5 – Mỹ), Hosting. Gói miễn phí |
 | Gói Android | `vn.chamcong.cham_cong_don_gian`, phiên bản trong `pubspec.yaml` vẫn là `1.0.0+1` |
 
@@ -19,13 +19,14 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 - **Lõi tính toán** (`lib/domain/`, thuần Dart): giờ thường, tăng ca theo khung, đi muộn, cộng trừ giờ theo giờ vào, bảng lương/giờ theo loại ngày, ngày lễ mặc định (tự bù cho năm hiện tại và 2 năm tới), kỳ lương (theo tháng hoặc 2 kỳ/tháng), khoản thu nhập/khấu trừ tự tạo, âm lịch, thu nhập "hôm nay" ước tính theo từng giây.
 - **Lưu trữ**: một file JSON trong máy (`lib/data/`), không cần mạng. Bản web lưu trong trình duyệt. Widget và GPS nền đọc/ghi thẳng file này.
 - **Màn chính** (`lib/ui/home/`): thẻ thu nhập tạm tính (số hôm nay chạy theo giây), lịch tháng (âm lịch, tiền mỗi ngày, giờ chấm), các nút Chấm vào / Chấm ra / Ngày nghỉ / Đi muộn / Ghi chú, biểu đồ cột giờ công theo ngày trong kỳ, danh sách ghi chú, thống kê thu nhập theo kỳ (có ô nhập tiền ghi đè), băng nhắc cập nhật, băng thông báo của chủ app.
-- **Cài đặt** (`lib/ui/settings/`): Chia sẻ app, Sao chép/dán cấu hình, Kỳ lương, Khung giờ ra vào, Bảng lương/giờ, Khoản thu nhập/khấu trừ khác, Ngày lễ, Cộng trừ giờ theo giờ vào, Khung nhiều mục, Tăng ca theo khung, Đi muộn, Chấm công GPS, Góp ý (email), Hướng dẫn sử dụng. Bản web có thêm mục Tải bản Android và không có GPS/widget.
+- **Cài đặt** (`lib/ui/settings/`), theo thứ tự trên màn hình: Thông báo, Kỳ lương, Khung giờ ra vào, Bảng lương/giờ, Khoản thu nhập/khấu trừ khác, Ngày lễ, Đi muộn, Cộng trừ giờ theo giờ vào, Tăng ca theo khung, Chấm công GPS, Sao lưu dữ liệu, Sao chép/dán cấu hình, Chia sẻ app, Góp ý (email), Hướng dẫn sử dụng. Bản web có thêm mục Tải bản Android và không có GPS/widget. Từ 2026-10-05 các mục cấu hình (Kỳ lương tới Sao chép/dán cấu hình) mở sẵn nhưng gập được: chạm tiêu đề để gập, mục nào đã gập thì những lần mở Cài đặt sau vẫn gập (`SettingsCard(collapsible: true)`, nhớ trong máy bằng khóa `settings_collapsed`).
+- **Đã bỏ mục "Khung nhiều mục (dự phòng)"** (2026-10-05): giờ vào/ra không khớp khung cố định nào thì không tính giờ công trong khoảng nghỉ trưa 11:30–12:30 (chỉ trừ đúng phần giờ làm rơi vào khoảng đó; hằng số `unmatchedBreakFrom`/`unmatchedBreakTo` trong `lib/domain/calc.dart`, áp dụng cho mọi người dùng) và màn chính vẫn hiện cảnh báo đỏ. Chưa cài khung cố định nào thì không trừ, không cảnh báo. Trong lúc ca đang mở (và đã cài khung cố định), số chạy đứng yên suốt 11:30–12:30 rồi chạy tiếp; lúc chấm ra nếu khớp một khung cố định thì chốt theo khung đó, số có thể nhảy nhẹ. Dữ liệu `breakSegments` cũ vẫn được đọc/ghi (file lưu, sao lưu Excel, sao chép cấu hình) nhưng không dùng để tính.
 - **Chấm công tự động (chỉ Android)**: GPS chạy nền theo khung giờ (`lib/gps/`: báo thức đánh thức máy, dịch vụ nền có thông báo, tự chấm vào khi vào bán kính và chấm ra khi rời hẳn). Có thêm danh sách "Địa điểm khác" (vị trí, bán kính, "Chấm về"/"Không chấm về") chỉ ảnh hưởng chấm ra: nhà trọ sát công ty thì về tới là chấm ra, xưởng xa máy chấm công thì ở đó không bị chấm ra, widget màn hình chính có 2 nút chấm (`lib/widget/` + `ChamCongWidgetProvider.kt`).
 - **Nhắc cập nhật** (`lib/update/`): đổi `latest_version` / `update_url` trên Remote Config là app nhắc; quá 14 ngày không cập nhật thì bắt buộc.
 - **Thống kê** (`lib/analytics/`): mỗi máy mỗi ngày ghi tối đa 1 lần các sự kiện mở app, bấm widget, GPS tự chấm, xem thống kê kỳ, mở cài đặt.
 - **Dùng thử + mã giới thiệu, đếm lượt dùng, thông báo từ chủ app**: xem ba mục riêng bên dưới.
 - **Icon app riêng** (`flutter_launcher_icons.yaml`, `assets/icon/`).
-- **Test**: 89 test qua (`flutter test`), `flutter analyze` chỉ còn 2 gợi ý nhỏ về kiểu viết.
+- **Test**: 121 test qua, không lỗi (`flutter test`), `flutter analyze` chỉ còn 2 gợi ý nhỏ về kiểu viết (chạy trên PC ngày 2026-10-05).
 
 ## Tham số Remote Config (đổi trên Firebase Console, không cần ra bản mới)
 
@@ -49,7 +50,7 @@ App tải lại Remote Config tối đa 6 giờ một lần.
 
 ## Việc còn lại
 
-- **Bản Android mới chưa tới tay ai**: bản build ngày 2026-10-03 đã cài lên điện thoại của người dùng (22:48) nhưng chưa đưa lên GitHub Releases, chưa tăng số phiên bản và chưa đổi `latest_version`. Nút "Tải bản Android" trên web vẫn trỏ tới APK `v1.0.0`.
+- **Bản Android mới chưa tới tay ai**: ngày 2026-10-05 bản build từ `master` commit `d1d82ad` (có sao lưu Excel và thông báo nhiều link) đã được build trên PC và cài đè lên điện thoại của người dùng (Realme RMX2021); mới cài và mở, chưa thử tính năng nào trên máy. Tối cùng ngày cài đè thêm bản có phần sửa màn Cài đặt (mục gập được và nhớ trạng thái gập, đổi thứ tự, bỏ Khung nhiều mục, chấm khác khung thì không tính giờ nghỉ 11:30–12:30), build bằng Flutter 3.47.6; cũng mới cài và mở. Bản này chưa đưa lên GitHub Releases, số phiên bản trong `pubspec.yaml` vẫn là `1.0.0+1` và chưa đổi `latest_version`. Nút "Tải bản Android" trên web vẫn trỏ tới APK `v1.0.0`.
 - **Chưa thử trên máy thật**: luồng lấy mã / nhập mã / mở khóa (cần 2 máy), băng thông báo, việc gửi số lượt dùng lên máy chủ. Mới xác nhận được là máy đầu tiên đã đăng ký với máy chủ (`meta/counter` = 1).
 - **Khóa ký app**: bản release đang ký bằng khóa debug. Phải tạo khóa phát hành thật trước khi có nhiều người dùng hoặc lên Google Play; đổi khóa thì các máy bị coi là máy mới (mất số thứ tự và trạng thái mở khóa).
 - **Lên Google Play**: cần khóa ký, trang chính sách quyền riêng tư và khai báo Data safety (app có gửi số liệu sử dụng theo máy).
@@ -76,7 +77,7 @@ Còn lại:
 
 - Firestore đã bật và luật đã đưa lên ngày 2026-10-02 (`firebase deploy --only firestore:rules`). Lệnh deploy tự tạo cơ sở dữ liệu ở **nam5 (Mỹ)**, không phải Singapore như dự định; vị trí không đổi được, muốn đổi phải xóa cơ sở dữ liệu `(default)` trong Firebase Console rồi tạo lại ở `asia-southeast1` và deploy lại luật.
 - Chưa thử trên máy thật luồng lấy mã / nhập mã / mở khóa (cần 2 máy, và đặt tạm `share_free_users` = 0 hoặc 1 để giới hạn áp dụng ngay).
-- Bản build 2026-10-03 (luật lấy mã thì mất ô nhập) đã cài lên điện thoại của người dùng tối 2026-10-03; mới cài và mở, chưa bấm thử luồng nào.
+- Bản build 2026-10-03 (luật lấy mã thì mất ô nhập) đã cài lên điện thoại của người dùng tối 2026-10-03, rồi ngày 2026-10-05 được cài đè bằng bản build từ `master` commit `d1d82ad`; cả hai lần mới cài và mở, chưa bấm thử luồng nào.
 - Máy được nhận diện bằng mã thiết bị Android, mã này phụ thuộc khóa ký app. Bản release đang ký bằng khóa debug; đổi sang khóa phát hành thật thì các máy đã mở khóa sẽ bị coi là máy mới. Nên chốt khóa ký trước khi có nhiều người dùng.
 - App không đăng nhập nên người rành kỹ thuật có thể gọi thẳng máy chủ để tự mở khóa. Muốn chặn thì thêm Firebase App Check sau.
 
@@ -91,7 +92,7 @@ Băng thông báo ở đầu màn chính (cả Android lẫn web), soạn trên 
 - Băng chỉ hiện 3 dòng đầu của nội dung; dài hơn thì có nút "Xem thêm" mở toàn bộ.
 - Người dùng bấm × thì băng ẩn hẳn trên máy họ và app nhắc "xem lại trong Cài đặt › Thông báo". Mục **Cài đặt › Thông báo** luôn hiện đủ thông báo đang đặt (kể cả đã tắt băng); để trống `notice_text` thì mục này ẩn. Đổi nội dung, tiêu đề hoặc link là thành thông báo mới và băng hiện lại cho mọi người.
 - App tải lại Remote Config tối đa 6 giờ một lần, nên thông báo tới dần trong ngày. Chỉ người mở app mới thấy (chưa có thông báo đẩy).
-- Bản web đã deploy ngày 2026-10-03 (`flutter build web --release` rồi `firebase deploy --only hosting`), gồm băng thông báo và mục "Chia sẻ app" (trên web là nút sao chép link). Bản Android mới đã cài lên điện thoại của người dùng, chưa đưa lên GitHub releases.
+- Bản web đã deploy ngày 2026-10-03 (`flutter build web --release` rồi `firebase deploy --only hosting`), gồm băng thông báo và mục "Chia sẻ app" (trên web là nút sao chép link). Bản Android trên điện thoại của người dùng (Realme RMX2021) hiện là bản build từ `master` commit `d1d82ad`, cài đè ngày 2026-10-05 (có thông báo nhiều link); mới cài và mở, chưa thử tính năng nào trên máy, chưa đưa lên GitHub Releases.
 
 ## Hướng dẫn sử dụng soạn trên Firebase (2026-10-05)
 
@@ -103,7 +104,7 @@ Tham số `help_text`: để trống thì màn "Hướng dẫn sử dụng" dùn
 - `web/flutter_bootstrap.js`: lấy CanvasKit (phần vẽ giao diện) từ chính trang web thay vì `gstatic.com`, để lưu sẵn được.
 - `web/index.html`: màn chờ có logo trong lúc tải; tên app "Chấm Công Đơn Giản" (cả `manifest.json`).
 - `lib/main.dart`: trên web app hiện lên ngay, không chờ Firebase (trước đây chờ tối đa 5 giây); thống kê/thông báo/mã giới thiệu chạy sau khi Firebase sẵn sàng. Android giữ như cũ.
-- Đã thử trên cloud bằng Chromium (bản build release, chạy ở localhost): lần đầu app hiện sau ~1,2 giây, mở lại ~0,9 giây, **ngắt mạng rồi mở lại vẫn hiện app** (~0,5 giây). Chưa thử trên điện thoại thật và trên tên miền thật.
+- Đã thử trên cloud bằng Chromium (bản build release, chạy ở localhost): lần đầu app hiện sau ~1,2 giây, mở lại ~0,9 giây, **ngắt mạng rồi mở lại vẫn hiện app** (~0,5 giây). Đã deploy lên trang thật tối 2026-10-05 (build bằng Flutter 3.47.6, gồm cả phần sửa màn Cài đặt và cách tính chấm khác khung cùng ngày); mới kiểm tra là trang thật đã trả về `sw.js` và các file mới, chưa mở thử bằng trình duyệt, chưa thử mất mạng trên điện thoại thật.
 
 ## Sao lưu dữ liệu ra file Excel (2026-10-05)
 
@@ -135,6 +136,7 @@ firebase deploy --only firestore:rules
 ```
 
 - Trên PC này `adb` không có trong PATH, nằm ở `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`.
-- `flutter pub get` báo lỗi "symlink support / Developer Mode" trên PC này; không ảnh hưởng build Android và web.
+- Ngày 2026-10-05 đã bỏ các thư mục không dùng `ios`, `macos`, `windows`, `linux` (app chỉ chạy Android và web). Nhờ đó hết lỗi "symlink support / Developer Mode" từng chặn `flutter build apk` trên PC này. Sau này muốn làm bản iOS thì tạo lại bằng `flutter create --platforms=ios .`.
+- Flutter trên PC đã nâng lên 3.47.6 (Dart 3.13.5) ngày 2026-10-05; `flutter pub get` không còn ghi lại `pubspec.lock`. Flutter mới tự thêm vài dòng vào `analysis_options.yaml` và `android/gradle.properties`, và nhắc nâng Kotlin từ 2.2.20 lên ít nhất 2.3.20 (mới là cảnh báo, build vẫn chạy).
 - Bản debug rất nặng trên máy ít RAM; thử trên điện thoại thì luôn dùng bản release.
 - Người dùng web có thể phải tải lại trang một lần sau mỗi lần deploy.
