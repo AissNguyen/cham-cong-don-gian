@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/store.dart';
 import 'android_download_section.dart';
+import 'backup_section.dart';
 import 'config_share_section.dart';
 import 'feedback_section.dart';
 import 'help_screen.dart';
@@ -28,6 +29,7 @@ class SettingsScreen extends StatelessWidget {
           const NoticeSection(),
           if (kIsWeb) const AndroidDownloadSection(),
           const ShareSection(),
+          BackupSection(store: store),
           ConfigShareSection(store: store),
           PayPeriodSection(store: store),
           WorkHoursSection(store: store),

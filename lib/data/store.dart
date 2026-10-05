@@ -6,6 +6,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../domain/backup.dart';
 import '../domain/default_holidays.dart';
 import '../domain/models.dart';
 import '../widget/widget_sync.dart';
@@ -134,5 +135,18 @@ class AppStore extends ChangeNotifier {
     }
     notifyListeners();
     await _save();
+  }
+
+  /// Xem trước kết quả khôi phục (không ghi gì). Đọc lại từ đĩa để tính cả những gì widget/GPS vừa ghi.
+  Future<RestoreResult> previewRestore(BackupPayload backup) async => mergeBackup(await readDataJson(), backup);
+
+  /// Gộp bản sao lưu vào dữ liệu app theo từng ngày (xem `domain/backup.dart`) và lưu lại.
+  Future<RestoreResult> restoreBackup(BackupPayload backup, {bool? restoreSettings}) async {
+    final result = mergeBackup(await readDataJson(), backup, restoreSettings: restoreSettings);
+    await writeDataJson(result.merged);
+    _applyJson(result.merged);
+    notifyListeners();
+    if (!kIsWeb) await refreshWidgetDisplay();
+    return result;
   }
 }

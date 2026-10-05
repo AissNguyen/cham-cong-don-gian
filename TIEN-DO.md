@@ -105,6 +105,15 @@ Tham số `help_text`: để trống thì màn "Hướng dẫn sử dụng" dùn
 - `lib/main.dart`: trên web app hiện lên ngay, không chờ Firebase (trước đây chờ tối đa 5 giây); thống kê/thông báo/mã giới thiệu chạy sau khi Firebase sẵn sàng. Android giữ như cũ.
 - Đã thử trên cloud bằng Chromium (bản build release, chạy ở localhost): lần đầu app hiện sau ~1,2 giây, mở lại ~0,9 giây, **ngắt mạng rồi mở lại vẫn hiện app** (~0,5 giây). Chưa thử trên điện thoại thật và trên tên miền thật.
 
+## Sao lưu dữ liệu ra file Excel (2026-10-05)
+
+Cài đặt › **Sao lưu dữ liệu** có 2 nút (cả Android lẫn web):
+
+- **Xuất file Excel**: tạo `ChamCong_yyyy-MM-dd.xlsx`, Android mở hộp chọn chỗ lưu (Download, Google Drive...) rồi hiện đường dẫn và nút "Gửi file đi" (Zalo, email...); web tải về thư mục Tải xuống. Trong file: trang "Chấm công" (mỗi ngày một dòng: giờ vào/ra, giờ thường, tăng ca, nghỉ, đi muộn, **tiền tạm tính**, ghi chú; dòng tổng cuối), "Theo kỳ" (tổng giờ/tiền từng kỳ lương, tiền tự nhập), "Thông tin" (ngày xuất, cách khôi phục) và trang ẩn `DuLieuApp` chứa toàn bộ dữ liệu gốc (JSON chia nhiều ô).
+- **Khôi phục từ file**: chỉ đọc trang ẩn, nên người dùng sửa số ở các trang khác không ảnh hưởng. Gộp **theo từng ngày**: ngày có trong file thay ngày đó trong app; ngày chỉ có trong app giữ nguyên; từ ngày xuất file trở về sau, ngày nào app đã có dữ liệu thì giữ bản trong app (đã chấm tiếp sau khi xuất). Tiền tự nhập theo kỳ gộp cùng cách. Hộp hỏi lại có ô "Lấy cả cài đặt theo file" (mặc định tick khi app chưa có dữ liệu); GPS khôi phục nhưng để tắt, bật lại để app xin quyền trên máy mới.
+- Code: quy tắc gộp `lib/domain/backup.dart`, tạo/đọc file `lib/data/backup_excel.dart` (thư viện `excel` để tạo; đọc lại bằng cách tự đọc XML để đọc được cả file đã mở và lưu lại bằng chương trình khác), giao diện `lib/ui/settings/backup_section.dart`. Test: `test/domain/backup_test.dart`, `test/data/backup_excel_test.dart`, `test/ui/backup_section_test.dart`.
+- Đã thử trên cloud: bản web (Chromium) chấm vào, xuất file tải về, khôi phục file mẫu 40 ngày (thêm 39, giữ ngày hôm nay theo app). File đọc được bằng openpyxl (thư viện bảng tính của Python), trang dữ liệu ẩn đúng, số tiền có dấu phân cách; file đã sửa và lưu lại bằng openpyxl vẫn khôi phục được. **Chưa thử**: bản Android (hộp chọn chỗ lưu, đường dẫn hiện ra, nút gửi file), mở file bằng Excel/Google Sheets/WPS thật.
+
 ## Cách build, cài và đưa lên
 
 Chạy trong thư mục dự án (trên PC: `C:\Users\Admin\Documents\PlatformIO\Projects\cham_cong_don_gian`).
