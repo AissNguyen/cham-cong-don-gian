@@ -39,6 +39,6 @@ Chưa đổi gì, chờ người dùng quyết định:
 
 ## Cập nhật lần cuối
 
-2026-10-05: thông báo nhiều link + mục Cài đặt › Thông báo, hướng dẫn soạn trên Firebase (`help_text`), bản web mở nhanh và chạy offline (xem `TIEN-DO.md`).
+2026-10-05: sao lưu/khôi phục dữ liệu bằng file Excel (Cài đặt › Sao lưu dữ liệu); thông báo nhiều link + mục Cài đặt › Thông báo, hướng dẫn soạn trên Firebase (`help_text`), bản web mở nhanh và chạy offline (xem `TIEN-DO.md`).
 
 2026-10-03: đồng bộ toàn bộ code trên PC lên `master` (Firebase, GPS/widget, mã giới thiệu, đếm lượt dùng, thông báo, bản web) và viết lại `TIEN-DO.md` thành bản tổng hợp.
