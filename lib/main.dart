@@ -13,6 +13,7 @@ import 'analytics/analytics_service.dart';
 import 'data/store.dart';
 import 'firebase_options.dart';
 import 'gps/gps_scheduler.dart';
+import 'notice/help_text.dart';
 import 'notice/notice.dart';
 import 'share/share_service.dart';
 import 'share/share_state_file.dart';
@@ -22,24 +23,31 @@ import 'update/update_screen.dart';
 import 'update/update_service.dart';
 import 'widget/widget_sync.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+/// Xong khi Firebase đã khởi động (true) hoặc không khởi động được (false). Trên web không chờ cái
+/// này trước khi hiện app, để mạng chậm/mất mạng vẫn mở app ngay; các việc cần Firebase chờ nó sau.
+late final Future<bool> firebaseReady;
+
+Future<bool> _initFirebase() async {
   // Thống kê chỉ là phụ trợ, không bao giờ được phép làm app không mở lên được — ví dụ trên web,
   // việc tải SDK Firebase qua mạng có thể thất bại (chặn quảng cáo/theo dõi, mất mạng...), nên bọc
   // try/catch, lỗi thì bỏ qua Analytics/Crashlytics, app vẫn chạy bình thường không thống kê.
-  var firebaseReady = false;
   try {
     // Có timeout: nếu bị chặn mạng, lệnh này có thể treo mãi không ném lỗi lẫn không trả về —
-    // không giới hạn thời gian thì app sẽ không bao giờ mở lên được trong tình huống đó.
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    ).timeout(const Duration(seconds: 5));
-    firebaseReady = true;
+    // không giới hạn thời gian thì các việc chờ Firebase sẽ không bao giờ chạy.
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform).timeout(const Duration(seconds: 5));
+    return true;
   } catch (_) {
-    firebaseReady = false;
+    return false;
   }
-  // Crashlytics chỉ có trên Android/iOS, không có trên web.
-  if (firebaseReady && !kIsWeb) {
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  firebaseReady = _initFirebase();
+  // Trên Android Firebase khởi động gần như tức thì nên chờ luôn (để Crashlytics bắt được lỗi
+  // ngay từ đầu); trên web thì không chờ.
+  if (!kIsWeb && await firebaseReady) {
+    // Crashlytics chỉ có trên Android/iOS, không có trên web.
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     PlatformDispatcher.instance.onError = (error, stack) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
@@ -73,6 +81,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
       if (mounted) setState(() => _updateStatus = status);
       // Sau khi Remote Config đã tải mới đọc thông báo của chủ app và đồng bộ mã giới thiệu.
       loadNotice();
+      loadHelpText();
       shareController.sync();
     });
   }
@@ -87,6 +96,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     store.load().then((_) async {
+      await firebaseReady;
       logOncePerDay(eventAppOpen);
       processPendingAnalyticsEvents();
       await shareController.load();
@@ -113,12 +123,14 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
     // App quay lại foreground: đọc lại file, để thấy các lần chấm mà widget/GPS nền vừa ghi.
     if (state == AppLifecycleState.resumed && store.loaded) {
       store.reloadFromDisk();
-      logOncePerDay(eventAppOpen);
-      processPendingAnalyticsEvents();
-      // Đọc lại số ngày dùng thử mà widget/GPS nền vừa ghi.
-      shareController.load();
-      recordUsage(usageAppOpens);
-      _checkUpdate();
+      firebaseReady.then((_) {
+        logOncePerDay(eventAppOpen);
+        processPendingAnalyticsEvents();
+        // Đọc lại số ngày dùng thử mà widget/GPS nền vừa ghi.
+        shareController.load();
+        recordUsage(usageAppOpens);
+        _checkUpdate();
+      });
     }
   }
 
