@@ -150,12 +150,6 @@ class PeriodDayChart extends StatelessWidget {
                         color: colors.ink3,
                         strokeWidth: 1,
                         dashArray: const [5, 4],
-                        label: HorizontalLineLabel(
-                          show: true,
-                          alignment: Alignment.topRight,
-                          style: TextStyle(fontSize: 9, color: colors.ink3),
-                          labelResolver: (_) => '8h · ngày thường',
-                        ),
                       ),
                     ],
                   ),
