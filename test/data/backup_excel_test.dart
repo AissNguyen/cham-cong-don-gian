@@ -81,13 +81,13 @@ void main() {
     expect(excel.tables.keys.first, 'Chấm công');
     final rows = excel.tables['Chấm công']!.rows;
     expect(rows.first.map((c) => c?.value.toString()), contains('Tiền tạm tính'));
-    // 1/1/2025 (thứ Tư), giờ làm mặc định 7h-16h: vào 8h, ra 19h → 8 giờ thường, trừ đi muộn 30 phút
-    // còn 7,5; 16h-19h = 3 giờ tăng ca.
+    // 1/1/2025 (thứ Tư), giờ làm mặc định 7h-16h: vào 8h, ra 19h → 8 giờ, trừ nghỉ trưa 1 giờ và đi
+    // muộn 30 phút còn 6,5; 16h-19h = 3 giờ tăng ca.
     final first = rows[1];
     expect(first[0]!.value.toString(), '01/01/2025');
-    expect(_num(first[5]), 7.5);
+    expect(_num(first[5]), 6.5);
     expect(_num(first[6]), 3);
-    expect(_num(first[9]), 7.5 * 30000 + 3 * 45000);
+    expect(_num(first[9]), 6.5 * 30000 + 3 * 45000);
     expect(excel.tables.keys, containsAll(['Theo kỳ', 'Thông tin']));
   });
 

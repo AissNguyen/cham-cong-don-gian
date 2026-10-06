@@ -35,7 +35,6 @@ class SettingsScreen extends StatelessWidget {
           IncomeItemsSection(store: store),
           HolidaysSection(store: store),
           LateRuleSection(store: store),
-          BreakRulesSection(store: store),
           OvertimeBracketsSection(store: store),
           GpsSection(store: store),
           // Tiện ích ít dùng nằm cuối.

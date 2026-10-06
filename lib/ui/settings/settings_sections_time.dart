@@ -21,7 +21,7 @@ class WorkHoursSection extends StatelessWidget {
     return SettingsCard(
       title: 'Khung giờ ra vào',
       collapsible: true,
-      subtitle: 'Giờ chuẩn để tính giờ công và tăng ca.',
+      subtitle: 'Giờ chuẩn để tính giờ công và tăng ca. Giờ nghỉ trưa 11:30–12:30 không tính công (về trước 12:30 thì vẫn tính).',
       child: Wrap(
         spacing: 10,
         runSpacing: 10,

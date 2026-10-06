@@ -165,13 +165,6 @@ class _DayCell extends StatelessWidget {
       }
     }
 
-    // Giờ vào/ra không khớp khung cộng-trừ giờ nào -> tô đỏ để nhắc chấm lại cho đúng.
-    if (result.breakRuleWarning) {
-      fill = Theme.of(context).colorScheme.error;
-      onFill = Colors.white;
-      borderColor = Theme.of(context).colorScheme.error;
-    }
-
     final lunarDate = showLunar ? lunar.solarToLunar(date.day, date.month, date.year) : null;
     if (isFuture) onFill = colors.ink3;
 

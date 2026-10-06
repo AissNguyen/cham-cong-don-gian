@@ -36,7 +36,7 @@ void main() {
     expect(find.text('Khung giờ ra vào'), findsOneWidget);
     expect(find.text('Bảng lương/giờ'), findsOneWidget);
     expect(find.text('Ngày lễ'), findsNWidgets(2)); // cột bảng lương + tiêu đề mục
-    expect(find.textContaining('Cộng trừ giờ theo giờ vào'), findsOneWidget);
+    expect(find.textContaining('Cộng trừ giờ theo giờ vào'), findsNothing); // khung cố định đã bỏ
     expect(find.textContaining('Khung nhiều mục'), findsNothing); // mục dự phòng đã bỏ
     expect(find.text('Đi muộn'), findsOneWidget);
     expect(find.text('Tăng ca theo khung'), findsOneWidget);
@@ -48,23 +48,23 @@ void main() {
 
   testWidgets('Mục mở sẵn; gập mục nào thì lần sau mở Cài đặt mục đó vẫn gập', (tester) async {
     await pumpSettings(tester);
-    expect(find.text('Thêm khung cố định'), findsOneWidget);
+    expect(find.text('Trừ phút'), findsOneWidget);
     expect(find.text('Thêm khung'), findsOneWidget);
 
-    await tester.tap(find.textContaining('Cộng trừ giờ theo giờ vào'));
+    await tester.tap(find.text('Đi muộn'));
     await tester.pumpAndSettle();
-    expect(find.text('Thêm khung cố định'), findsNothing);
+    expect(find.text('Trừ phút'), findsNothing);
 
     // Đóng màn Cài đặt rồi mở lại (cả khi app khởi động lại, bộ nhớ tạm đã mất).
     await tester.pumpWidget(const SizedBox());
     CollapsedSettings.resetCache();
     await pumpSettings(tester);
-    expect(find.text('Thêm khung cố định'), findsNothing);
+    expect(find.text('Trừ phút'), findsNothing);
     expect(find.text('Thêm khung'), findsOneWidget); // mục khác không bị ảnh hưởng
 
     // Chạm lần nữa thì mở ra lại.
-    await tester.tap(find.textContaining('Cộng trừ giờ theo giờ vào'));
+    await tester.tap(find.text('Đi muộn'));
     await tester.pumpAndSettle();
-    expect(find.text('Thêm khung cố định'), findsOneWidget);
+    expect(find.text('Trừ phút'), findsOneWidget);
   });
 }
