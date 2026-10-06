@@ -1,8 +1,9 @@
 /// Biểu đồ cột giờ công theo từng ngày trong kỳ: cột cao theo số giờ công thực nhận (normal +
 /// tăng ca). Nếu giờ vào thực tế khác giờ vào chuẩn (đi giờ khác, không phải "đi muộn" bị trừ
-/// lương — không liên quan công tắc "Đi muộn"), phần dưới cùng của cột tô màu riêng, cao bằng
-/// khoảng cách từ giờ vào chuẩn tới giờ chấm vào thực tế — chỉ để biết, không trừ/cộng gì thêm,
-/// số giờ công phía trên vẫn là số thật đã tính ở computeDay.
+/// lương — không liên quan công tắc "Đi muộn"), phía trên cột có thêm một khúc chỉ có viền (cùng
+/// màu cột, bên trong để trống), cao bằng khoảng cách từ giờ vào chuẩn tới giờ chấm vào thực tế —
+/// chỉ để biết, không trừ/cộng gì thêm; phần tô đặc bên dưới vẫn là số giờ công thật đã tính ở
+/// computeDay.
 library;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -81,7 +82,7 @@ class PeriodDayChart extends StatelessWidget {
             const SizedBox(width: 4),
             Text('Giờ công', style: TextStyle(fontSize: 11.5, color: colors.ink2)),
             const SizedBox(width: 14),
-            _legendDot(colors.offHourMark),
+            _legendDot(colors.gradientStart, hollow: true),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -120,7 +121,7 @@ class PeriodDayChart extends StatelessWidget {
                           if (day.lateHours > 0)
                             TextSpan(
                               text: '\nĐi giờ khác ${_fmtH(day.lateHours)}h',
-                              style: const TextStyle(color: Color(0xFFFFE08A), fontSize: 11, fontWeight: FontWeight.w500),
+                              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
                             ),
                         ];
                         return BarTooltipItem(
@@ -192,11 +193,20 @@ class PeriodDayChart extends StatelessWidget {
                             toY: days[i].total,
                             width: barWidth,
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
-                            color: days[i].hasData ? colors.gradientStart : colors.line,
+                            // Có khúc "đi giờ khác" thì để nền cột trong suốt (thư viện vẽ nền cả
+                            // cột trước rồi mới vẽ từng khúc), khúc trên chỉ có viền.
+                            color: !days[i].hasData
+                                ? colors.line
+                                : (days[i].lateHours > 0 ? Colors.transparent : colors.gradientStart),
                             rodStackItems: days[i].hasData && days[i].lateHours > 0
                                 ? [
-                                    BarChartRodStackItem(0, days[i].lateHours, colors.offHourMark),
-                                    BarChartRodStackItem(days[i].lateHours, days[i].total, colors.gradientStart),
+                                    BarChartRodStackItem(0, days[i].paidHours, colors.gradientStart),
+                                    BarChartRodStackItem(
+                                      days[i].paidHours,
+                                      days[i].total,
+                                      Colors.transparent,
+                                      borderSide: BorderSide(color: colors.gradientStart, width: 1.2),
+                                    ),
                                   ]
                                 : const [],
                           ),
@@ -212,8 +222,15 @@ class PeriodDayChart extends StatelessWidget {
     );
   }
 
-  Widget _legendDot(Color color) =>
-      Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)));
+  Widget _legendDot(Color color, {bool hollow = false}) => Container(
+    width: 10,
+    height: 10,
+    decoration: BoxDecoration(
+      color: hollow ? null : color,
+      border: hollow ? Border.all(color: color, width: 1.2) : null,
+      borderRadius: BorderRadius.circular(3),
+    ),
+  );
 }
 
 /// Khối hiện ngoài màn chính (không cần bấm mở), có nút lùi/tiến để xem biểu đồ của các kỳ trước.
