@@ -94,9 +94,9 @@ class WageTable {
   );
 }
 
-/// Cộng/trừ phút theo khung giờ vào-ra cố định: khớp khi giờ vào nằm trong [checkInFrom,
-/// checkInTo] VÀ giờ ra nằm trong [checkOutFrom, checkOutTo] (mỗi khoảng có thể chỉ là 1 điểm,
-/// nhập từ = đến). Ví dụ vào trong khoảng 7:00-8:00, ra trong khoảng 11:00-12:00, trừ 15 phút.
+/// Khung cố định cộng/trừ phút theo giờ vào-ra của các bản cũ. Mục này đã bỏ khỏi Cài đặt và
+/// không còn dùng để tính (giờ nghỉ trưa cố định 11:30–12:30 thay thế); chỉ giữ lại để đọc/ghi
+/// dữ liệu và file sao lưu cũ không bị lỗi.
 class FixedBreakRule {
   const FixedBreakRule({
     required this.checkInFrom,
@@ -113,18 +113,6 @@ class FixedBreakRule {
 
   /// Âm là trừ, dương là cộng.
   final int deltaMinutes;
-
-  /// Khớp khi giờ vào/ra nằm trong khoảng đã cài. Nếu [checkOutTo] trùng đúng giờ ra chuẩn
-  /// ([normalEnd], ví dụ 16:00) thì giờ ra muộn hơn (do tăng ca) vẫn coi là khớp, không bị
-  /// cảnh báo — [checkOutTo] khi đó có nghĩa là "từ giờ này trở lên".
-  bool matches(Clock checkIn, Clock checkOut, {Clock? normalEnd}) {
-    final inCheckIn = checkIn >= checkInFrom && checkIn <= checkInTo;
-    var inCheckOut = checkOut >= checkOutFrom && checkOut <= checkOutTo;
-    if (!inCheckOut && normalEnd != null && checkOutTo == normalEnd && checkOut > checkOutTo) {
-      inCheckOut = true;
-    }
-    return inCheckIn && inCheckOut;
-  }
 
   Map<String, dynamic> toJson() => {
     'checkInFrom': checkInFrom.toJson(),

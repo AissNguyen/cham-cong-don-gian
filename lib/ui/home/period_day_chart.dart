@@ -1,8 +1,9 @@
 /// Biểu đồ cột giờ công theo từng ngày trong kỳ: cột cao theo số giờ công thực nhận (normal +
 /// tăng ca). Nếu giờ vào thực tế khác giờ vào chuẩn (đi giờ khác, không phải "đi muộn" bị trừ
-/// lương — không liên quan công tắc "Đi muộn"), phần dưới cùng của cột tô màu riêng, cao bằng
-/// khoảng cách từ giờ vào chuẩn tới giờ chấm vào thực tế — chỉ để biết, không trừ/cộng gì thêm,
-/// số giờ công phía trên vẫn là số thật đã tính ở computeDay.
+/// lương — không liên quan công tắc "Đi muộn"), phía trên cột có thêm một khúc chỉ có viền (cùng
+/// màu cột, bên trong để trống), cao bằng khoảng cách từ giờ vào chuẩn tới giờ chấm vào thực tế —
+/// chỉ để biết, không trừ/cộng gì thêm; phần tô đặc bên dưới vẫn là số giờ công thật đã tính ở
+/// computeDay.
 library;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -75,31 +76,30 @@ class PeriodDayChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            _legendDot(colors.gradientStart),
-            const SizedBox(width: 4),
-            Text('Giờ công', style: TextStyle(fontSize: 11.5, color: colors.ink2)),
-            const SizedBox(width: 14),
-            _legendDot(colors.offHourMark),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                'Đi giờ khác (không tính thêm)',
-                style: TextStyle(fontSize: 11.5, color: colors.ink2),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
         SizedBox(
           height: 170,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final slot = (constraints.maxWidth - 30) / days.length;
+              final slot = constraints.maxWidth / days.length;
               final barWidth = (slot * 0.6).clamp(2.0, 12.0);
+              // Viền của khúc "đi giờ khác" vẽ nằm gọn bên trong cột (thư viện vẽ viền đè lên mép,
+              // tràn ra ngoài làm khúc đó trông phình hơn cột): hai cạnh bên bằng dải màu ở mép,
+              // cạnh trên bằng một khúc tô đặc mỏng.
+              const strokePx = 1.2;
+              final edge = (strokePx / barWidth).clamp(0.0, 0.5);
+              final hollowFill = LinearGradient(
+                colors: [colors.gradientStart, colors.gradientStart, Colors.transparent, Colors.transparent, colors.gradientStart, colors.gradientStart],
+                stops: [0, edge, edge, 1 - edge, 1 - edge, 1],
+              );
+              final topLine = strokePx * maxY / constraints.maxHeight;
+              List<BarChartRodStackItem> stackOf(_DayBar day) {
+                final lineFrom = (day.total - topLine).clamp(day.paidHours, day.total);
+                return [
+                  BarChartRodStackItem(0, day.paidHours, colors.gradientStart),
+                  if (lineFrom > day.paidHours) BarChartRodStackItem(day.paidHours, lineFrom, null, gradient: hollowFill),
+                  BarChartRodStackItem(lineFrom, day.total, colors.gradientStart),
+                ];
+              }
               return BarChart(
                 BarChartData(
                   maxY: maxY,
@@ -120,7 +120,7 @@ class PeriodDayChart extends StatelessWidget {
                           if (day.lateHours > 0)
                             TextSpan(
                               text: '\nĐi giờ khác ${_fmtH(day.lateHours)}h',
-                              style: const TextStyle(color: Color(0xFFFFE08A), fontSize: 11, fontWeight: FontWeight.w500),
+                              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
                             ),
                         ];
                         return BarTooltipItem(
@@ -134,32 +134,8 @@ class PeriodDayChart extends StatelessWidget {
                   titlesData: FlTitlesData(
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 18,
-                        getTitlesWidget: (value, meta) {
-                          final i = value.toInt() - 1;
-                          if (i < 0 || i >= days.length) return const SizedBox.shrink();
-                          final day = days[i].date.day;
-                          final isLast = i == days.length - 1;
-                          if (day != 1 && day % 5 != 0 && !isLast) return const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text('$day', style: TextStyle(fontSize: 9, color: colors.ink2)),
-                          );
-                        },
-                      ),
-                    ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 26,
-                        interval: 2,
-                        getTitlesWidget: (value, meta) =>
-                            Text(value.toInt().toString(), style: TextStyle(fontSize: 9, color: colors.ink2)),
-                      ),
-                    ),
+                    bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
                   gridData: FlGridData(
                     drawVerticalLine: false,
@@ -174,12 +150,6 @@ class PeriodDayChart extends StatelessWidget {
                         color: colors.ink3,
                         strokeWidth: 1,
                         dashArray: const [5, 4],
-                        label: HorizontalLineLabel(
-                          show: true,
-                          alignment: Alignment.topRight,
-                          style: TextStyle(fontSize: 9, color: colors.ink3),
-                          labelResolver: (_) => '8h · ngày thường',
-                        ),
                       ),
                     ],
                   ),
@@ -192,13 +162,12 @@ class PeriodDayChart extends StatelessWidget {
                             toY: days[i].total,
                             width: barWidth,
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
-                            color: days[i].hasData ? colors.gradientStart : colors.line,
-                            rodStackItems: days[i].hasData && days[i].lateHours > 0
-                                ? [
-                                    BarChartRodStackItem(0, days[i].lateHours, colors.offHourMark),
-                                    BarChartRodStackItem(days[i].lateHours, days[i].total, colors.gradientStart),
-                                  ]
-                                : const [],
+                            // Có khúc "đi giờ khác" thì để nền cột trong suốt (thư viện vẽ nền cả
+                            // cột trước rồi mới vẽ từng khúc), khúc trên chỉ có viền.
+                            color: !days[i].hasData
+                                ? colors.line
+                                : (days[i].lateHours > 0 ? Colors.transparent : colors.gradientStart),
+                            rodStackItems: days[i].hasData && days[i].lateHours > 0 ? stackOf(days[i]) : const [],
                           ),
                         ],
                       ),
@@ -211,9 +180,6 @@ class PeriodDayChart extends StatelessWidget {
       ],
     );
   }
-
-  Widget _legendDot(Color color) =>
-      Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)));
 }
 
 /// Khối hiện ngoài màn chính (không cần bấm mở), có nút lùi/tiến để xem biểu đồ của các kỳ trước.

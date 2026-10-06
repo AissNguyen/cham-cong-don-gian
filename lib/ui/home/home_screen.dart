@@ -359,9 +359,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildActionButtons(BuildContext context, AppStore store, DayRecord record) {
-    final result = computeDay(record, store.settings);
-    final errorColor = Theme.of(context).colorScheme.error;
-
     Future<void> punchNow(bool isCheckIn) async {
       final now = DateTime.now();
       final time = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, now.hour, now.minute);
@@ -382,8 +379,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: record.checkIn != null ? fmtTime(record.checkIn!) : 'Chấm vào',
                 active: record.checkIn != null,
                 activeColor: Colors.blue,
-                onTap: () => punchNow(true),
-                onLongPress: () => showPunchEditSheet(context, store: store, date: _selectedDate, isCheckIn: true),
+                onTap: () => showPunchEditSheet(context, store: store, date: _selectedDate, isCheckIn: true),
+                onLongPress: () => punchNow(true),
               ),
             ),
             Expanded(
@@ -392,8 +389,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: record.checkOut != null ? fmtTime(record.checkOut!) : 'Chấm ra',
                 active: record.checkOut != null,
                 activeColor: Colors.blue,
-                onTap: () => punchNow(false),
-                onLongPress: () => showPunchEditSheet(context, store: store, date: _selectedDate, isCheckIn: false),
+                onTap: () => showPunchEditSheet(context, store: store, date: _selectedDate, isCheckIn: false),
+                onLongPress: () => punchNow(false),
               ),
             ),
             Expanded(
@@ -418,34 +415,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Chạm để chấm giờ hiện tại · giữ để tự sửa giờ',
+          'Chạm để chọn giờ · giữ để chấm giờ hiện tại',
           style: TextStyle(fontSize: 11, color: context.appColors.ink3),
         ),
-        if (result.breakRuleWarning)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: errorColor.withValues(alpha: 0.1),
-              border: Border.all(color: errorColor),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.warning_amber_rounded, color: errorColor, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Giờ vào/ra không khớp khung cộng-trừ giờ nào đã cài — đang tạm tính không kể giờ '
-                    'nghỉ ${unmatchedBreakFrom.formatted}–${unmatchedBreakTo.formatted} '
-                    '(trừ ${result.breakRuleDeltaMinutes.abs()} phút). Hãy chấm lại cho đúng giờ.',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: errorColor),
-                  ),
-                ),
-              ],
-            ),
-          ),
       ],
     );
   }

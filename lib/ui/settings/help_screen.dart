@@ -36,7 +36,7 @@ const _items = [
   _HelpItem(
     Icons.login,
     'Chấm vào / Chấm ra',
-    'Chạm để lấy giờ hiện tại ngay lập tức. Giữ (ấn lâu) để mở bảng tự sửa giờ hoặc chọn giờ có sẵn.',
+    'Chạm để mở bảng chọn giờ (lấy giờ hiện tại, tự sửa giờ hoặc chọn giờ có sẵn). Giữ (ấn lâu) để chấm ngay giờ hiện tại.',
   ),
   _HelpItem(Icons.beach_access_outlined, 'Ngày nghỉ', 'Đánh dấu cả ngày là nghỉ, xóa hết giờ đã chấm trong ngày đó.'),
   _HelpItem(
