@@ -1,6 +1,6 @@
 # Tổng hợp — Chấm Công Đơn Giản
 
-**Cập nhật lần cuối: 2026-10-06.** Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
+**Cập nhật lần cuối: 2026-10-08.** Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
 
 App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, tăng ca, ngày nghỉ, đi muộn, và ước tính lương theo kỳ. Tách riêng khỏi dự án `so_cong` (bản đầy đủ, đang để đó); chỉ dùng chung `domain/lunar.dart` và font Be Vietnam Pro.
 
@@ -9,7 +9,7 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 | Thứ | Ở đâu |
 |---|---|
 | Mã nguồn | GitHub `AissNguyen/cham-cong-don-gian`, nhánh `master` |
-| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-05) |
+| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-08, gồm các thay đổi của PR #5 và phần sửa biểu đồ nhấp nháy) |
 | Bản Android | File APK ở GitHub Releases, hiện là `v1.0.0` (bản cũ, chưa có các phần làm từ ngày 2026-10-02 tới nay). Trên điện thoại của người dùng (Realme RMX2021) là bản build trên PC tối 2026-10-05 (code `master` commit `d1d82ad` cộng phần sửa màn Cài đặt cùng ngày), chưa đưa lên Releases. Chưa lên Google Play |
 | Firebase | Dự án `cham-cong-don-gian`: Analytics, Crashlytics, Remote Config, Firestore (máy chủ nam5 – Mỹ), Hosting. Gói miễn phí |
 | Gói Android | `vn.chamcong.cham_cong_don_gian`, phiên bản trong `pubspec.yaml` vẫn là `1.0.0+1` |
@@ -26,6 +26,7 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 - **Thống kê** (`lib/analytics/`): mỗi máy mỗi ngày ghi tối đa 1 lần các sự kiện mở app, bấm widget, GPS tự chấm, xem thống kê kỳ, mở cài đặt.
 - **Dùng thử + mã giới thiệu, đếm lượt dùng, thông báo từ chủ app**: xem ba mục riêng bên dưới.
 - **Icon app riêng** (`flutter_launcher_icons.yaml`, `assets/icon/`).
+- **Biểu đồ giờ làm không còn nhấp nháy** (2026-10-08): màn chính vẽ lại mỗi giây nên biểu đồ chạy lại hiệu ứng chuyển mỗi giây, khúc viền "đi giờ khác" ở đầu cột bị nhòe rồi nét lại. Đã tắt hiệu ứng chuyển của biểu đồ (`duration: Duration.zero`) và tách các mốc màu của dải viền cho khỏi trùng nhau (`lib/ui/home/period_day_chart.dart`). Đã thử trên điện thoại của người dùng: 14 ảnh chụp liên tiếp giống hệt nhau. Bản này đã cài trên điện thoại và đã deploy web cùng ngày.
 - **Test**: 117 test qua (chạy trên cloud ngày 2026-10-06 bằng Flutter 3.47.6, `flutter analyze` còn 2 gợi ý nhỏ như cũ). Trước đó: 121 test qua, không lỗi (`flutter test`), `flutter analyze` chỉ còn 2 gợi ý nhỏ về kiểu viết (chạy trên PC ngày 2026-10-05).
 
 ## Tham số Remote Config (đổi trên Firebase Console, không cần ra bản mới)

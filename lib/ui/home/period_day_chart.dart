@@ -86,10 +86,13 @@ class PeriodDayChart extends StatelessWidget {
               // tràn ra ngoài làm khúc đó trông phình hơn cột): hai cạnh bên bằng dải màu ở mép,
               // cạnh trên bằng một khúc tô đặc mỏng.
               const strokePx = 1.2;
-              final edge = (strokePx / barWidth).clamp(0.0, 0.5);
+              final edge = (strokePx / barWidth).clamp(0.0, 0.49);
+              // Các mốc màu phải khác nhau (lệch một chút xíu): hai mốc trùng nhau bị gộp làm một khi
+              // thư viện pha trộn dải màu lúc chuyển cảnh, viền sắc nét thành dải nhòe.
+              const eps = 0.001;
               final hollowFill = LinearGradient(
                 colors: [colors.gradientStart, colors.gradientStart, Colors.transparent, Colors.transparent, colors.gradientStart, colors.gradientStart],
-                stops: [0, edge, edge, 1 - edge, 1 - edge, 1],
+                stops: [0, edge, edge + eps, 1 - edge - eps, 1 - edge, 1],
               );
               final topLine = strokePx * maxY / constraints.maxHeight;
               List<BarChartRodStackItem> stackOf(_DayBar day) {
@@ -101,6 +104,9 @@ class PeriodDayChart extends StatelessWidget {
                 ];
               }
               return BarChart(
+                // Màn chính vẽ lại mỗi giây (số tiền đang chạy); không tắt hiệu ứng chuyển thì biểu đồ
+                // chạy lại hiệu ứng mỗi giây, khúc "đi giờ khác" nhấp nháy.
+                duration: Duration.zero,
                 BarChartData(
                   maxY: maxY,
                   minY: 0,
