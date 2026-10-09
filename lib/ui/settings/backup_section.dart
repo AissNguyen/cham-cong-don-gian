@@ -194,7 +194,7 @@ class _BackupSectionState extends State<BackupSection> {
     if (ok != true) return;
 
     final result = await widget.store.restoreBackup(backup, restoreSettings: withSettings);
-    if (!kIsWeb && result.settingsRestored) await rescheduleGpsAlarms(widget.store.settings.gps);
+    if (!kIsWeb && result.settingsRestored) await rescheduleGpsAlarms(widget.store.settings.effectiveGps);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -220,7 +220,6 @@ class _BackupSectionState extends State<BackupSection> {
   Widget build(BuildContext context) {
     return SettingsCard(
       title: 'Sao lưu dữ liệu',
-      collapsible: true,
       subtitle:
           'Xuất toàn bộ giờ chấm ra file Excel để cất giữ, xem lại sau này, hoặc khôi phục khi đổi máy, cài lại app.',
       child: Wrap(

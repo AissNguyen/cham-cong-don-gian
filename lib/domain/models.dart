@@ -649,6 +649,10 @@ class AppSettings {
   /// Hiện mục Chấm công GPS ở Cài đặt. Tắt thì GPS cũng ngừng tự chấm.
   final bool showGps;
 
+  /// Cấu hình GPS thật sự dùng để tự chấm: tắt công tắc "Dùng chấm công GPS" thì coi như tắt GPS,
+  /// nhưng vẫn giữ nguyên tọa độ, khung giờ... để bật lại là chạy như cũ.
+  GpsConfig get effectiveGps => showGps ? gps : gps.copyWith(enabled: false);
+
   AppSettings copyWith({
     Clock? workStart,
     Clock? workEnd,

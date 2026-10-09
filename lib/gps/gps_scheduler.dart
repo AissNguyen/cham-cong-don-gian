@@ -55,7 +55,7 @@ Future<void> rescheduleGpsAlarms(GpsConfig gps) async {
 Future<void> gpsAlarmCallback() async {
   final json = await readDataJson();
   final settings = settingsFromJson(json);
-  if (!settings.gps.enabled) return;
+  if (!settings.effectiveGps.enabled) return;
   // Hết ngày dùng thử mà chưa mở khóa: hỏi máy chủ xem đã có ai nhập mã của máy này chưa; chưa
   // thì không khởi động dịch vụ kiểm tra vị trí.
   if (!await autoFeatureAllowed() && !await tryUnlockInBackground()) return;

@@ -1,20 +1,129 @@
-/// Xuất/nhập cài đặt dạng chuỗi JSON để sao chép - dán chia sẻ giữa các máy.
+/// Sao chép / dán cấu hình giữa các máy (thuần Dart).
+///
+/// Chuỗi kiểu mới viết gọn một dòng, chỉ gồm các con số của phần lương và cài đặt tính công: loại
+/// người dùng, lương cơ bản / lương ngày, kỳ lương, giờ làm, bảng lương/giờ, đi muộn và các khoản của
+/// phiếu lương. Không kèm ngày lễ, GPS, khung tăng ca và các danh sách cũ; máy nhận giữ nguyên những
+/// thứ đó của mình. Vẫn đọc được chuỗi kiểu cũ (toàn bộ cài đặt dạng JSON).
 library;
 
 import 'dart:convert';
 
 import 'models.dart';
 
-const _encoder = JsonEncoder.withIndent('  ');
+/// Chữ mở đầu của chuỗi kiểu mới, để nhận ra đúng là cấu hình của app.
+const configSharePrefix = 'CCDG1 ';
 
-String encodeSettings(AppSettings settings) => _encoder.convert(settings.toJson());
+const _types = [DayType.weekday, DayType.saturday, DayType.sunday, DayType.holiday];
 
-/// Trả về null nếu chuỗi dán vào không hợp lệ.
-AppSettings? decodeSettings(String text) {
+const _calcCodes = {
+  IncomeCalcMethod.fixed: 'f',
+  IncomeCalcMethod.perWorkDay: 'd',
+  IncomeCalcMethod.percentOfBaseSalary: 'p',
+  IncomeCalcMethod.salary: 's',
+  IncomeCalcMethod.overtime: 'o',
+};
+
+/// Bỏ ".0" cho số tròn để chuỗi ngắn hơn.
+num _n(double v) => v == v.roundToDouble() ? v.toInt() : v;
+
+String encodeSettings(AppSettings s) {
+  final data = <String, dynamic>{
+    'k': s.workerKind == WorkerKind.worker ? 'w' : 'd',
+    'b': _n(s.baseSalary),
+    'dw': _n(s.dailyWage),
+    'p': [s.payPeriod.type == PayPeriodType.monthly ? 'm' : 's', s.payPeriod.monthlyStartDay, s.payPeriod.semiFirstStart, s.payPeriod.semiFirstEnd],
+    'h': [s.workStart.formatted, s.workEnd.formatted],
+    'r': [
+      for (final t in _types) [_n(s.wageTable.of(t).normalPerHour), _n(s.wageTable.of(t).overtimePerHour)],
+    ],
+    'l': [s.lateRule.unit == LateUnit.minutes ? 'm' : 'đ', _n(s.lateRule.amount), s.lateRule.after.formatted],
+    'i': [
+      for (final i in s.incomeItems)
+        [
+          i.id,
+          i.name,
+          i.type == IncomeItemType.income ? 1 : 0,
+          _calcCodes[i.calcMethod],
+          _n(i.amount),
+          i.activeAfter?.formatted ?? '',
+          if (i.inBasis) 1,
+        ],
+    ],
+  };
+  return '$configSharePrefix${jsonEncode(data)}';
+}
+
+/// Áp cấu hình trong [text] lên cài đặt hiện tại [current]: lấy phần lương và cài đặt tính công
+/// theo chuỗi, giữ nguyên ngày lễ, GPS, khung tăng ca, công tắc ẩn/hiện và công chuẩn sửa tay của
+/// máy này. Trả về null nếu chuỗi dán vào không hợp lệ.
+AppSettings? decodeSettings(String text, {required AppSettings current}) {
   try {
-    final json = jsonDecode(text) as Map<String, dynamic>;
-    return AppSettings.fromJson(json);
+    final trimmed = text.trim();
+    final incoming = trimmed.startsWith(configSharePrefix.trim())
+        ? _decodeCompact(trimmed.substring(configSharePrefix.trim().length).trim())
+        : AppSettings.fromJson(jsonDecode(trimmed) as Map<String, dynamic>);
+    return current.copyWith(
+      workerKind: incoming.workerKind,
+      baseSalary: incoming.baseSalary,
+      dailyWage: incoming.dailyWage,
+      payPeriod: incoming.payPeriod,
+      workStart: incoming.workStart,
+      workEnd: incoming.workEnd,
+      wageTable: incoming.wageTable,
+      lateRule: incoming.lateRule,
+      incomeItems: incoming.incomeItems,
+    );
   } catch (_) {
     return null;
   }
+}
+
+AppSettings _decodeCompact(String body) {
+  final d = jsonDecode(body) as Map<String, dynamic>;
+  double n(Object? v) => (v as num).toDouble();
+  final p = d['p'] as List;
+  final h = d['h'] as List;
+  final r = d['r'] as List;
+  final l = d['l'] as List;
+  final codes = {for (final e in _calcCodes.entries) e.value: e.key};
+  return AppSettings(
+    workerKind: d['k'] == 'd' ? WorkerKind.daily : WorkerKind.worker,
+    baseSalary: n(d['b']),
+    dailyWage: n(d['dw']),
+    payPeriod: PayPeriodConfig(
+      type: p[0] == 's' ? PayPeriodType.semiMonthly : PayPeriodType.monthly,
+      monthlyStartDay: p[1] as int,
+      semiFirstStart: p[2] as int,
+      semiFirstEnd: p[3] as int,
+    ),
+    workStart: Clock.parse(h[0] as String),
+    workEnd: Clock.parse(h[1] as String),
+    wageTable: WageTable(
+      rates: {
+        for (var i = 0; i < _types.length; i++)
+          _types[i]: WageRate(normalPerHour: n((r[i] as List)[0]), overtimePerHour: n((r[i] as List)[1])),
+      },
+    ),
+    lateRule: LateRule(
+      unit: l[0] == 'm' ? LateUnit.minutes : LateUnit.money,
+      amount: n(l[1]),
+      after: Clock.parse(l[2] as String),
+    ),
+    incomeItems: [
+      for (final raw in d['i'] as List)
+        () {
+          final e = raw as List;
+          final after = e[5] as String;
+          return IncomeItem(
+            id: e[0] as String,
+            name: e[1] as String,
+            type: e[2] == 1 ? IncomeItemType.income : IncomeItemType.deduction,
+            calcMethod: codes[e[3]]!,
+            amount: n(e[4]),
+            activeAfter: after.isEmpty ? null : Clock.parse(after),
+            inBasis: e.length > 6 && e[6] == 1,
+          );
+        }(),
+    ],
+  );
 }

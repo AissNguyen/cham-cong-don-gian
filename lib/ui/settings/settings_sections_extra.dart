@@ -13,6 +13,61 @@ Clock _toClock(TimeOfDay t) => Clock(t.hour, t.minute);
 
 const _maxExtraPlaces = 10;
 
+/// Lấy tọa độ hiện tại (xin quyền nếu cần); lỗi thì báo lên màn hình và trả về null.
+Future<Position?> currentGpsPosition(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      messenger.showSnackBar(const SnackBar(content: Text('Chưa cấp quyền vị trí.')));
+      return null;
+    }
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      messenger.showSnackBar(const SnackBar(content: Text('Hãy bật định vị (GPS) trên máy.')));
+      return null;
+    }
+    return await Geolocator.getCurrentPosition();
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Không lấy được vị trí: $e')));
+    return null;
+  }
+}
+
+/// Xin đủ các quyền để GPS tự chấm được cả khi app không mở.
+Future<void> requestGpsPermissions(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  // Vị trí (kể cả khi chạy nền) — chấm ra thường xảy ra lúc app không mở.
+  var locationPermission = await Geolocator.checkPermission();
+  if (locationPermission == LocationPermission.denied) {
+    locationPermission = await Geolocator.requestPermission();
+  }
+  if (locationPermission == LocationPermission.whileInUse) {
+    locationPermission = await Geolocator.requestPermission();
+  }
+
+  // Thông báo (Android 13+, bắt buộc để dịch vụ nền hiện được).
+  if (await FlutterForegroundTask.checkNotificationPermission() != NotificationPermission.granted) {
+    await FlutterForegroundTask.requestNotificationPermission();
+  }
+
+  // Báo thức chính xác (Android 12+).
+  if (!await FlutterForegroundTask.canScheduleExactAlarms) {
+    await FlutterForegroundTask.openAlarmsAndRemindersSettings();
+  }
+
+  // Bỏ qua tối ưu hóa pin — máy Android hay tự tắt app chạy nền nếu không xin quyền này.
+  if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+  }
+
+  if (context.mounted) {
+    messenger.showSnackBar(const SnackBar(content: Text('Đã xin các quyền cần thiết.')));
+  }
+}
+
 /// Chấm công tự động bằng GPS: vị trí, bán kính, khung giờ kiểm tra chấm vào/ra riêng, tần suất.
 class GpsSection extends StatelessWidget {
   const GpsSection({super.key, required this.store});
@@ -21,7 +76,7 @@ class GpsSection extends StatelessWidget {
 
   Future<void> _updateGps(GpsConfig Function(GpsConfig) update) async {
     await store.updateSettings((s) => s.copyWith(gps: update(s.gps)));
-    await rescheduleGpsAlarms(store.settings.gps);
+    await rescheduleGpsAlarms(store.settings.effectiveGps);
   }
 
   Future<void> _openWindowForm(BuildContext context, {TimeWindow? editing}) async {
@@ -106,31 +161,8 @@ class GpsSection extends StatelessWidget {
     );
   }
 
-  /// Lấy tọa độ hiện tại (xin quyền nếu cần); lỗi thì báo lên màn hình và trả về null.
-  Future<Position?> _currentPosition(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        messenger.showSnackBar(const SnackBar(content: Text('Chưa cấp quyền vị trí.')));
-        return null;
-      }
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        messenger.showSnackBar(const SnackBar(content: Text('Hãy bật định vị (GPS) trên máy.')));
-        return null;
-      }
-      return await Geolocator.getCurrentPosition();
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Không lấy được vị trí: $e')));
-      return null;
-    }
-  }
-
   Future<void> _pickCurrentLocation(BuildContext context) async {
-    final pos = await _currentPosition(context);
+    final pos = await currentGpsPosition(context);
     if (pos == null) return;
     await _updateGps((gps) => gps.copyWith(latitude: pos.latitude, longitude: pos.longitude));
   }
@@ -173,7 +205,7 @@ class GpsSection extends StatelessWidget {
                       ? null
                       : () async {
                           setState(() => loading = true);
-                          final pos = await _currentPosition(context);
+                          final pos = await currentGpsPosition(context);
                           if (!dialogContext.mounted) return;
                           setState(() {
                             loading = false;
@@ -281,43 +313,11 @@ class GpsSection extends StatelessWidget {
     );
   }
 
-  Future<void> _requestPermissions(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    // Vị trí (kể cả khi chạy nền) — chấm ra thường xảy ra lúc app không mở.
-    var locationPermission = await Geolocator.checkPermission();
-    if (locationPermission == LocationPermission.denied) {
-      locationPermission = await Geolocator.requestPermission();
-    }
-    if (locationPermission == LocationPermission.whileInUse) {
-      locationPermission = await Geolocator.requestPermission();
-    }
-
-    // Thông báo (Android 13+, bắt buộc để dịch vụ nền hiện được).
-    if (await FlutterForegroundTask.checkNotificationPermission() != NotificationPermission.granted) {
-      await FlutterForegroundTask.requestNotificationPermission();
-    }
-
-    // Báo thức chính xác (Android 12+).
-    if (!await FlutterForegroundTask.canScheduleExactAlarms) {
-      await FlutterForegroundTask.openAlarmsAndRemindersSettings();
-    }
-
-    // Bỏ qua tối ưu hóa pin — máy Android hay tự tắt app chạy nền nếu không xin quyền này.
-    if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
-      await FlutterForegroundTask.requestIgnoreBatteryOptimization();
-    }
-
-    if (context.mounted) {
-      messenger.showSnackBar(const SnackBar(content: Text('Đã xin các quyền cần thiết.')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final gps = store.settings.gps;
     return SettingsCard(
-      title: 'Chấm công GPS',
-      collapsible: true,
+      title: 'GPS: tùy chọn thêm',
       subtitle: 'Đứng ở nơi chấm công rồi bấm lấy tọa độ. Cần cấp đủ quyền thì mới tự chấm khi app không mở.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -333,7 +333,7 @@ class GpsSection extends StatelessWidget {
             OutlinedButton.icon(
               icon: const Icon(Icons.verified_user_outlined),
               label: const Text('Cấp quyền cần thiết'),
-              onPressed: () => _requestPermissions(context),
+              onPressed: () => requestGpsPermissions(context),
             ),
             const SizedBox(height: 12),
             Text(
@@ -404,55 +404,6 @@ class GpsSection extends StatelessWidget {
               onChanged: (v) => _updateGps((gps) => gps.copyWith(soundEnabled: v)),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Kỳ lương: theo tháng (chọn ngày bắt đầu) hoặc 2 kỳ mỗi tháng (1-15, 16-cuối tháng).
-class PayPeriodSection extends StatelessWidget {
-  const PayPeriodSection({super.key, required this.store});
-
-  final AppStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    final cfg = store.settings.payPeriod;
-    return SettingsCard(
-      title: 'Kỳ lương',
-      collapsible: true,
-      subtitle: 'Thu nhập tạm tính ở màn chính tính từ đầu kỳ hiện tại đến hôm nay.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SegmentedButton<PayPeriodType>(
-            segments: const [
-              ButtonSegment(value: PayPeriodType.monthly, label: Text('Theo tháng')),
-              ButtonSegment(value: PayPeriodType.semiMonthly, label: Text('2 kỳ/tháng')),
-            ],
-            selected: {cfg.type},
-            onSelectionChanged: (v) =>
-                store.updateSettings((s) => s.copyWith(payPeriod: s.payPeriod.copyWith(type: v.first))),
-          ),
-          if (cfg.type == PayPeriodType.monthly) ...[
-            const SizedBox(height: 12),
-            TextFormField(
-              initialValue: cfg.monthlyStartDay.toString(),
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Ngày bắt đầu kỳ mỗi tháng (1–31)', border: OutlineInputBorder()),
-              onChanged: (v) {
-                final parsed = int.tryParse(v.replaceAll(RegExp(r'[^0-9]'), ''));
-                if (parsed == null) return;
-                final day = parsed.clamp(1, 31);
-                store.updateSettings((s) => s.copyWith(payPeriod: s.payPeriod.copyWith(monthlyStartDay: day)));
-              },
-            ),
-          ] else
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text('Kỳ 1: ngày 1–15. Kỳ 2: ngày 16–cuối tháng.', style: TextStyle(fontSize: 12.5)),
-            ),
         ],
       ),
     );

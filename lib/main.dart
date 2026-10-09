@@ -103,7 +103,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
       await recordUsage(usageAppOpens);
       _checkUpdate();
       if (!kIsWeb) {
-        rescheduleGpsAlarms(store.settings.gps);
+        rescheduleGpsAlarms(store.settings.effectiveGps);
         refreshWidgetDisplay();
         HomeWidget.initiallyLaunchedFromHomeWidget().then(_onWidgetLaunch);
         _widgetClickSub = HomeWidget.widgetClicked.listen(_onWidgetLaunch);

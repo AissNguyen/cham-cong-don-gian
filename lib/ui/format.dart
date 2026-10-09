@@ -23,9 +23,9 @@ String fmtN(num v) {
   return r == r.roundToDouble() ? r.toInt().toString() : r.toString().replaceAll('.', ',');
 }
 
-/// "1.234.567 đ" (âm thì có dấu "−").
+/// "1.234.567 đ" (âm thì có dấu "−"). Bỏ phần lẻ (không làm tròn lên), như mọi chỗ hiện tiền.
 String fmtMoney(num v, {bool unit = true}) {
-  final n = v.round();
+  final n = v.truncate();
   final digits = n.abs().toString();
   final buf = StringBuffer();
   for (var i = 0; i < digits.length; i++) {
@@ -53,3 +53,9 @@ String fmtDayLong(DateTime d) => '${weekdayLong[d.weekday - 1]}, ${fmtDM(d)}';
 
 /// "07:30".
 String fmtTime(DateTime d) => '${p2(d.hour)}:${p2(d.minute)}';
+
+/// "10,5": phần trăm, tối đa hai chữ số lẻ, dấu phẩy.
+String fmtPercent(double v) {
+  final r = (v * 100).round() / 100;
+  return r == r.roundToDouble() ? r.toInt().toString() : r.toString().replaceAll('.', ',');
+}
