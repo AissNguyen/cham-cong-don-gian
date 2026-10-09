@@ -13,8 +13,6 @@ import '../../notice/notice.dart';
 import '../../share/share_service.dart';
 import '../../theme/app_theme.dart';
 import '../format.dart';
-import '../../update/update_screen.dart';
-import '../../update/update_service.dart';
 import '../settings/settings_screen.dart';
 import '../settings/share_section.dart';
 import 'calendar_grid.dart';
@@ -24,10 +22,7 @@ import 'period_day_chart.dart';
 import 'period_history.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.updateStatus = UpdateStatus.none, this.onDismissUpdateBanner, this.clock});
-
-  final UpdateStatus updateStatus;
-  final VoidCallback? onDismissUpdateBanner;
+  const HomeScreen({super.key, this.clock});
 
   /// Chỉ dùng trong test để cố định "bây giờ"; bình thường là giờ hiện tại.
   final DateTime Function()? clock;
@@ -143,10 +138,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: _buildHeader(context, store),
             ),
-            if (widget.updateStatus.hasUpdate) ...[
-              const SizedBox(height: 10),
-              UpdateBanner(status: widget.updateStatus, onDismiss: () => widget.onDismissUpdateBanner?.call()),
-            ],
             if (store.settings.showNotice) const NoticeBanner(),
             const SizedBox(height: 12),
             _buildIncomeCard(context, period, slip, todayPay),

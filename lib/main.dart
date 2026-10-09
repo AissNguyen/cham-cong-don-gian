@@ -19,6 +19,7 @@ import 'share/share_service.dart';
 import 'share/share_state_file.dart';
 import 'theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
+import 'update/update_policy.dart';
 import 'update/update_screen.dart';
 import 'update/update_service.dart';
 import 'widget/widget_sync.dart';
@@ -71,19 +72,32 @@ class ChamCongApp extends StatefulWidget {
 
 class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
   final store = AppStore();
-  UpdateStatus _updateStatus = UpdateStatus.none;
-  bool _updateBannerDismissed = false;
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  bool _updateDialogOpen = false;
 
   StreamSubscription<Uri?>? _widgetClickSub;
 
   void _checkUpdate() {
-    checkForUpdate().then((status) {
-      if (mounted) setState(() => _updateStatus = status);
+    firebaseReady.then((ok) => checkForUpdate(firebaseOk: ok)).then((status) {
+      if (mounted) _showUpdatePrompt(status);
       // Sau khi Remote Config đã tải mới đọc thông báo của chủ app và đồng bộ mã giới thiệu.
       loadNotice();
       loadHelpText();
       shareController.sync();
     });
+  }
+
+  /// Hộp nhắc cập nhật (xem `update/update_policy.dart`). Chỉ hiện một hộp một lúc.
+  Future<void> _showUpdatePrompt(UpdateStatus status) async {
+    final context = _navigatorKey.currentContext;
+    if (status.kind == UpdatePromptKind.none || _updateDialogOpen || context == null) return;
+    _updateDialogOpen = true;
+    await recordUpdatePromptShown(status.kind);
+    if (!context.mounted) return;
+    final choice = await showUpdateDialog(context, status);
+    _updateDialogOpen = false;
+    if (choice == UpdateChoice.later && status.kind == UpdatePromptKind.update) await recordUpdateSkipped();
+    if (choice == UpdateChoice.retry) _checkUpdate();
   }
 
   /// Chạm nút "Mở khóa" trên widget (lúc đã hết ngày dùng thử) thì mở app và hiện hộp chia sẻ.
@@ -140,6 +154,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
       value: store,
       child: MaterialApp(
         title: 'Chấm Công Đơn Giản',
+        navigatorKey: _navigatorKey,
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(Brightness.light),
         darkTheme: buildAppTheme(Brightness.dark),
@@ -155,13 +170,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
             if (!store.loaded) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
-            if (_updateStatus.mandatory) {
-              return MandatoryUpdateScreen(status: _updateStatus);
-            }
-            return HomeScreen(
-              updateStatus: !_updateBannerDismissed ? _updateStatus : UpdateStatus.none,
-              onDismissUpdateBanner: () => setState(() => _updateBannerDismissed = true),
-            );
+            return const HomeScreen();
           },
         ),
       ),
