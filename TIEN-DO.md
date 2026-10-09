@@ -1,6 +1,6 @@
 # Tổng hợp — Chấm Công Đơn Giản
 
-**Cập nhật lần cuối: 2026-10-08.** Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
+**Cập nhật lần cuối: 2026-10-09 (cloud, nhánh `phieu-luong-moi`).** Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
 
 App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, tăng ca, ngày nghỉ, đi muộn, và ước tính lương theo kỳ. Tách riêng khỏi dự án `so_cong` (bản đầy đủ, đang để đó); chỉ dùng chung `domain/lunar.dart` và font Be Vietnam Pro.
 
@@ -13,6 +13,20 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 | Bản Android | File APK ở GitHub Releases, hiện là `v1.0.0` (bản cũ, chưa có các phần làm từ ngày 2026-10-02 tới nay). Trên điện thoại của người dùng (Realme RMX2021) là bản build trên PC tối 2026-10-05 (code `master` commit `d1d82ad` cộng phần sửa màn Cài đặt cùng ngày), chưa đưa lên Releases. Chưa lên Google Play |
 | Firebase | Dự án `cham-cong-don-gian`: Analytics, Crashlytics, Remote Config, Firestore (máy chủ nam5 – Mỹ), Hosting. Gói miễn phí |
 | Gói Android | `vn.chamcong.cham_cong_don_gian`, phiên bản trong `pubspec.yaml` vẫn là `1.0.0+1` |
+
+## Bản mới: phiếu lương (nhánh `phieu-luong-moi`, chờ merge)
+
+Làm theo `THIET-KE-BAN-MOI.md` trên cloud ngày 2026-10-09. **Chưa cài lên điện thoại, chưa deploy web, chưa đưa lên Releases.** Các mục "Đã có" bên dưới là của bản trên `master`; sau khi merge thì những chỗ sau thay đổi:
+
+- **Bộ tính phiếu lương** `lib/domain/payslip.dart` (test `test/domain/payslip_test.dart`): bộ tính tiền duy nhất. Thẻ thu nhập màn chính (số to = Thực nhận), số "Hôm nay", tiền từng ngày trên lịch, "Thống kê thu nhập theo kỳ" và file Excel đều lấy số từ đây. Công nhân: lương cơ bản ÷ công chuẩn × ngày công, khoản căn cứ, Thưởng vượt khoán (tăng ca + chủ nhật + lễ), khoản cố định / % chia theo ngày công (hết kỳ thì khấu trừ tính đủ), cơm trưa theo ngày làm qua 12:30, đi muộn trừ tiền thành một dòng. Công nhật: tổng giờ × bảng lương/giờ (ô 0 = lương ngày ÷ 8). Phần đếm giây của ca đang mở tách thành `liveDayHours` trong `calc.dart`; `computePeriodStats` / `liveItemsEstimate` đã bỏ.
+- **Kỳ lương 2 kỳ/tháng** theo ngày tự chọn (kỳ 1 từ A đến B, kỳ 2 từ B+1 tới trước A tháng sau), `pay_period.dart`.
+- **Màn Cài đặt mới** theo `mockup/luong-va-cai-dat.html`: Thông báo, Công nhân / Công nhật (đổi thì hỏi lại), Phiếu lương (chuyển kỳ, xem / sửa ngay tại dòng, ✕ luôn hỏi lại, bảng Khoản mới), Cài đặt tính công, Chấm công GPS rút gọn, "Nâng cao và cài đặt khác" (công tắc Hiện thông báo, Dùng chấm công GPS; các màn con Ngày lễ, Tăng ca theo khung, GPS tùy chọn thêm, Sao lưu, Sao chép cấu hình, Chia sẻ, Góp ý, Hướng dẫn). Bỏ các mục "Bảng lương/giờ", "Khoản thu nhập / khấu trừ khác", "Khung giờ ra vào", "Kỳ lương", "Đi muộn" cũ. Code: `lib/ui/settings/payslip_card.dart`, `work_config_card.dart`, `settings_blocks.dart`, `number_inputs.dart`.
+- **Sao chép cấu hình** rút gọn một dòng (`CCDG1 {...}`), chỉ phần lương và cài đặt tính công; máy nhận giữ ngày lễ, GPS, khung tăng ca. Vẫn đọc chuỗi kiểu cũ (cũng chỉ lấy phần lương).
+- **Biểu đồ giờ làm** có lại số ngày dưới cột (chật thì cách ngày).
+- **Nhắc cập nhật** thành hộp ba trạng thái (`lib/update/update_policy.dart` + test `test/update_policy_test.dart`), bỏ băng nhắc và màn bắt buộc sau 14 ngày.
+- **Chuyển dữ liệu bản cũ**: dữ liệu, file sao lưu Excel và chuỗi cấu hình chưa có `workerKind` thành Công nhân (lương cơ bản = lương giờ ngày thường × 8 × 26, thêm dòng Tiền lương và Tăng ca, giữ khoản cũ). Số tiền gần như không đổi, nhưng khoản cố định cũ nay chia theo ngày công nên giữa kỳ thấp hơn trước.
+- **Đã thử**: `flutter analyze` không lỗi, `flutter test` 170 test qua (Flutter 3.47.6 trên cloud). Bản web build release chạy trong Chromium với dữ liệu kiểu cũ: màn chính, phiếu lương, chế độ Sửa, phần Nâng cao hiện đúng. **Chưa thử**: trên điện thoại thật (GPS rút gọn, công tắc tắt GPS, hộp nhắc cập nhật với Remote Config thật, ô nhập tiền trên bàn phím Android), file Excel mới mở bằng Excel thật.
+- **Chưa làm (mục 9 của bản thiết kế)**: đổi lương cơ bản thì phiếu các kỳ cũ cũng đổi theo; ngày phép / lễ có lương chưa tính vào ngày công; trợ cấp đang tính theo ngày công.
 
 ## Đã có
 
@@ -34,6 +48,9 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 | Tham số | Mặc định khi chưa đặt | Ý nghĩa |
 |---|---|---|
 | `latest_version`, `update_url` | không nhắc | Phiên bản mới nhất và link tải, để app nhắc cập nhật |
+| `update_max_skips` | 3 | (bản mới) Số lần được bấm "Để sau"; 0 là bắt buộc ngay |
+| `update_remind_hours` | 24 | (bản mới) Khoảng cách giữa hai lần nhắc (giờ) |
+| `update_offline_days` | 10 | (bản mới) Số ngày không kết nối được thì nhắc bật mạng; tắt được, không chặn chấm công |
 | `share_free_users` | 50 | X: tổng số máy Android vượt số này thì giới hạn GPS/widget mới áp dụng |
 | `share_trial_days` | 10 | Y: số ngày dùng thử GPS/widget. Đặt 0 là tắt hẳn tính năng giới hạn |
 | `share_entry_hours` | 0 | Thời hạn ô nhập mã tính từ lúc cài (giờ); 0 là không hạn |

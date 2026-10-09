@@ -262,7 +262,7 @@ class _PayslipCardState extends State<PayslipCard> {
                 'Thu nhập ${fmtMoney(slip.totalIncome, unit: false)} · trừ ${fmtMoney(slip.totalDeduction, unit: false)}',
                 style: TextStyle(fontSize: 12.5, color: colors.ink3),
               ),
-              const Divider(height: 28),
+              Divider(height: 28, color: context.appColors.line),
               _basisBlock(context, slip, period, worker),
               _sectionLabel('THU NHẬP', pc.plus),
               for (final line in slip.incomes) _lineRow(context, line, worker),

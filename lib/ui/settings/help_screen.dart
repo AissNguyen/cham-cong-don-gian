@@ -52,12 +52,14 @@ const _items = [
   _HelpItem(
     Icons.brightness_2_outlined,
     'Âm lịch / Lương mỗi ngày',
-    '2 nút nhỏ ở đầu trang: bật hiện ngày âm lịch, hoặc đổi số dưới mỗi ngày từ giờ công sang tiền tạm tính.',
+    '2 nút nhỏ ở đầu trang: bật hiện ngày âm lịch, hoặc đổi số dưới mỗi ngày từ giờ công sang tiền của ngày theo phiếu lương.',
   ),
   _HelpItem(
     Icons.settings_outlined,
     'Cài đặt',
-    'Bánh răng góc trái trên cùng — nơi cài khung giờ làm việc, bảng lương, kỳ lương, GPS...',
+    'Bánh răng góc trái trên cùng (hoặc chạm vào thẻ thu nhập). Chọn Công nhân hoặc Công nhật, xem phiếu '
+        'lương từng kỳ và bấm "Sửa" để điền lương cơ bản, các khoản của bạn; khối "Cài đặt tính công" có kỳ '
+        'lương, giờ làm, bảng lương/giờ, đi muộn. Ngày lễ, sao lưu, chia sẻ... nằm ở "Nâng cao và cài đặt khác".',
   ),
 ];
 
