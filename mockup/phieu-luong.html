@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup: Phiếu lương</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Số liệu trong trang này là số giả để xem bố cục, không phải của ai.
+     Bấm "Sửa" để xem chế độ chỉnh sửa, bấm "Thêm khoản" để xem bảng nhập khoản mới. */
+  :root {
+    --brand-a: #1CAE8F;
+    --brand-b: #2F7FE0;
+    --accent: #17695A;
+    --accent-soft: #DCEEE9;
+    --ink: #1B2420;
+    --ink2: #52615B;
+    --ink3: #86938E;
+    --line: #E0E6E3;
+    --minus: #D93B3B;
+    --surface: #FFFFFF;
+    --bg: #F2F4F3;
+    --net-bg: #EAF1FD;
+    --net-ink: #2A56C6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 0 0 32px;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .phone { width: 390px; max-width: 100%; position: relative; }
+
+  .appbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--surface);
+    font-size: 20px;
+    font-weight: 500;
+  }
+  .appbar .back { font-size: 22px; line-height: 1; }
+  .appbar .grow { flex: 1; }
+  .edit-btn {
+    border: 1px solid var(--ink);
+    background: transparent;
+    border-radius: 999px;
+    padding: 7px 16px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .editing .edit-btn { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .period-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 14px 16px 10px;
+    font-size: 13px;
+    color: var(--ink2);
+  }
+  .period-nav .arrow { font-size: 20px; color: var(--ink); }
+  .period-nav .arrow.off { color: var(--ink3); opacity: .5; }
+
+  .card {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 18px 16px;
+    margin: 0 16px;
+    box-shadow: 0 3px 10px rgba(224, 230, 227, .6);
+  }
+
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .head .month { font-size: 16px; font-weight: 700; }
+  .head .net { font-size: 20px; font-weight: 700; color: var(--brand-a); white-space: nowrap; }
+  .head-sub { margin-top: 4px; font-size: 12.5px; color: var(--ink3); }
+  .chip {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    vertical-align: 1px;
+  }
+  .chip.temp { background: #FBEFD8; color: #B45309; }
+
+  hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+
+  .basis {
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--ink2);
+    line-height: 1.75;
+  }
+  .basis .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--ink3);
+    margin-bottom: 2px;
+  }
+  .basis b { color: var(--ink); font-weight: 700; }
+
+  /* Ô nhập của phần Căn cứ tính, chỉ hiện khi đang sửa. */
+  .field { position: relative; margin-top: 14px; }
+  .field label {
+    position: absolute;
+    top: -8px;
+    left: 10px;
+    padding: 0 5px;
+    background: var(--bg);
+    font-size: 11.5px;
+    color: var(--ink2);
+    line-height: 1.3;
+  }
+  .field input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--ink);
+    border-radius: 6px;
+    background: transparent;
+    font: inherit;
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .field .hint { margin-top: 3px; font-size: 11.5px; color: var(--ink3); line-height: 1.4; }
+  .basis .auto { margin-top: 12px; font-size: 12.5px; line-height: 1.6; }
+
+  .section {
+    margin: 18px 0 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+  }
+  .section.plus { color: var(--brand-a); }
+  .section.minus { color: var(--minus); }
+
+  .row { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; font-size: 14px; }
+  .row .name { flex: 1; }
+  .row .amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row .how { display: block; margin-top: 1px; font-size: 11.5px; color: var(--ink3); }
+  .row.minus .amount { color: var(--minus); }
+  .row .tools { display: flex; gap: 2px; margin: -3px -6px 0 0; }
+  .row .tools button {
+    border: 0;
+    background: transparent;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: 15px;
+    color: var(--ink2);
+  }
+  .row .tools button.del { color: var(--minus); }
+  /* Đang sửa: khoản đã có chỉ đổi con số ngay tại dòng, không mở bảng. */
+  .row .num {
+    width: 118px;
+    padding: 7px 10px;
+    border: 1px solid var(--ink);
+    border-radius: 6px;
+    background: transparent;
+    font: inherit;
+    font-size: 14px;
+    text-align: right;
+    color: var(--ink);
+  }
+  .row .num.pct { width: 70px; }
+  .row .unit { font-size: 13px; color: var(--ink2); margin-left: -4px; }
+  .row .how.only-edit, .row .tools.only-edit { display: none; }
+  .editing .row { align-items: center; }
+  .basis .row { color: var(--ink); line-height: 1.4; }
+
+  .add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 4px;
+    padding: 8px 16px;
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+    background: transparent;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .total {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0 0;
+    margin-top: 6px;
+    border-top: 1px solid var(--line);
+    font-size: 14.5px;
+    font-weight: 700;
+  }
+  .total.plus { color: var(--brand-a); }
+  .total.minus { color: var(--minus); }
+
+  .take-home {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--net-bg);
+    color: var(--net-ink);
+    font-weight: 700;
+  }
+  .take-home .label { font-size: 12.5px; letter-spacing: .06em; }
+  .take-home .value { font-size: 19px; }
+
+  .footnote { margin: 12px 20px 0; font-size: 11.5px; color: var(--ink3); line-height: 1.5; }
+
+  /* Xem bình thường thì ẩn mọi thứ dùng để sửa, và ngược lại. */
+  .only-edit { display: none; }
+  .editing .only-edit { display: revert; }
+  .editing .row .tools.only-edit { display: flex; }
+  .editing .add-btn.only-edit { display: inline-flex; }
+  .editing .row .how.only-edit { display: block; }
+  .editing .only-view { display: none; }
+
+  /* Bảng "Khoản mới" hiện khi bấm Thêm khoản hoặc cây bút. */
+  .scrim {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .35);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .scrim.open { display: flex; }
+  .dialog {
+    width: 358px;
+    max-width: 100%;
+    background: #ECEFED;
+    border-radius: 24px;
+    padding: 22px 20px 18px;
+  }
+  .dialog h2 { margin: 0 0 18px; font-size: 19px; font-weight: 600; }
+  .dialog .field label { background: #ECEFED; }
+  .dialog .field input { padding: 15px 14px; }
+  .dialog .group { margin: 18px 0 8px; font-size: 13.5px; font-weight: 600; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choice {
+    padding: 9px 16px;
+    border: 1px solid var(--ink);
+    border-radius: 8px;
+    background: transparent;
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .choice.on { background: #CFE5DF; border-color: #CFE5DF; color: var(--accent); }
+  .choice.on::before { content: "✓  "; }
+  .from-hour { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .from-hour .text { flex: 1; font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+  .from-hour .time {
+    padding: 9px 16px;
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+    background: transparent;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .dialog .small { margin-top: 6px; font-size: 11.5px; color: var(--ink2); line-height: 1.45; }
+  .dialog .actions { display: flex; gap: 10px; margin-top: 18px; }
+  .dialog .actions button { flex: 1; padding: 12px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+  .dialog .basis-note { display: none; }
+  .dialog.basis .calc { display: none; }
+  .dialog.basis .basis-note { display: block; margin-top: 10px; }
+  .dialog .cancel { border: 1px solid var(--ink); background: transparent; color: var(--accent); }
+  .dialog .save { border: 0; background: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+
+  <div class="appbar">
+    <span class="back">←</span> Phiếu lương
+    <span class="grow"></span>
+    <button class="edit-btn" id="editBtn">✎ Sửa</button>
+  </div>
+
+  <div class="period-nav">
+    <span class="arrow">‹</span>
+    <span>Kỳ 21/09 – 20/10/2026</span>
+    <span class="arrow off">›</span>
+  </div>
+
+  <div class="card">
+
+    <div class="head">
+      <div class="month">Tháng 10/2026 <span class="chip temp">Tạm tính</span></div>
+      <div class="net">6.655.116 đ</div>
+    </div>
+    <div class="head-sub">Thu nhập 7.172.116 · trừ 517.000</div>
+
+    <hr>
+
+    <!-- CĂN CỨ TÍNH -->
+    <div class="basis">
+      <div class="label">CĂN CỨ TÍNH</div>
+
+      <div class="only-view">
+        Lương cơ bản <b>4.500.000 đ</b>/tháng<br>
+        Thưởng thành tích <b>1.800.000 đ</b>/tháng<br>
+        Công chuẩn <b>26</b> · thực tế <b>24,5</b> ngày<br>
+        Giờ công <b>196h</b> · tăng ca <b>20h</b><br>
+        Lương 1 giờ <b>21.635 đ</b>
+      </div>
+
+      <div class="only-edit">
+        <div class="row">
+          <div class="name">Lương cơ bản<span class="how">đ/tháng</span></div>
+          <input class="num" value="4.500.000" inputmode="numeric">
+          <div class="tools"><button class="del" title="Xóa">✕</button></div>
+        </div>
+        <div class="row">
+          <div class="name">Thưởng thành tích<span class="how">đ/tháng</span></div>
+          <input class="num" value="1.800.000" inputmode="numeric">
+          <div class="tools"><button class="del" title="Xóa">✕</button></div>
+        </div>
+        <div class="row">
+          <div class="name">Công chuẩn<span class="how">ngày · app tự đếm kỳ này là 26</span></div>
+          <input class="num" value="26" inputmode="numeric">
+          <div class="tools"><button class="del" title="Xóa">✕</button></div>
+        </div>
+
+        <button class="add-btn" data-add="basis">＋ Thêm khoản căn cứ</button>
+
+        <div class="auto">
+          Tự tính từ chấm công, không sửa ở đây:<br>
+          thực tế <b>24,5</b> ngày · giờ công <b>196h</b> · tăng ca <b>20h</b>
+        </div>
+      </div>
+    </div>
+
+    <!-- THU NHẬP -->
+    <div class="section plus">THU NHẬP</div>
+
+    <div class="row">
+      <div class="name">Tiền lương<span class="how">4.500.000 ÷ 26 × 24,5 ngày</span></div>
+      <div class="amount">4.240.385</div>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row">
+      <div class="name">Thưởng thành tích<span class="how">1.800.000 ÷ 26 × 24,5 ngày</span></div>
+      <div class="amount">1.696.154</div>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row">
+      <div class="name">Thưởng vượt khoán<span class="how">Theo giờ tăng ca: 12h × 21.635 × 1,5 + 8h × 21.635 × 2</span></div>
+      <div class="amount">735.577</div>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row">
+      <div class="name">Các khoản trợ cấp<span class="how only-edit">Cố định mỗi kỳ</span></div>
+      <div class="amount only-view">500.000</div>
+      <input class="num only-edit" value="500.000" inputmode="numeric">
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+
+    <button class="add-btn only-edit" data-add="plus">＋ Thêm khoản thu nhập</button>
+
+    <div class="total plus"><span>Tổng thu nhập</span><span>7.172.116</span></div>
+
+    <!-- KHẤU TRỪ -->
+    <div class="section minus">KHẤU TRỪ</div>
+
+    <div class="row minus">
+      <div class="name">Bảo hiểm<span class="how only-view">10,5% × lương cơ bản 4.500.000</span><span class="how only-edit">% lương cơ bản</span></div>
+      <div class="amount only-view">−472.500</div>
+      <input class="num pct only-edit" value="10,5" inputmode="decimal"><span class="unit only-edit">%</span>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row minus">
+      <div class="name">Cơm trưa<span class="how only-edit">Cố định mỗi kỳ</span></div>
+      <div class="amount only-view">−7.500</div>
+      <input class="num only-edit" value="7.500" inputmode="numeric">
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row minus">
+      <div class="name">Công đoàn phí<span class="how only-edit">Cố định mỗi kỳ</span></div>
+      <div class="amount only-view">−37.000</div>
+      <input class="num only-edit" value="37.000" inputmode="numeric">
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+
+    <button class="add-btn only-edit" data-add="minus">＋ Thêm khoản khấu trừ</button>
+
+    <div class="total minus"><span>Tổng khấu trừ</span><span>−517.000</span></div>
+
+<div class="take-home">
+      <span class="label">THỰC NHẬN</span>
+      <span class="value">6.655.116 đ</span>
+    </div>
+
+  </div>
+
+  <p class="footnote only-view">Kỳ chưa kết thúc nên các số đang tính tới hôm nay.</p>
+  <p class="footnote only-edit">Đang sửa. Bấm "Xong" để quay lại xem.</p>
+
+</div>
+
+<!-- Bảng nhập khoản: chỉ dùng khi THÊM khoản mới (khoản đã có thì sửa số ngay tại dòng). Không có mục
+     "Loại": app tự hiểu theo nút được bấm nằm ở Căn cứ, Thu nhập hay Khấu trừ. -->
+<div class="scrim" id="scrim">
+  <div class="dialog" id="dialog">
+    <h2 id="dialogTitle">Khoản thu nhập mới</h2>
+
+    <div class="field">
+      <label>Tên khoản</label>
+      <input placeholder="Ví dụ: Chuyên cần">
+    </div>
+
+    <div class="calc">
+      <div class="group">Cách tính</div>
+      <div class="choices" id="choices">
+        <button class="choice on">Cố định mỗi kỳ</button>
+        <button class="choice">× số ngày công</button>
+        <button class="choice">% lương cơ bản</button>
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:20px">
+      <label id="amountLabel">Số tiền (đ)</label>
+      <input value="0" inputmode="numeric">
+    </div>
+
+    <div class="small basis-note">Khoản căn cứ là mức theo tháng, giống Thưởng thành tích: app tự thêm một dòng ở Thu nhập bằng mức này ÷ công chuẩn × ngày công thực tế.</div>
+
+    <div class="calc">
+      <div class="from-hour">
+        <div class="text">Chỉ tính từ giờ... (ví dụ tiền cơm trưa sau 13:00)</div>
+        <button class="time">◷ Chưa đặt</button>
+      </div>
+      <div class="small">Chỉ ảnh hưởng tới số tiền chạy sống trong ngày trên màn chính — không đổi tổng chính thức của cả kỳ.</div>
+    </div>
+
+    <div class="actions">
+      <button class="cancel" id="cancelBtn">Hủy</button>
+      <button class="save" id="saveBtn">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Chỉ đủ để bấm thử: đổi giữa xem và sửa, mở bảng nhập khoản. Không tính toán gì.
+  const phone = document.getElementById('phone');
+  const editBtn = document.getElementById('editBtn');
+  const scrim = document.getElementById('scrim');
+  const title = document.getElementById('dialogTitle');
+
+  editBtn.addEventListener('click', () => {
+    const on = phone.classList.toggle('editing');
+    editBtn.textContent = on ? '✓ Xong' : '✎ Sửa';
+  });
+
+  const dialog = document.getElementById('dialog');
+  const names = { basis: 'căn cứ', plus: 'thu nhập', minus: 'khấu trừ' };
+  function openDialog(kind) {
+    title.textContent = 'Khoản ' + names[kind] + ' mới';
+    dialog.classList.toggle('basis', kind === 'basis');
+    document.getElementById('amountLabel').textContent = kind === 'basis' ? 'Số tiền (đ/tháng)' : 'Số tiền (đ)';
+    scrim.classList.add('open');
+  }
+  document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => openDialog(b.dataset.add)));
+  document.querySelectorAll('.del').forEach((b) => b.addEventListener('click', () => b.closest('.row').remove()));
+  ['cancelBtn', 'saveBtn'].forEach((id) => document.getElementById(id).addEventListener('click', () => scrim.classList.remove('open')));
+  scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.classList.remove('open'); });
+
+  document.querySelectorAll('#choices .choice').forEach((c) => c.addEventListener('click', () => {
+    document.querySelectorAll('#choices .choice').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+  }));
+
+  // Mở thẳng một trạng thái bằng đuôi địa chỉ: #sua (đang sửa), #them (khoản thu nhập mới),
+  // #themcancu (khoản căn cứ mới).
+  if (location.hash.startsWith('#sua') || location.hash.startsWith('#them')) editBtn.click();
+  if (location.hash === '#them') openDialog('plus');
+  if (location.hash === '#themcancu') openDialog('basis');
+</script>
+</body>
+</html>

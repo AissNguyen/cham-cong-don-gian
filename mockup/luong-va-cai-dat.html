@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup: Cài đặt (phiếu lương và tính công)</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Bản mẫu bố cục toàn màn: chọn Công nhật / Công nhân, phiếu lương, khối cài đặt tính công, GPS,
+     và dòng "Nâng cao và cài đặt khác". Số liệu là số giả. Bấm được: hai nút chọn loại, nút "Sửa"
+     của từng khối, dấu ✕, "Thêm khoản", dòng nâng cao. Không tính toán gì. */
+  :root {
+    --brand-a: #1CAE8F;
+    --accent: #17695A;
+    --accent-soft: #DCEEE9;
+    --ink: #1B2420;
+    --ink2: #52615B;
+    --ink3: #86938E;
+    --line: #E0E6E3;
+    --minus: #D93B3B;
+    --surface: #FFFFFF;
+    --bg: #F2F4F3;
+    --net-bg: #EAF1FD;
+    --net-ink: #2A56C6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 0 0 40px;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .phone { width: 390px; max-width: 100%; }
+
+  .appbar { display: flex; align-items: center; gap: 14px; padding: 16px; background: var(--surface); font-size: 20px; font-weight: 500; }
+  .appbar .back { font-size: 22px; line-height: 1; }
+
+  /* Hai nút trên cùng: chỉ chọn được một. */
+  .card.notice { margin-top: 14px; margin-bottom: 0; }
+  /* Thông báo: hiện 2 hàng rõ, hàng thứ 3 mờ dần, bấm "Xem thêm" để mở hết. Ở Cài đặt không có nút xóa. */
+  .notice-text { position: relative; margin-top: 4px; font-size: 12.5px; line-height: 1.5; color: var(--ink2); max-height: 4.5em; overflow: hidden; }
+  .notice-text b { color: var(--ink); }
+  .notice-text::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5em; background: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), var(--surface)); }
+  .notice-text.open { max-height: none; }
+  .notice-text.open::after { display: none; }
+  .more-btn { margin-top: 4px; padding: 2px 0; border: 0; background: transparent; font-size: 12.5px; font-weight: 600; color: var(--accent); }
+  .mode { display: inline-flex; margin: 12px 16px 0; border: 1px solid var(--ink); border-radius: 999px; overflow: hidden; }
+  .mode button { padding: 6px 16px; border: 0; background: transparent; font-size: 12.5px; font-weight: 600; color: var(--ink2); }
+  .mode button + button { border-left: 1px solid var(--ink); }
+  .mode button.on { background: var(--accent); color: #fff; }
+
+  .period-nav { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 12px 16px 8px; font-size: 13px; color: var(--ink2); }
+  .period-nav .arrow { font-size: 20px; color: var(--ink); }
+  .period-nav .arrow.off { color: var(--ink3); opacity: .5; }
+
+  .card {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 18px 16px;
+    margin: 0 16px 14px;
+    box-shadow: 0 3px 10px rgba(224, 230, 227, .6);
+  }
+  .card-title { display: flex; align-items: center; gap: 10px; }
+  .card-title h3 { flex: 1; margin: 0; font-size: 15px; font-weight: 700; }
+  .edit-btn {
+    border: 1px solid var(--ink); background: transparent; border-radius: 999px;
+    padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--accent); white-space: nowrap;
+  }
+  .editing .edit-btn { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 12px; }
+  .head .month { font-size: 16px; font-weight: 700; }
+  .head .net { font-size: 20px; font-weight: 700; color: var(--brand-a); white-space: nowrap; }
+  .head-sub { margin-top: 4px; font-size: 12.5px; color: var(--ink3); }
+  .chip { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }
+  .chip.temp { background: #FBEFD8; color: #B45309; }
+
+  hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+
+  .basis { background: var(--bg); border-radius: 12px; padding: 12px 14px; font-size: 13px; color: var(--ink2); line-height: 1.75; }
+  .basis .label, .block-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--ink3); margin-bottom: 2px; }
+  .basis b { color: var(--ink); font-weight: 700; }
+  .basis .auto { margin-top: 12px; font-size: 12.5px; line-height: 1.6; }
+  .basis .row { color: var(--ink); line-height: 1.4; }
+
+  .section { margin: 18px 0 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; }
+  .section.plus { color: var(--brand-a); }
+  .section.minus { color: var(--minus); }
+
+  .row { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; font-size: 14px; }
+  .row .name { flex: 1; }
+  .row .amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row .how { display: block; margin-top: 1px; font-size: 11.5px; color: var(--ink3); }
+  .row.minus .amount { color: var(--minus); }
+  .row .tools { display: flex; margin: -3px -6px 0 0; }
+  .row .tools button { border: 0; background: transparent; width: 30px; height: 30px; border-radius: 50%; font-size: 15px; color: var(--minus); }
+  .editing .row { align-items: center; }
+
+  /* Ô nhập số ngay tại dòng (chỉ hiện khi đang sửa). */
+  .num {
+    width: 118px; padding: 7px 10px; border: 1px solid var(--ink); border-radius: 6px; background: transparent;
+    font: inherit; font-size: 14px; text-align: right; color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .num.short { width: 70px; }
+  .num.time { width: 78px; text-align: center; }
+  .unit { font-size: 13px; color: var(--ink2); }
+
+  .add-btn {
+    display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 4px; padding: 8px 16px;
+    border: 1px solid var(--ink); border-radius: 999px; background: transparent; font-size: 13.5px; font-weight: 600; color: var(--accent);
+  }
+
+  .total { display: flex; justify-content: space-between; padding: 10px 0 0; margin-top: 6px; border-top: 1px solid var(--line); font-size: 14.5px; font-weight: 700; }
+  .total.plus { color: var(--brand-a); }
+  .total.minus { color: var(--minus); }
+
+  .take-home { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding: 14px; border-radius: 12px; background: var(--net-bg); color: var(--net-ink); font-weight: 700; }
+  .take-home .label { font-size: 12.5px; letter-spacing: .06em; }
+  .take-home .value { font-size: 19px; }
+
+  /* Khối cài đặt tính công: một khối gộp, xem / sửa giống phiếu lương. */
+  .set-line { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--line); }
+  .set-line:last-child { border-bottom: 0; }
+  .set-line .k { flex: 1; color: var(--ink2); }
+  .set-line .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wage { width: 100%; border-collapse: collapse; margin: 4px 0 2px; font-size: 14px; }
+  .wage th { font-size: 11.5px; font-weight: 500; color: var(--ink3); text-align: right; padding: 4px 0; }
+  .wage th:first-child, .wage td:first-child { text-align: left; color: var(--ink2); }
+  .wage td { padding: 6px 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wage .num { width: 96px; }
+  .wage-wrap { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .wage-wrap .k { font-size: 14px; color: var(--ink2); }
+  .editing .auto-cell { display: inline-block; width: 96px; padding: 7px 10px; color: var(--ink2); }
+  .mode-nhat .auto-cell { display: none; }
+  .auto-note { margin-top: 2px; font-size: 11.5px; color: var(--ink3); }
+  .set-line .k small { display: block; font-size: 11.5px; color: var(--ink3); }
+  .num.tiny { width: 50px; padding: 6px 8px; }
+  .periods { font-size: 13px; color: var(--ink2); text-align: right; }
+  .periods .p { display: block; padding: 3px 0; }
+  .periods b { color: var(--ink); }
+
+  .seg { display: inline-flex; border: 1px solid var(--ink); border-radius: 999px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink2); }
+  .seg button + button { border-left: 1px solid var(--ink); }
+  .seg button.on { background: var(--accent-soft); color: var(--accent); }
+  .editing .seg.only-edit { display: inline-flex; }
+  .sub { margin: 3px 0 0; font-size: 12.5px; color: var(--ink2); line-height: 1.45; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; border: 1px solid var(--ink); color: var(--accent); background: transparent; }
+  .gps-state { margin-top: 8px; font-size: 12px; color: var(--ink3); }
+
+  /* Dòng nhỏ "Nâng cao và cài đặt khác": bình thường chỉ gợi ý, bấm mới xổ danh sách. */
+  .more { cursor: pointer; }
+  .more .hint { margin: 3px 0 0; font-size: 12.5px; color: var(--ink2); line-height: 1.45; }
+  .more .chev { font-size: 18px; color: var(--ink2); }
+  .more-list { display: none; margin-top: 10px; }
+  .more.open .more-list { display: block; }
+  .more.open .hint { display: none; }
+  .more-item { display: flex; align-items: center; padding: 11px 0; font-size: 14px; border-top: 1px solid var(--line); }
+  .more-item .grow { flex: 1; }
+  .more-item small { display: block; font-size: 11.5px; color: var(--ink3); }
+  .more-item .go { color: var(--ink2); }
+
+  .switch { width: 44px; height: 26px; border-radius: 999px; border: 0; background: var(--line); position: relative; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .switch.on { background: var(--accent); }
+  .switch.on::after { left: 21px; }
+  .hidden { display: none !important; }
+  .note-box { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #FBEFD8; color: #7A4A0A; font-size: 12px; line-height: 1.5; }
+  .note-box summary { font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .note-box ul { margin: 8px 0 0; padding-left: 16px; }
+  .note-box li + li { margin-top: 4px; }
+  .footnote { margin: -4px 20px 14px; font-size: 11.5px; color: var(--ink3); line-height: 1.5; }
+
+  /* Xem / sửa: mỗi khối tự bật riêng bằng nút "Sửa" của nó. */
+  .only-edit, .row .how.only-edit, .row .tools.only-edit { display: none; }
+  .editing .only-edit { display: revert; }
+  .editing .row .tools.only-edit { display: flex; }
+  .editing .add-btn.only-edit { display: inline-flex; }
+  .editing .row .how.only-edit { display: block; }
+  .editing .only-view { display: none; }
+
+  /* Công nhật / Công nhân. */
+  .nhat-only { display: none; }
+  .mode-nhat .nhat-only { display: revert; }
+  .mode-nhat .cn-only { display: none; }
+  .mode-nhat .set-line.nhat-only { display: flex; }
+
+  /* Bảng "Khoản mới": chỉ dùng khi thêm khoản. */
+  .scrim { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .35); align-items: center; justify-content: center; padding: 16px; }
+  .scrim.open { display: flex; }
+  .dialog { width: 358px; max-width: 100%; background: #ECEFED; border-radius: 24px; padding: 22px 20px 18px; }
+  .dialog h2 { margin: 0 0 18px; font-size: 19px; font-weight: 600; }
+  .field { position: relative; margin-top: 14px; }
+  .field label { position: absolute; top: -8px; left: 10px; padding: 0 5px; background: #ECEFED; font-size: 11.5px; color: var(--ink2); line-height: 1.3; }
+  .field input { width: 100%; padding: 15px 14px; border: 1px solid var(--ink); border-radius: 6px; background: transparent; font: inherit; font-size: 15px; color: var(--ink); }
+  .dialog .group { margin: 18px 0 8px; font-size: 13.5px; font-weight: 600; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choice { padding: 9px 16px; border: 1px solid var(--ink); border-radius: 8px; background: transparent; font-size: 13.5px; font-weight: 500; }
+  .choice.on { background: #CFE5DF; border-color: #CFE5DF; color: var(--accent); }
+  .choice.on::before { content: "✓  "; }
+  .from-hour { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .from-hour .text { flex: 1; font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+  .from-hour .time { padding: 9px 16px; border: 1px solid var(--ink); border-radius: 999px; background: transparent; font-size: 13.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+  .dialog .small { margin-top: 6px; font-size: 11.5px; color: var(--ink2); line-height: 1.45; }
+  .dialog .basis-note { display: none; }
+  .dialog.basis .calc { display: none; }
+  .dialog.basis .basis-note { display: block; margin-top: 10px; }
+  .dialog .actions { display: flex; gap: 10px; margin-top: 18px; }
+  .dialog .actions button { flex: 1; padding: 12px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+  .dialog .cancel { border: 1px solid var(--ink); background: transparent; color: var(--accent); }
+  .dialog .save { border: 0; background: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+
+  <div class="appbar"><span class="back">←</span> Cài đặt</div>
+
+  <!-- ===== THÔNG BÁO: luôn nằm trên cùng, tắt được trong phần nâng cao ===== -->
+  <div class="card notice" id="noticeCard">
+    <div class="card-title"><h3>Thông báo</h3></div>
+    <div class="notice-text" id="noticeText"><b>Mẹo dùng app</b><br>Giữ nút Chấm vào để chấm ngay giờ hiện tại, chạm để tự chọn giờ.<br>Bản mới có phiếu lương: bấm Sửa ở Phiếu lương để điền lương cơ bản của bạn.<br>Chấm công GPS cần cấp đủ quyền thì mới tự chấm khi app không mở.<br>Nếu có gì thắc mắc hãy hỏi qua gmail nhé.</div>
+    <button class="more-btn" id="noticeMore">Xem thêm</button>
+  </div>
+
+  <!-- ===== HAI NÚT: Công nhân đứng trước và là lựa chọn khi mới cài ===== -->
+  <div class="mode" id="mode">
+    <button data-mode="cn" class="on">Công nhân</button>
+    <button data-mode="nhat">Công nhật</button>
+  </div>
+
+  <div class="period-nav">
+    <span class="arrow">‹</span>
+    <span class="cn-only">Kỳ 21/09 – 20/10/2026</span>
+    <span class="nhat-only">Kỳ 01/10 – 15/10/2026</span>
+    <span class="arrow off">›</span>
+  </div>
+
+  <!-- ===== PHIẾU LƯƠNG: CÔNG NHÂN ===== -->
+  <div class="card cn-only">
+    <div class="card-title"><h3>Phiếu lương</h3><button class="edit-btn">✎ Sửa</button></div>
+
+    <div class="head">
+      <div class="month">Tháng 10/2026 <span class="chip temp">Tạm tính</span></div>
+      <div class="net">6.342.115,38 đ</div>
+    </div>
+    <div class="head-sub">Thu nhập 7.025.000 · trừ 682.884,62</div>
+
+    <hr>
+
+    <div class="basis">
+      <div class="label">CĂN CỨ TÍNH</div>
+      <div class="only-view">
+        Lương cơ bản <b>4.000.000 đ</b>/tháng<br>
+        Thưởng thành tích <b>2.000.000 đ</b>/tháng<br>
+        Công chuẩn <b>26</b> · thực tế <b>24,5</b> ngày<br>
+        Giờ công <b>196h</b> · tăng ca <b>20h</b>
+      </div>
+      <div class="only-edit">
+        <div class="row">
+          <div class="name">Lương cơ bản<span class="how">đ/tháng</span></div>
+          <input class="num money" value="4.000.000" inputmode="numeric">
+          <div class="tools"><button class="del" title="Xóa">✕</button></div>
+        </div>
+        <div class="row">
+          <div class="name">Thưởng thành tích<span class="how">đ/tháng</span></div>
+          <input class="num money" value="2.000.000" inputmode="numeric">
+          <div class="tools"><button class="del" title="Xóa">✕</button></div>
+        </div>
+        <div class="row">
+          <div class="name">Công chuẩn<span class="how">ngày · app tự đếm kỳ này là 26</span></div>
+          <input class="num" value="26" inputmode="numeric">
+          <div class="tools"><button class="del" title="Xóa">✕</button></div>
+        </div>
+        <button class="add-btn" data-add="basis">＋ Thêm khoản căn cứ</button>
+        <div class="auto">Tự tính từ chấm công, không sửa ở đây:<br>thực tế <b>24,5</b> ngày · giờ công <b>196h</b> · tăng ca <b>20h</b></div>
+      </div>
+    </div>
+
+    <div class="section plus">THU NHẬP</div>
+    <div class="row">
+      <div class="name">Tiền lương<span class="how">4.000.000 ÷ 26 × 24,5 ngày</span></div>
+      <div class="amount">3.769.230,77</div>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row">
+      <div class="name">Thưởng thành tích<span class="how">2.000.000 ÷ 26 × 24,5 ngày</span></div>
+      <div class="amount">1.884.615,38</div>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row">
+      <div class="name">Thưởng vượt khoán<span class="how">Tăng ca 12h × 45.000 + chủ nhật 8h × 45.000</span></div>
+      <div class="amount">900.000</div>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row">
+      <div class="name">Các khoản trợ cấp<span class="how only-view">500.000 ÷ 26 × 24,5 ngày</span><span class="how only-edit">đ/kỳ · tính dần theo ngày công</span></div>
+      <div class="amount only-view">471.153,85</div>
+      <input class="num money only-edit" value="500.000" inputmode="numeric">
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <button class="add-btn only-edit" data-add="plus">＋ Thêm khoản thu nhập</button>
+    <div class="total plus"><span>Tổng thu nhập</span><span>7.025.000</span></div>
+
+    <div class="section minus">KHẤU TRỪ</div>
+    <!-- Bảo hiểm gom một dòng: BHXH + BHYT + BHTN. -->
+    <div class="row minus">
+      <div class="name">Bảo hiểm (10,5%)<span class="how only-view">BHXH 8% + BHYT 1,5% + BHTN 1% × 4.000.000, tính dần theo ngày công</span><span class="how only-edit">% lương cơ bản · gồm BHXH 8 + BHYT 1,5 + BHTN 1</span></div>
+      <div class="amount only-view">−395.769,23</div>
+      <input class="num short pct only-edit" value="10,5" inputmode="decimal"><span class="unit only-edit">%</span>
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row minus">
+      <div class="name">Cơm trưa<span class="how only-view">10.000 × 24 ngày làm qua 12:30</span><span class="how only-edit">đ × số ngày làm qua 12:30</span></div>
+      <div class="amount only-view">−240.000</div>
+      <input class="num money only-edit" value="10.000" inputmode="numeric">
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <div class="row minus">
+      <div class="name">Công đoàn phí<span class="how only-view">50.000 ÷ 26 × 24,5 ngày</span><span class="how only-edit">đ/kỳ · tính dần theo ngày công</span></div>
+      <div class="amount only-view">−47.115,38</div>
+      <input class="num money only-edit" value="50.000" inputmode="numeric">
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <button class="add-btn only-edit" data-add="minus">＋ Thêm khoản khấu trừ</button>
+    <div class="total minus"><span>Tổng khấu trừ</span><span>−682.884,62</span></div>
+
+    <div class="take-home"><span class="label">THỰC NHẬN</span><span class="value">6.342.115,38 đ</span></div>
+
+    <!-- Lưu ý về cách chia các khoản cố định: rút gọn sẵn, ai cần thì bấm mở. -->
+    <details class="note-box">
+      <summary>Lưu ý về cách tính</summary>
+      <ul>
+        <li>Các khoản cố định như công đoàn phí, trợ cấp, bảo hiểm thực tế được tính một lần vào cuối tháng, nhưng app sẽ chia đều cho số ngày công chuẩn để ước tính sát theo từng ngày bạn đi làm.</li>
+        <li>Chủ nhật và ngày lễ không tính các khoản này. Làm những ngày đó chỉ được tính tiền tăng ca.</li>
+        <li>Khi hết kỳ, các khoản khấu trừ cố định (bảo hiểm, công đoàn phí) sẽ được tính đủ.</li>
+      </ul>
+    </details>
+  </div>
+
+  <!-- ===== PHIẾU LƯƠNG: CÔNG NHẬT ===== -->
+  <div class="card nhat-only">
+    <div class="card-title"><h3>Phiếu lương</h3><button class="edit-btn">✎ Sửa</button></div>
+
+    <div class="head">
+      <div class="month">Kỳ 1 · tháng 10/2026 <span class="chip temp">Tạm tính</span></div>
+      <div class="net">3.783.750 đ</div>
+    </div>
+    <div class="head-sub">Thu nhập 3.893.750 · trừ 110.000</div>
+
+    <hr>
+
+    <div class="basis">
+      <div class="label">CĂN CỨ TÍNH</div>
+      <div class="only-view">
+        Lương cơ bản <b>350.000 đ</b>/ngày<br>
+        Tổng giờ công <b>89h</b>
+      </div>
+      <div class="only-edit">
+        <div class="row">
+          <div class="name">Lương cơ bản<span class="how">đ/ngày</span></div>
+          <input class="num money" value="350.000" inputmode="numeric">
+        </div>
+        <div class="auto">Tự tính từ chấm công, không sửa ở đây: tổng giờ công <b>89h</b></div>
+      </div>
+    </div>
+
+    <div class="section plus">THU NHẬP</div>
+    <div class="row">
+      <div class="name">Tiền lương<span class="how">350.000 ÷ 8 × 89 giờ</span></div>
+      <div class="amount">3.893.750</div>
+    </div>
+    <button class="add-btn only-edit" data-add="plus">＋ Thêm khoản thu nhập</button>
+    <div class="total plus"><span>Tổng thu nhập</span><span>3.893.750</span></div>
+
+    <div class="section minus">KHẤU TRỪ</div>
+    <div class="row minus">
+      <div class="name">Cơm trưa<span class="how only-view">10.000 × 11 ngày làm qua 12:30</span><span class="how only-edit">đ × số ngày làm qua 12:30</span></div>
+      <div class="amount only-view">−110.000</div>
+      <input class="num money only-edit" value="10.000" inputmode="numeric">
+      <div class="tools only-edit"><button class="del" title="Xóa">✕</button></div>
+    </div>
+    <button class="add-btn only-edit" data-add="minus">＋ Thêm khoản khấu trừ</button>
+    <div class="total minus"><span>Tổng khấu trừ</span><span>−110.000</span></div>
+
+    <div class="take-home"><span class="label">THỰC NHẬN</span><span class="value">3.783.750 đ</span></div>
+  </div>
+
+  <!-- ===== KHỐI CÀI ĐẶT TÍNH CÔNG: gộp kỳ lương, giờ làm, bảng lương/giờ, đi muộn ===== -->
+  <div class="card">
+    <div class="card-title"><h3>Cài đặt tính công</h3><button class="edit-btn">✎ Sửa</button></div>
+
+    <div style="margin-top:10px">
+      <div class="set-line cn-only">
+        <span class="k">Kỳ lương</span>
+        <span class="v only-view">bắt đầu ngày 21</span>
+        <span class="unit only-edit">bắt đầu ngày</span><input class="num short only-edit" value="21" inputmode="numeric">
+      </div>
+      <!-- Công nhật: 2 kỳ một tháng, mỗi kỳ từ ngày nào tới ngày nào. -->
+      <div class="set-line nhat-only">
+        <span class="k">Kỳ lương<small class="only-view">2 kỳ một tháng</small></span>
+        <span class="v only-view">1–15 · 16–trước kỳ 1</span>
+        <span class="only-edit periods">
+          <span class="p">Kỳ 1 từ <input class="num tiny" value="1" inputmode="numeric"> đến <input class="num tiny" value="15" inputmode="numeric"></span>
+          <span class="p">Kỳ 2 từ <b>16</b> đến <b>trước ngày đầu kỳ 1</b></span>
+        </span>
+      </div>
+
+      <div class="set-line">
+        <span class="k">Giờ làm</span>
+        <span class="v only-view">07:00 – 16:00</span>
+        <input class="num time only-edit" value="07:00"><span class="unit only-edit">–</span><input class="num time only-edit" value="16:00">
+      </div>
+
+      <div class="wage-wrap">
+        <div class="k">Bảng lương/giờ</div>
+        <div class="auto-note cn-only">Giờ thường T2–T7 tự tính = lương cơ bản ÷ công chuẩn ÷ 8 (4.000.000 ÷ 26 ÷ 8 = 19.230,77), không sửa ở đây.</div>
+        <div class="auto-note nhat-only">Mọi ô tự điền = lương ngày ÷ 8 (350.000 ÷ 8 = 43.750). Sửa ô nào thì ô đó giữ số bạn nhập.</div>
+        <table class="wage">
+          <tr><th></th><th>Giờ thường</th><th>Giờ tăng ca</th></tr>
+          <tr>
+            <td>T2–T7</td>
+            <td>
+              <span class="cn-only auto-cell">19.230,77</span>
+              <span class="nhat-only"><span class="only-view">43.750</span><input class="num money only-edit" value="43.750" inputmode="numeric"></span>
+            </td>
+            <td>
+              <span class="cn-only"><span class="only-view">45.000</span><input class="num money only-edit" value="45.000" inputmode="numeric"></span>
+              <span class="nhat-only"><span class="only-view">43.750</span><input class="num money only-edit" value="43.750" inputmode="numeric"></span>
+            </td>
+          </tr>
+          <tr>
+            <td>Chủ nhật</td>
+            <td>
+              <span class="cn-only"><span class="only-view">45.000</span><input class="num money only-edit" value="45.000" inputmode="numeric"></span>
+              <span class="nhat-only"><span class="only-view">43.750</span><input class="num money only-edit" value="43.750" inputmode="numeric"></span>
+            </td>
+            <td>
+              <span class="cn-only"><span class="only-view">45.000</span><input class="num money only-edit" value="45.000" inputmode="numeric"></span>
+              <span class="nhat-only"><span class="only-view">43.750</span><input class="num money only-edit" value="43.750" inputmode="numeric"></span>
+            </td>
+          </tr>
+          <tr>
+            <td>Ngày lễ</td>
+            <td>
+              <span class="cn-only"><span class="only-view">63.000</span><input class="num money only-edit" value="63.000" inputmode="numeric"></span>
+              <span class="nhat-only"><span class="only-view">43.750</span><input class="num money only-edit" value="43.750" inputmode="numeric"></span>
+            </td>
+            <td>
+              <span class="cn-only"><span class="only-view">63.000</span><input class="num money only-edit" value="63.000" inputmode="numeric"></span>
+              <span class="nhat-only"><span class="only-view">43.750</span><input class="num money only-edit" value="43.750" inputmode="numeric"></span>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="set-line">
+        <span class="k">Đi muộn</span>
+        <span class="v only-view">trừ 30 phút</span>
+        <span class="seg only-edit" id="lateSeg"><button class="on" data-unit="phút">Trừ phút</button><button data-unit="đ">Trừ tiền</button></span><input class="num short only-edit" id="lateVal" value="30" inputmode="numeric"><span class="unit only-edit" id="lateUnit">phút</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GPS: lấy tọa độ và cấp quyền; tắt cả mục này được trong phần nâng cao ===== -->
+  <div class="card" id="gpsCard">
+    <div class="card-title"><h3>Chấm công GPS</h3></div>
+    <p class="sub">Đứng ở nơi chấm công rồi bấm lấy tọa độ. Cấp đủ quyền thì app mới tự chấm khi không mở.</p>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><span class="btn">◎ Lấy tọa độ</span><span class="btn">Cấp quyền chấm công</span></div>
+    <div class="gps-state">Chưa có tọa độ · chưa cấp quyền</div>
+  </div>
+
+  <!-- ===== NÂNG CAO VÀ CÀI ĐẶT KHÁC: không xổ sẵn ===== -->
+  <div class="card more" id="more">
+    <div class="card-title"><h3>Nâng cao và cài đặt khác</h3><span class="chev">⌄</span></div>
+    <p class="hint">Tắt thông báo, tắt chấm công GPS, ngày lễ, tăng ca theo khung, sao lưu, sao chép cấu hình, chia sẻ app, góp ý, hướng dẫn dùng.</p>
+    <div class="more-list">
+      <div class="more-item"><div class="grow">Hiện thông báo<small>Thẻ Thông báo ở đầu màn này</small></div><button class="switch on" data-target="noticeCard"></button></div>
+      <div class="more-item"><div class="grow">Dùng chấm công GPS<small>Tắt thì ẩn mục Chấm công GPS và app không tự chấm</small></div><button class="switch on" data-target="gpsCard"></button></div>
+      <div class="more-item"><div class="grow">Ngày lễ<small>10 ngày lễ đã thêm</small></div><span class="go">›</span></div>
+      <div class="more-item"><div class="grow">Tăng ca theo khung<small>Trừ phút nghỉ theo từng khung giờ tăng ca</small></div><span class="go">›</span></div>
+      <div class="more-item"><div class="grow">GPS: tùy chọn thêm<small>Bán kính, khung giờ, địa điểm khác</small></div><span class="go">›</span></div>
+      <div class="more-item"><div class="grow">Sao lưu dữ liệu<small>Xuất file Excel, khôi phục từ file</small></div><span class="go">›</span></div>
+      <div class="more-item"><div class="grow">Sao chép / dán cấu hình<small>Chỉ gồm các con số; không kèm ngày lễ</small></div><span class="go">›</span></div>
+      <div class="more-item"><div class="grow">Chia sẻ app</div><span class="go">›</span></div>
+      <div class="more-item"><div class="grow">Góp ý</div><span class="go">›</span></div>
+      <div class="more-item"><div class="grow">Hướng dẫn dùng</div><span class="go">›</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bảng nhập khoản: chỉ dùng khi THÊM khoản mới. Không có mục "Loại". -->
+<div class="scrim" id="scrim">
+  <div class="dialog" id="dialog">
+    <h2 id="dialogTitle">Khoản thu nhập mới</h2>
+    <div class="field"><label>Tên khoản</label><input placeholder="Ví dụ: Chuyên cần"></div>
+    <div class="calc">
+      <div class="group">Cách tính</div>
+      <div class="choices" id="choices">
+        <button class="choice on" data-unit="Số tiền (đ)">Cố định mỗi kỳ</button>
+        <button class="choice" data-unit="Số tiền mỗi ngày công (đ)">× số ngày công</button>
+        <button class="choice" data-unit="Phần trăm (%), ví dụ 1,5">% lương cơ bản</button>
+      </div>
+    </div>
+    <div class="field" style="margin-top:20px"><label id="amountLabel">Số tiền (đ)</label><input id="amountInput" class="money" value="0" inputmode="numeric"></div>
+    <div class="small basis-note">Khoản căn cứ là mức theo tháng, giống Thưởng thành tích: app tự thêm một dòng ở Thu nhập bằng mức này ÷ công chuẩn × ngày công thực tế.</div>
+    <div class="calc">
+      <div class="from-hour">
+        <div class="text">Chỉ tính từ giờ... (ví dụ tiền cơm trưa sau 13:00)</div>
+        <button class="time">◷ Chưa đặt</button>
+      </div>
+      <div class="small">Chỉ ảnh hưởng tới số tiền chạy sống trong ngày trên màn chính — không đổi tổng chính thức của cả kỳ.</div>
+    </div>
+    <div class="actions"><button class="cancel" id="cancelBtn">Hủy</button><button class="save" id="saveBtn">Lưu</button></div>
+  </div>
+</div>
+
+<!-- Hộp hỏi lại: dùng khi đổi Công nhân / Công nhật và khi bấm ✕ xóa bất kỳ khoản nào. -->
+<div class="scrim" id="confirm">
+  <div class="dialog">
+    <h2 id="confirmTitle" style="margin-bottom:10px">Bạn chắc chắn?</h2>
+    <div id="confirmText" style="font-size:14px;line-height:1.5;color:var(--ink2)"></div>
+    <div class="actions"><button class="cancel" id="confirmNo">Không</button><button class="save" id="confirmYes">Đồng ý</button></div>
+  </div>
+</div>
+
+<script>
+  // Chỉ đủ để bấm thử bố cục. Không tính toán gì.
+  const phone = document.getElementById('phone');
+
+  // Hai nút Công nhật / Công nhân: chỉ một nút được chọn.
+  function setMode(mode) {
+    document.querySelectorAll('#mode button').forEach((x) => x.classList.toggle('on', x.dataset.mode === mode));
+    phone.classList.toggle('mode-nhat', mode === 'nhat');
+  }
+  document.getElementById('noticeMore').addEventListener('click', (e) => {
+    const open = document.getElementById('noticeText').classList.toggle('open');
+    e.target.textContent = open ? 'Thu gọn' : 'Xem thêm';
+  });
+
+  // Hộp hỏi lại dùng chung.
+  const confirmBox = document.getElementById('confirm');
+  let confirmAction = null;
+  function ask(title, text, yesLabel, action) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmText').textContent = text;
+    document.getElementById('confirmYes').textContent = yesLabel;
+    confirmAction = action;
+    confirmBox.classList.add('open');
+  }
+  document.getElementById('confirmNo').addEventListener('click', () => confirmBox.classList.remove('open'));
+  document.getElementById('confirmYes').addEventListener('click', () => { confirmBox.classList.remove('open'); if (confirmAction) confirmAction(); });
+
+  // Đổi loại thì hỏi lại trước, vì dữ liệu cũ sẽ mất.
+  document.querySelectorAll('#mode button').forEach((b) => b.addEventListener('click', () => {
+    if (b.classList.contains('on')) return;
+    ask('Đổi sang ' + b.textContent + '?', 'Nếu bạn đổi thì phần lương và cài đặt tính công cũ sẽ bị mất hết (giờ chấm công từng ngày vẫn giữ nguyên). Bạn chắc chắn đổi không?', 'Đổi', () => setMode(b.dataset.mode));
+  }));
+
+  // Mỗi khối có nút Sửa riêng.
+  document.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => {
+    const on = b.closest('.card').classList.toggle('editing');
+    b.textContent = on ? '✓ Xong' : '✎ Sửa';
+  }));
+
+  // Bấm ✕ ở bất kỳ khoản nào (kể cả khoản cài sẵn) đều hỏi lại trước khi xóa.
+  document.querySelectorAll('.del').forEach((b) => b.addEventListener('click', () => {
+    const row = b.closest('.row');
+    const name = row.querySelector('.name').firstChild.textContent.trim();
+    ask('Xóa khoản này?', 'Bạn chắc chắn muốn xóa "' + name + '" không?', 'Xóa', () => row.remove());
+  }));
+  document.querySelector('#more .card-title').addEventListener('click', () => document.getElementById('more').classList.toggle('open'));
+  document.querySelector('#more .hint').addEventListener('click', () => document.getElementById('more').classList.toggle('open'));
+  document.querySelectorAll('.switch').forEach((s) => s.addEventListener('click', () => {
+    const on = s.classList.toggle('on');
+    document.getElementById(s.dataset.target).classList.toggle('hidden', !on);
+  }));
+  document.querySelectorAll('#lateSeg button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('#lateSeg button').forEach((x) => x.classList.toggle('on', x === b));
+    document.getElementById('lateUnit').textContent = b.dataset.unit;
+    const v = document.getElementById('lateVal');
+    v.classList.toggle('money', b.dataset.unit === 'đ');
+    v.value = b.dataset.unit === 'đ' ? '20.000' : '30';
+  }));
+
+  // Ô tiền: tự thêm dấu chấm ngăn hàng nghìn. Ô phần trăm: nhận số và một dấu phẩy.
+  function formatMoney(input) {
+    const digits = input.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    input.value = digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  function formatPercent(input) {
+    let v = input.value.replace(/\./g, ',').replace(/[^\d,]/g, '');
+    const i = v.indexOf(',');
+    if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/,/g, '');
+    input.value = v;
+  }
+  document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('money')) formatMoney(e.target);
+    if (e.target.classList.contains('pct')) formatPercent(e.target);
+  });
+
+  // Bảng "Khoản mới".
+  const scrim = document.getElementById('scrim');
+  const dialog = document.getElementById('dialog');
+  const amountLabel = document.getElementById('amountLabel');
+  const amountInput = document.getElementById('amountInput');
+  const names = { basis: 'căn cứ', plus: 'thu nhập', minus: 'khấu trừ' };
+  function setAmountKind(label, isPercent) {
+    amountLabel.textContent = label;
+    amountInput.classList.toggle('money', !isPercent);
+    amountInput.classList.toggle('pct', isPercent);
+    amountInput.inputMode = isPercent ? 'decimal' : 'numeric';
+    amountInput.value = '0';
+  }
+  function openDialog(kind) {
+    document.getElementById('dialogTitle').textContent = 'Khoản ' + names[kind] + ' mới';
+    dialog.classList.toggle('basis', kind === 'basis');
+    document.querySelectorAll('#choices .choice').forEach((x, i) => x.classList.toggle('on', i === 0));
+    setAmountKind(kind === 'basis' ? 'Số tiền (đ/tháng)' : 'Số tiền (đ)', false);
+    scrim.classList.add('open');
+  }
+  document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => openDialog(b.dataset.add)));
+  ['cancelBtn', 'saveBtn'].forEach((id) => document.getElementById(id).addEventListener('click', () => scrim.classList.remove('open')));
+  scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.classList.remove('open'); });
+  document.querySelectorAll('#choices .choice').forEach((c) => c.addEventListener('click', () => {
+    document.querySelectorAll('#choices .choice').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    setAmountKind(c.dataset.unit, c.dataset.unit.startsWith('Phần trăm'));
+  }));
+
+  // Mở thẳng một trạng thái bằng đuôi địa chỉ: #sua (mọi khối đang sửa), #nhat (Công nhật), #mo (xổ phần nâng cao).
+  if (location.hash === '#sua') document.querySelectorAll('.edit-btn').forEach((b) => b.click());
+  if (location.hash.startsWith('#nhat')) setMode('nhat');
+  if (location.hash === '#nhatsua') document.querySelectorAll('.edit-btn').forEach((b) => b.click());
+  if (location.hash === '#mo') document.getElementById('more').classList.add('open');
+</script>
+</body>
+</html>

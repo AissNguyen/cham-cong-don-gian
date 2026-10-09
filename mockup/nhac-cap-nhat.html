@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup: Nhắc cập nhật</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Ba trạng thái của hộp nhắc cập nhật, đặt cạnh nhau để so sánh. Các con số (3 lần, 10 ngày, bản
+     1.1.0) là ví dụ; trong app chúng lấy từ Firebase Remote Config. */
+  :root {
+    --accent: #17695A;
+    --accent-soft: #DCEEE9;
+    --ink: #1B2420;
+    --ink2: #52615B;
+    --ink3: #86938E;
+    --line: #E0E6E3;
+    --bg: #F2F4F3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 12px 40px;
+    background: #DDE2E0;
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .screens { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; align-items: flex-start; }
+  .wrap { width: 330px; max-width: 100%; }
+  .caption { margin: 0 0 8px 4px; font-size: 13px; font-weight: 600; color: var(--ink2); line-height: 1.4; }
+  .caption small { display: block; font-weight: 400; color: var(--ink3); }
+
+  /* Màn chính mờ phía sau, chỉ để thấy hộp nhắc nổi lên trên. */
+  .phone { position: relative; height: 560px; border-radius: 18px; overflow: hidden; background: var(--bg); }
+  .fake { padding: 16px; filter: blur(1px); }
+  .fake .bar { height: 44px; border-radius: 14px; background: #E6ECE9; }
+  .fake .hero { height: 130px; margin-top: 12px; border-radius: 18px; background: linear-gradient(120deg, #1CAE8F, #2F7FE0); }
+  .fake .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; }
+  .fake .grid i { height: 44px; border-radius: 10px; background: #fff; border: 1px solid var(--line); }
+  .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; padding: 18px; }
+
+  .dialog { width: 100%; background: #fff; border-radius: 22px; padding: 22px 20px 18px; text-align: center; }
+  .dialog .icon { width: 56px; height: 56px; margin: 0 auto 12px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .dialog h2 { margin: 0 0 8px; font-size: 17.5px; font-weight: 700; }
+  .dialog p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink2); }
+  .dialog .keep { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--bg); font-size: 12.5px; color: var(--ink2); }
+  .dialog .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .btn { padding: 12px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+  .btn.fill { background: var(--accent); color: #fff; }
+  .btn.ghost { border: 1px solid var(--ink); color: var(--accent); }
+  .btn small { font-weight: 500; opacity: .8; }
+
+  .params { max-width: 1040px; margin: 28px auto 0; background: #fff; border-radius: 16px; padding: 16px 18px; font-size: 13px; line-height: 1.5; }
+  .params h3 { margin: 0 0 8px; font-size: 14.5px; }
+  .params table { width: 100%; border-collapse: collapse; }
+  .params td, .params th { text-align: left; padding: 6px 8px 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  .params th { border-top: 0; font-size: 12px; color: var(--ink3); font-weight: 600; }
+  .params code { background: var(--bg); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="screens">
+
+  <!-- 1. Còn bấm "Để sau" được -->
+  <div class="wrap">
+    <p class="caption">1. Có bản mới, còn được bấm "Để sau"<small>Mỗi ngày hiện tối đa một lần</small></p>
+    <div class="phone">
+      <div class="fake"><div class="bar"></div><div class="hero"></div><div class="grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="scrim">
+        <div class="dialog">
+          <div class="icon">⇩</div>
+          <h2>Cần cập nhật lên bản mới</h2>
+          <p>Đã có bản 1.1.0. Hãy cập nhật để dùng tiếp các tính năng mới và sửa lỗi.</p>
+          <div class="keep">Dữ liệu chấm công và cài đặt của bạn được giữ nguyên.</div>
+          <div class="actions">
+            <div class="btn fill">Cập nhật</div>
+            <div class="btn ghost">Để sau <small>(còn 2 lần)</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Hết lượt "Để sau": bắt buộc -->
+  <div class="wrap">
+    <p class="caption">2. Đã hết lượt "Để sau"<small>Không tắt được, chỉ còn nút Cập nhật</small></p>
+    <div class="phone">
+      <div class="fake"><div class="bar"></div><div class="hero"></div><div class="grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="scrim">
+        <div class="dialog">
+          <div class="icon">⇩</div>
+          <h2>Cần cập nhật lên bản mới</h2>
+          <p>Bạn đã bấm "Để sau" 3 lần. Hãy cập nhật lên bản 1.1.0 để tiếp tục dùng app.</p>
+          <div class="keep">Dữ liệu chấm công và cài đặt của bạn được giữ nguyên.</div>
+          <div class="actions">
+            <div class="btn fill">Cập nhật</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Lâu không có mạng -->
+  <div class="wrap">
+    <p class="caption">3. Đã 10 ngày app không kết nối được mạng<small>Tắt được, không chặn chấm công; 10 ngày sau nhắc lại</small></p>
+    <div class="phone">
+      <div class="fake"><div class="bar"></div><div class="hero"></div><div class="grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="scrim">
+        <div class="dialog">
+          <div class="icon">⌁</div>
+          <h2>Hãy bật mạng để kiểm tra bản mới</h2>
+          <p>Đã 10 ngày app chưa kết nối được mạng nên không biết có bản mới hay không. Bật Wi-Fi hoặc 4G rồi bấm "Thử lại".</p>
+          <div class="actions">
+            <div class="btn fill">Thử lại</div>
+            <div class="btn ghost">Để sau</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="params">
+  <h3>Các tham số chỉnh trên Firebase Remote Config</h3>
+  <table>
+    <tr><th>Tham số</th><th>Mặc định</th><th>Ý nghĩa</th></tr>
+    <tr><td><code>latest_version</code></td><td>(đã có)</td><td>Số của bản mới nhất. Đổi số này là lúc app bắt đầu nhắc.</td></tr>
+    <tr><td><code>update_url</code></td><td>(đã có)</td><td>Link tải bản mới, nút "Cập nhật" mở link này.</td></tr>
+    <tr><td><code>update_max_skips</code></td><td>3</td><td>Số lần được bấm "Để sau". Đặt 0 là bắt buộc cập nhật ngay.</td></tr>
+    <tr><td><code>update_remind_hours</code></td><td>24</td><td>Khoảng cách giữa hai lần nhắc (giờ).</td></tr>
+    <tr><td><code>update_offline_days</code></td><td>10</td><td>Số ngày không kết nối được mạng thì nhắc bật mạng. Mất mạng thì dùng giá trị lấy được lần gần nhất.</td></tr>
+  </table>
+</div>
+</body>
+</html>
