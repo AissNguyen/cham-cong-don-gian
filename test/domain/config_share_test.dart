@@ -67,6 +67,6 @@ void main() {
 
   test('chuỗi rác -> null', () {
     expect(decodeSettings('xin chào', current: mine), isNull);
-    expect(decodeSettings('${configSharePrefix}{hỏng', current: mine), isNull);
+    expect(decodeSettings('$configSharePrefix{hỏng', current: mine), isNull);
   });
 }

@@ -16,10 +16,12 @@ num _num(Data? cell) => switch (cell!.value) {
 };
 
 void main() {
-  final settings = AppSettings().copyWith(
+  // Công nhật chỉ có dòng Tiền lương: tiền mỗi ngày = giờ thường × 30.000 + giờ tăng ca × 45.000.
+  final settings = AppSettings.defaultsFor(WorkerKind.daily).copyWith(
     wageTable: WageTable(
       rates: {for (final t in DayType.values) t: const WageRate(normalPerHour: 30000, overtimePerHour: 45000)},
     ),
+    incomeItems: [defaultPayItems(WorkerKind.daily).first],
   );
   // Gần 2 năm dữ liệu, có ghi chú tiếng Việt và ký tự đặc biệt, để file đủ lớn phải chia nhiều ô.
   final records = <String, DayRecord>{};
@@ -63,7 +65,7 @@ void main() {
     );
   });
 
-  test('trang dữ liệu bị ẩn, trang "Chấm công" mở đầu tiên và có tiền tạm tính', () {
+  test('trang dữ liệu bị ẩn, trang "Chấm công" mở đầu tiên và có tiền của ngày theo phiếu lương', () {
     final bytes = build();
     final workbook = utf8.decode(
       ZipDecoder().decodeBytes(bytes).files.firstWhere((f) => f.name == 'xl/workbook.xml').content as List<int>,
@@ -80,7 +82,7 @@ void main() {
     final excel = Excel.decodeBytes(bytes);
     expect(excel.tables.keys.first, 'Chấm công');
     final rows = excel.tables['Chấm công']!.rows;
-    expect(rows.first.map((c) => c?.value.toString()), contains('Tiền tạm tính'));
+    expect(rows.first.map((c) => c?.value.toString()), contains('Tiền của ngày'));
     // 1/1/2025 (thứ Tư), giờ làm mặc định 7h-16h: vào 8h, ra 19h → 8 giờ, trừ nghỉ trưa 1 giờ và đi
     // muộn 30 phút còn 6,5; 16h-19h = 3 giờ tăng ca.
     final first = rows[1];
@@ -89,6 +91,17 @@ void main() {
     expect(_num(first[6]), 3);
     expect(_num(first[9]), 6.5 * 30000 + 3 * 45000);
     expect(excel.tables.keys, containsAll(['Theo kỳ', 'Thông tin']));
+    // Trang "Theo kỳ": cột Thực nhận lấy từ phiếu lương, bằng tổng tiền các ngày của kỳ.
+    final periods = excel.tables['Theo kỳ']!.rows;
+    expect(periods.first.map((c) => c?.value.toString()), contains('Thực nhận'));
+    final jan = periods[1];
+    expect(jan[0]!.value.toString(), '01/01/2025 - 15/01/2025');
+    final janDays = rows.skip(1).where((r) {
+      final t = r[0]?.value.toString() ?? '';
+      final day = int.tryParse(t.split('/').first) ?? 99;
+      return t.endsWith('/01/2025') && day <= 15;
+    });
+    expect(_num(jan[8]), janDays.fold<num>(0, (s, r) => s + _num(r[9])));
   });
 
   test('vẫn khôi phục được khi file đã được lưu lại bằng chương trình khác (chữ ghi thẳng trong ô)', () {

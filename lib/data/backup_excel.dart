@@ -2,8 +2,9 @@
 /// còn dùng app), vừa để khôi phục lại vào app.
 ///
 /// Các trang trong file:
-/// - "Chấm công": mỗi ngày có dữ liệu một dòng (giờ vào/ra, giờ công, tăng ca, tiền tạm tính...).
-/// - "Theo kỳ": tổng giờ và tiền của từng kỳ lương.
+/// - "Chấm công": mỗi ngày có dữ liệu một dòng (giờ vào/ra, giờ công, tăng ca, tiền của ngày theo
+///   phiếu lương...).
+/// - "Theo kỳ": giờ công, tổng thu nhập, khấu trừ và Thực nhận của từng kỳ lương (theo phiếu lương).
 /// - "Thông tin": ngày xuất, cách khôi phục.
 /// - "DuLieuApp" (ẩn): toàn bộ dữ liệu gốc dạng JSON, chia thành nhiều ô (mỗi ô Excel chứa tối đa
 ///   32.767 ký tự). Khôi phục chỉ đọc trang này, nên người dùng sửa số ở các trang khác cũng không
@@ -21,6 +22,7 @@ import '../domain/backup.dart';
 import '../domain/calc.dart';
 import '../domain/models.dart';
 import '../domain/pay_period.dart';
+import '../domain/payslip.dart';
 
 const backupDataSheet = 'DuLieuApp';
 const _daysSheet = 'Chấm công';
@@ -86,6 +88,13 @@ Uint8List buildBackupExcel({
 
   final days = records.values.where(recordHasData).toList()..sort((a, b) => a.date.compareTo(b.date));
 
+  // Số tiền lấy từ phiếu lương của từng kỳ (cùng bộ tính với màn chính), tính tới lúc xuất file.
+  DayRecord recordOf(DateTime d) => records[dateKey(dateOnly(d))] ?? DayRecord(date: dateOnly(d));
+  final slips = <String, Payslip>{};
+  Payslip slipOf(PayPeriod p) =>
+      slips[p.key] ??= computePayslip(settings: settings, period: p, recordOf: recordOf, now: exportedAt);
+  double moneyOf(DateTime d) => slipOf(periodContaining(d, settings.payPeriod)).amountOn(d);
+
   // --- Trang "Chấm công" ---
   final daySheet = excel[_daysSheet];
   const dayMoneyCol = 9;
@@ -100,7 +109,7 @@ Uint8List buildBackupExcel({
       'Tăng ca (giờ)',
       'Nghỉ',
       'Đi muộn',
-      'Tiền tạm tính',
+      'Tiền của ngày',
       'Ghi chú',
     ])
       _t(h),
@@ -113,7 +122,8 @@ Uint8List buildBackupExcel({
     final calc = computeDay(r, settings);
     totalNormal += calc.normalMinutes;
     totalOvertime += calc.overtimeMinutes;
-    totalPay += calc.pay;
+    final money = moneyOf(r.date);
+    totalPay += money;
     final note = [if (r.note?.isNotEmpty ?? false) r.note!, ...r.tags].join(' · ');
     _row(
       daySheet,
@@ -128,7 +138,7 @@ Uint8List buildBackupExcel({
         _n(_hours(calc.overtimeMinutes)),
         r.isDayOff ? _t('Nghỉ') : null,
         r.isLate ? _t('Muộn') : null,
-        _n(calc.pay.roundToDouble()),
+        _n(money.truncateToDouble()),
         note.isEmpty ? null : _t(note),
       ],
       moneyCols: {dayMoneyCol},
@@ -147,7 +157,7 @@ Uint8List buildBackupExcel({
       _n(_hours(totalOvertime)),
       _t('${days.where((d) => d.isDayOff).length} ngày'),
       _t('${days.where((d) => d.isLate).length} ngày'),
-      _n(totalPay.roundToDouble()),
+      _n(totalPay.truncateToDouble()),
     ],
     style: _bold,
     moneyCols: {dayMoneyCol},
@@ -162,14 +172,14 @@ Uint8List buildBackupExcel({
   _row(periodSheet, 0, [
     for (final h in [
       'Kỳ lương',
-      'Giờ thường',
+      'Giờ công',
       'Tăng ca (giờ)',
       'Ngày công',
       'Ngày nghỉ',
       'Ngày đi muộn',
-      'Tiền chấm công',
-      'Khoản khác',
-      'Tổng tạm tính',
+      'Tổng thu nhập',
+      'Tổng khấu trừ',
+      'Thực nhận',
       'Số tiền tự nhập',
     ])
       _t(h),
@@ -182,22 +192,25 @@ Uint8List buildBackupExcel({
       final p = period;
       final inPeriod = days.where((d) => p.contains(d.date));
       if (inPeriod.isNotEmpty || periodOverrides.containsKey(p.key)) {
-        final stats = computePeriodStats(p, inPeriod, settings);
+        final slip = slipOf(p);
         final override = periodOverrides[p.key];
         _row(
           periodSheet,
           row++,
           [
             _t('${_date(p.start)} - ${_date(p.end)}'),
-            _n(_hours(stats.normalMinutes)),
-            _n(_hours(stats.overtimeMinutes)),
-            _n(stats.workDayCount.toDouble()),
-            _n(stats.daysOff.toDouble()),
-            _n(stats.daysLate.toDouble()),
-            _n(stats.attendanceIncome.roundToDouble()),
-            _n(stats.itemsIncome.roundToDouble()),
-            _n(stats.totalIncome.roundToDouble()),
-            override == null ? null : _n(override.roundToDouble()),
+            _n(_hours(slip.normalMinutes)),
+            _n(_hours(slip.overtimeMinutes)),
+            // Công nhân: ngày công thực tế (giờ thường T2–T7 ÷ 8). Công nhật: số ngày có đi làm.
+            _n(settings.workerKind == WorkerKind.worker
+                ? (slip.workDays * 100).round() / 100
+                : slip.daysWorked.toDouble()),
+            _n(slip.daysOff.toDouble()),
+            _n(slip.daysLate.toDouble()),
+            _n(slip.totalIncome.truncateToDouble()),
+            _n(slip.totalDeduction.truncateToDouble()),
+            _n(slip.net.truncateToDouble()),
+            override == null ? null : _n(override.truncateToDouble()),
           ],
           moneyCols: {6, 7, 8, 9},
         );
@@ -205,7 +218,7 @@ Uint8List buildBackupExcel({
       period = periodContaining(p.end.add(const Duration(days: 1)), settings.payPeriod);
     }
   }
-  const periodWidths = [25.0, 11.0, 13.0, 11.0, 11.0, 13.0, 16.0, 13.0, 16.0, 16.0];
+  const periodWidths = [25.0, 11.0, 13.0, 11.0, 11.0, 13.0, 16.0, 15.0, 16.0, 16.0];
   for (var c = 0; c < periodWidths.length; c++) {
     periodSheet.setColumnWidth(c, periodWidths[c]);
   }
@@ -217,7 +230,7 @@ Uint8List buildBackupExcel({
     ('Ngày xuất file', '${_date(exportedAt)} ${_two(exportedAt.hour)}:${_two(exportedAt.minute)}'),
     ('Phiên bản app', appVersion),
     ('Số ngày có dữ liệu', '${days.length}'),
-    ('Về số tiền', 'Là số tạm tính theo bảng lương cài trong app lúc xuất file, không phải lương thực nhận.'),
+    ('Về số tiền', 'Tính theo phiếu lương cài trong app lúc xuất file. Kỳ chưa kết thúc là số tạm tính.'),
     ('Khôi phục vào app', 'Mở app › Cài đặt › Sao lưu dữ liệu › Khôi phục từ file, rồi chọn file này.'),
     ('Lưu ý', 'File có một trang ẩn "$backupDataSheet" chứa dữ liệu gốc để khôi phục. Đừng xóa trang đó.'),
   ];

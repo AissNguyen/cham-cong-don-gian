@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../../analytics/analytics_service.dart';
 import '../../data/store.dart';
-import '../../domain/calc.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
+import '../../domain/payslip.dart';
 import '../../domain/share_gate.dart';
 import '../../notice/notice.dart';
 import '../../share/share_service.dart';
@@ -24,10 +24,13 @@ import 'period_day_chart.dart';
 import 'period_history.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.updateStatus = UpdateStatus.none, this.onDismissUpdateBanner});
+  const HomeScreen({super.key, this.updateStatus = UpdateStatus.none, this.onDismissUpdateBanner, this.clock});
 
   final UpdateStatus updateStatus;
   final VoidCallback? onDismissUpdateBanner;
+
+  /// Chỉ dùng trong test để cố định "bây giờ"; bình thường là giờ hiện tại.
+  final DateTime Function()? clock;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -91,6 +94,11 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _openSettings() {
+    logOncePerDay(eventOpenedSettings);
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+  }
+
   void _changeMonth(int delta) {
     setState(() => _viewedMonth = DateTime(_viewedMonth.year, _viewedMonth.month + delta));
   }
@@ -106,19 +114,20 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final today = dateOnly(DateTime.now());
+    final now = widget.clock?.call() ?? DateTime.now();
+    final today = dateOnly(now);
     final period = periodContaining(today, store.settings.payPeriod);
-    final recordsInPeriod = store.records.values.where((r) => period.contains(r.date));
-    final stats = computePeriodStats(period, recordsInPeriod, store.settings);
-    final incomeOverridden = store.periodOverrides.containsKey(period.key);
-    final totalIncome = store.periodOverrides[period.key] ?? stats.totalIncome;
-    final selectedRecord = store.recordFor(_selectedDate);
+    // Mọi con số tiền trên màn chính lấy từ phiếu lương (cùng bộ tính với Cài đặt › Phiếu lương).
+    final slip = computePayslip(settings: store.settings, period: period, recordOf: store.recordFor, now: now);
+    final slips = <String, Payslip>{period.key: slip};
+    double moneyOf(DateTime date) {
+      final p = periodContaining(date, store.settings.payPeriod);
+      final s = slips[p.key] ??= computePayslip(settings: store.settings, period: p, recordOf: store.recordFor, now: now);
+      return s.amountOn(date);
+    }
 
-    final todayRecord = store.recordFor(today);
-    final now = DateTime.now();
-    final todayPay =
-        liveEstimatedPay(todayRecord, store.settings, now) +
-        liveItemsEstimate(todayRecord, store.settings, now, stats.workDayCount);
+    final selectedRecord = store.recordFor(_selectedDate);
+    final todayPay = slip.amountOn(today);
 
     return Scaffold(
       body: SafeArea(
@@ -138,9 +147,9 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 10),
               UpdateBanner(status: widget.updateStatus, onDismiss: () => widget.onDismissUpdateBanner?.call()),
             ],
-            const NoticeBanner(),
+            if (store.settings.showNotice) const NoticeBanner(),
             const SizedBox(height: 12),
-            _buildIncomeCard(context, period, stats, totalIncome, incomeOverridden, todayPay),
+            _buildIncomeCard(context, period, slip, todayPay),
             const SizedBox(height: 16),
             CalendarGrid(
               month: _viewedMonth,
@@ -149,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
               showLunar: _showLunar,
               showMoneyPerDay: _showMoneyPerDay,
               showCheckTimes: _showCheckTimes,
+              moneyOf: moneyOf,
               onSelect: (d) => setState(() => _selectedDate = d),
             ),
             const SizedBox(height: 16),
@@ -194,10 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _headerIcon(
           icon: Icons.settings_outlined,
-          onPressed: () {
-            logOncePerDay(eventOpenedSettings);
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-          },
+          onPressed: _openSettings,
         ),
         _headerIcon(icon: Icons.chevron_left, onPressed: () => _changeMonth(-1)),
         Expanded(
@@ -244,21 +251,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildIncomeCard(
-    BuildContext context,
-    PayPeriod period,
-    PeriodStats stats,
-    double totalIncome,
-    bool isOverridden,
-    double todayPay,
-  ) {
+  /// Thẻ thu nhập: số to là Thực nhận của kỳ hiện tại lấy từ phiếu lương; bấm vào thì mở Cài đặt
+  /// (phiếu lương nằm trên cùng).
+  Widget _buildIncomeCard(BuildContext context, PayPeriod period, Payslip slip, double todayPay) {
     final colors = context.appColors;
     final showIntro = _showTodayIntro;
     const animDuration = Duration(milliseconds: 500);
     const bigSize = 27.0;
     const smallSize = 15.0;
 
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: colors.primaryGradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
@@ -277,24 +279,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Thu nhập tạm tính · kỳ ${fmtDM(period.start)}–${fmtDM(period.end)}',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isOverridden)
-                          Container(
-                            margin: const EdgeInsets.only(left: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(6)),
-                            child: const Text('đã sửa tay', style: TextStyle(color: Colors.white, fontSize: 10)),
-                          ),
-                      ],
+                    Text(
+                      'Thực nhận tạm tính · kỳ ${fmtDM(period.start)}–${fmtDM(period.end)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     AnimatedDefaultTextStyle(
@@ -305,7 +294,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                       ),
-                      child: Text(fmtMoney(totalIncome), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        fmtMoney(slip.net),
+                        key: const ValueKey('home-net'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -326,7 +320,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
-                    child: Text(fmtMoney(todayPay), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      fmtMoney(todayPay),
+                      key: const ValueKey('home-today'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -335,15 +334,16 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _statTile(context, 'Giờ công', fmtHours(stats.normalMinutes)),
-              _statTile(context, 'Tăng ca', fmtHours(stats.overtimeMinutes)),
-              _statTile(context, 'Tổng giờ', fmtHours(stats.normalMinutes + stats.overtimeMinutes)),
-              _statTile(context, 'Ngày nghỉ', '${stats.daysOff}'),
+              _statTile(context, 'Giờ công', fmtHours(slip.normalMinutes)),
+              _statTile(context, 'Tăng ca', fmtHours(slip.overtimeMinutes)),
+              _statTile(context, 'Tổng giờ', fmtHours(slip.normalMinutes + slip.overtimeMinutes)),
+              _statTile(context, 'Ngày nghỉ', '${slip.daysOff}'),
             ],
           ),
         ],
       ),
     );
+    return GestureDetector(onTap: _openSettings, child: card);
   }
 
   Widget _statTile(BuildContext context, String label, String value) {
