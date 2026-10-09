@@ -1,6 +1,5 @@
 import 'package:cham_cong_don_gian/domain/calc.dart';
 import 'package:cham_cong_don_gian/domain/models.dart';
-import 'package:cham_cong_don_gian/domain/pay_period.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 AppSettings baseSettings() {
@@ -308,92 +307,27 @@ void main() {
     });
   });
 
-  group('computePeriodStats khoản thu nhập/khấu trừ', () {
-    test('% lương cơ bản -> tính theo baseSalary, chỉ cộng khi bật includeItemsInEstimate', () {
-      final settings = baseSettings().copyWith(
-        baseSalary: 3000000,
-        incomeItems: [
-          const IncomeItem(
-            id: '1',
-            name: 'Bảo hiểm',
-            type: IncomeItemType.deduction,
-            calcMethod: IncomeCalcMethod.percentOfBaseSalary,
-            amount: 10,
-          ),
-        ],
-      );
-      final period = PayPeriod(DateTime(2026, 9, 1), DateTime(2026, 9, 30));
-
-      final off = computePeriodStats(period, const [], settings);
-      expect(off.itemsIncome, 0);
-
-      final on = computePeriodStats(period, const [], settings.copyWith(includeItemsInEstimate: true));
-      expect(on.itemsIncome, -300000);
-    });
-  });
-
-  group('liveItemsEstimate', () {
-    test('tắt includeItemsInEstimate -> luôn 0', () {
-      final settings = baseSettings().copyWith(
-        incomeItems: [const IncomeItem(id: '1', name: 'Phụ cấp', amount: 900000)],
-      );
+  group('liveDayHours', () {
+    test('ca đang mở -> đếm giây giờ thường, đứng yên trong giờ nghỉ trưa', () {
+      final settings = baseSettings();
       final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
-      expect(liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 12, 0), 20), 0);
+      expect(liveDayHours(record, settings, DateTime(2026, 9, 21, 9, 0, 5)).normalSeconds, 2 * 3600 + 5);
+      final at1140 = liveDayHours(record, settings, DateTime(2026, 9, 21, 11, 40)).normalSeconds;
+      final at1225 = liveDayHours(record, settings, DateTime(2026, 9, 21, 12, 25)).normalSeconds;
+      expect(at1225, at1140);
     });
 
-    test('khoản cố định chia đều theo ngày công, chạy dần trong ca và nhận đủ lúc hết ca', () {
-      final settings = baseSettings().copyWith(
-        includeItemsInEstimate: true,
-        incomeItems: [const IncomeItem(id: '1', name: 'Phụ cấp', amount: 900000)],
+    test('đã chấm ra -> đúng số phút của computeDay', () {
+      final settings = baseSettings();
+      final record = DayRecord(
+        date: DateTime(2026, 9, 21),
+        checkIn: DateTime(2026, 9, 21, 7, 0),
+        checkOut: DateTime(2026, 9, 21, 18, 0),
       );
-      // Kỳ có 20 ngày công -> phần của hôm nay = 900.000/20 = 45.000. Ca chuẩn 7:00-16:00 = 9 giờ.
-      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
-      final half = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 11, 30), 20);
-      expect(half, closeTo(22500, 1));
-      final atEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 16, 0), 20);
-      expect(atEnd, closeTo(45000, 1));
-      final afterEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 20, 0), 20);
-      expect(afterEnd, closeTo(45000, 1)); // không chạy quá phần của ngày dù còn đang tăng ca
-    });
-
-    test('khoản có mốc giờ (vd tiền cơm trưa sau 13h) -> trước mốc chưa tính, nhận đủ lúc hết ca', () {
-      final settings = baseSettings().copyWith(
-        includeItemsInEstimate: true,
-        incomeItems: [
-          const IncomeItem(id: '1', name: 'Tiền cơm trưa', amount: 450000, activeAfter: Clock(13, 0)),
-        ],
-      );
-      // Kỳ 15 ngày công -> phần/ngày = 30.000.
-      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
-      expect(liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 12, 0), 15), 0); // chưa tới 13h
-      expect(liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 13, 0), 15), 0); // vừa chạm mốc
-
-      final mid = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 14, 30), 15);
-      expect(mid, greaterThan(0));
-      expect(mid, lessThan(30000));
-
-      final atEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 16, 0), 15);
-      expect(atEnd, closeTo(30000, 1)); // hết ca là nhận đủ, không bị "ăn non" vì mốc giờ bắt đầu muộn
-    });
-
-    test('khoản khấu trừ -> trả về số âm', () {
-      final settings = baseSettings().copyWith(
-        includeItemsInEstimate: true,
-        baseSalary: 3000000,
-        incomeItems: [
-          const IncomeItem(
-            id: '1',
-            name: 'Bảo hiểm',
-            type: IncomeItemType.deduction,
-            calcMethod: IncomeCalcMethod.percentOfBaseSalary,
-            amount: 10,
-          ),
-        ],
-      );
-      final record = DayRecord(date: DateTime(2026, 9, 21), checkIn: DateTime(2026, 9, 21, 7, 0));
-      // 3.000.000*10% = 300.000 / 20 ngày = 15.000/ngày, hết ca thì đủ -15.000.
-      final atEnd = liveItemsEstimate(record, settings, DateTime(2026, 9, 21, 16, 0), 20);
-      expect(atEnd, closeTo(-15000, 1));
+      final live = liveDayHours(record, settings, DateTime(2026, 9, 22));
+      final day = computeDay(record, settings);
+      expect(live.normalSeconds, day.normalMinutes * 60);
+      expect(live.overtimeSeconds, day.overtimeMinutes * 60);
     });
   });
 }
