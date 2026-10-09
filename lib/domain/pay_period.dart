@@ -34,15 +34,29 @@ class PayPeriod {
   int get hashCode => Object.hash(start, end);
 }
 
+/// Ngày đầu (a) và ngày cuối (b) của kỳ 1 khi chia 2 kỳ một tháng, đã ép về khoảng an toàn: a từ
+/// 1 tới 28, b từ a tới min(28, a + 26), để tháng nào (kể cả tháng 2) cũng có đủ hai kỳ, mỗi kỳ ít
+/// nhất một ngày.
+(int, int) semiMonthlyBounds(PayPeriodConfig cfg) {
+  final a = cfg.semiFirstStart.clamp(1, 28);
+  final maxB = a + 26 < 28 ? a + 26 : 28;
+  final b = cfg.semiFirstEnd.clamp(a, maxB);
+  return (a, b);
+}
+
 /// Kỳ lương chứa [date].
 PayPeriod periodContaining(DateTime date, PayPeriodConfig cfg) {
   final d = dateOnly(date);
   if (cfg.type == PayPeriodType.semiMonthly) {
-    if (d.day <= 15) {
-      return PayPeriod(DateTime(d.year, d.month, 1), DateTime(d.year, d.month, 15));
+    final (a, b) = semiMonthlyBounds(cfg);
+    if (d.day >= a && d.day <= b) {
+      return PayPeriod(DateTime(d.year, d.month, a), DateTime(d.year, d.month, b));
     }
-    final last = _daysInMonth(d.year, d.month);
-    return PayPeriod(DateTime(d.year, d.month, 16), DateTime(d.year, d.month, last));
+    // Kỳ 2: từ ngày b+1 tới trước ngày đầu kỳ 1 (ngày a) của tháng sau.
+    final startMonth = d.day > b ? DateTime(d.year, d.month) : DateTime(d.year, d.month - 1);
+    final start = DateTime(startMonth.year, startMonth.month, b + 1);
+    final end = DateTime(startMonth.year, startMonth.month + 1, a).subtract(const Duration(days: 1));
+    return PayPeriod(start, end);
   }
 
   // Theo tháng, ngày bắt đầu tự chọn.

@@ -13,7 +13,7 @@ import '../widget/widget_sync.dart';
 import 'data_file.dart';
 
 class AppStore extends ChangeNotifier {
-  AppSettings settings = AppSettings();
+  AppSettings settings = AppSettings.defaultsFor(WorkerKind.worker);
   final Map<String, DayRecord> _records = {};
 
   /// Số tiền người dùng nhập tay để ghi đè cả kỳ, khóa là [PayPeriod.key].
