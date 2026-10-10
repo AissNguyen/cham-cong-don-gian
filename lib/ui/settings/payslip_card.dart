@@ -118,18 +118,47 @@ class _PayslipCardState extends State<PayslipCard> {
   bool _editing = false;
 
   AppStore get store => widget.store;
-  AppSettings get settings => store.settings;
+
+  DateTime get _today => dateOnly(widget.now ?? DateTime.now());
+
+  /// Kỳ đang xem.
+  PayPeriod get _period => _periodAt(_today);
+
+  /// Cài đặt với phần lương của đúng kỳ đang xem (mỗi kỳ giữ số riêng của nó).
+  AppSettings get settings => store.settings.payFor(_period.start);
 
   PayPeriod _periodAt(DateTime today) {
-    var p = periodContaining(today, settings.payPeriod);
+    final cfg = store.settings.payPeriod;
+    var p = periodContaining(today, cfg);
     for (var i = 0; i > _offset; i--) {
-      p = periodContaining(p.start.subtract(const Duration(days: 1)), settings.payPeriod);
+      p = periodContaining(p.start.subtract(const Duration(days: 1)), cfg);
     }
     return p;
   }
 
-  Future<void> _updateItems(List<IncomeItem> Function(List<IncomeItem>) update) =>
-      store.updateSettings((s) => s.copyWith(incomeItems: update([...s.incomeItems])));
+  /// Sửa phần lương của kỳ đang xem. Kỳ đã qua thì chỉ kỳ đó đổi; kỳ hiện tại thì các kỳ sau cũng
+  /// theo số mới. Các kỳ trước không bị đổi.
+  Future<void> _editPay({
+    double? baseSalary,
+    double? dailyWage,
+    List<IncomeItem> Function(List<IncomeItem>)? items,
+  }) {
+    final period = _period;
+    final next = DateTime(period.end.year, period.end.month, period.end.day + 1);
+    final ended = _today.isAfter(period.end);
+    return store.updateSettings(
+      (s) => s.withPayEdit(
+        periodStart: period.start,
+        nextPeriodStart: next,
+        periodEnded: ended,
+        baseSalary: baseSalary,
+        dailyWage: dailyWage,
+        incomeItems: items?.call([...s.payFor(period.start).incomeItems]),
+      ),
+    );
+  }
+
+  Future<void> _updateItems(List<IncomeItem> Function(List<IncomeItem>) update) => _editPay(items: update);
 
   Future<void> _setItemAmount(IncomeItem item, double amount) => _updateItems(
     (list) => [for (final i in list) i.id == item.id ? i.copyWith(amount: amount) : i],
@@ -152,7 +181,7 @@ class _PayslipCardState extends State<PayslipCard> {
       text: 'Bạn chắc chắn muốn xóa "Lương cơ bản" không? Lương cơ bản sẽ về 0.',
       yes: 'Xóa',
     );
-    if (ok) await store.updateSettings((s) => s.copyWith(baseSalary: 0));
+    if (ok) await _editPay(baseSalary: 0);
   }
 
   Future<void> _askClearStandard(PayPeriod period, int auto) async {
@@ -191,7 +220,7 @@ class _PayslipCardState extends State<PayslipCard> {
   Widget build(BuildContext context) {
     final now = widget.now ?? DateTime.now();
     final period = _periodAt(dateOnly(now));
-    final slip = computePayslip(settings: settings, period: period, recordOf: store.recordFor, now: now);
+    final slip = computePayslip(settings: store.settings, period: period, recordOf: store.recordFor, now: now);
     final colors = context.appColors;
     final pc = PayslipColors.of(context);
     final worker = settings.workerKind == WorkerKind.worker;
@@ -357,7 +386,7 @@ class _PayslipCardState extends State<PayslipCard> {
             how: 'đ/tháng',
             field: InlineNumberField(
               value: settings.baseSalary,
-              onChanged: (v) => store.updateSettings((s) => s.copyWith(baseSalary: v)),
+              onChanged: (v) => _editPay(baseSalary: v),
             ),
             onDelete: _askClearBaseSalary,
           ),
@@ -401,7 +430,7 @@ class _PayslipCardState extends State<PayslipCard> {
             how: 'đ/ngày',
             field: InlineNumberField(
               value: settings.dailyWage,
-              onChanged: (v) => store.updateSettings((s) => s.copyWith(dailyWage: v)),
+              onChanged: (v) => _editPay(dailyWage: v),
             ),
           ),
           const SizedBox(height: 8),
@@ -590,15 +619,16 @@ class _CalcNotesState extends State<_CalcNotes> {
   bool _open = false;
 
   static const _notes = [
-    'Đây là phiếu lương tham khảo, hãy chỉnh sửa lại các mục cho phù hợp bảng lương của mình.',
+    'Đây là phiếu lương tham khảo, hãy chỉnh sửa lại các mục cho phù hợp bảng lương của mình. Sửa ở kỳ nào '
+        'thì áp dụng cho kỳ đó, các kỳ trước giữ nguyên số của chúng.',
     'Phiếu lương mang tính chất ước lượng. Mức lương nhận được phụ thuộc vào người tính lương cho bạn, nên '
         'khi nhận được lương thật, hãy nhập lại số tiền ở mục "Thống kê thu nhập theo kỳ" bên lịch chấm công '
         'để tính tổng chính xác hơn.',
     'Các khoản cố định như công đoàn phí, trợ cấp, bảo hiểm thực tế được tính một lần vào cuối tháng, '
-        'nhưng app sẽ chia đều cho số ngày công chuẩn để ước tính sát theo từng ngày bạn đi làm.',
-    'Chủ nhật và ngày lễ không tính các khoản này. Làm những ngày đó chỉ được tính tiền tăng ca.',
-    'Khi hết kỳ, các khoản khấu trừ cố định (bảo hiểm, công đoàn phí) sẽ được tính đủ.',
-    'Nghỉ ngày lễ, chủ nhật… mà không đi làm thì nên chấm tay đủ 8 tiếng cho ngày đó.',
+        'nhưng app sẽ chia đều cho số ngày công chuẩn để ước tính sát theo từng ngày bạn đi làm; khi hết kỳ, '
+        'các khoản khấu trừ cố định (bảo hiểm, công đoàn phí) sẽ được tính đủ.',
+    'Chủ nhật và ngày lễ không tính các khoản cố định. Làm những ngày đó chỉ được tính tiền tăng ca.',
+    'Ngày nghỉ có lương được tính một ngày lương cơ bản.',
   ];
 
   @override

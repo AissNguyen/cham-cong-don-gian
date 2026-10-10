@@ -74,6 +74,8 @@ AppSettings? decodeSettings(String text, {required AppSettings current}) {
     }
     return current.copyWith(
       overtimeBrackets: hasBrackets ? incoming.overtimeBrackets : null,
+      // Phần lương dán vào thay cho mọi kỳ; số riêng theo từng kỳ của máy này không còn dùng.
+      payVersions: const [],
       workerKind: incoming.workerKind,
       baseSalary: incoming.baseSalary,
       dailyWage: incoming.dailyWage,

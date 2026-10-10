@@ -26,7 +26,8 @@ Làm theo `THIET-KE-BAN-MOI.md` trên cloud ngày 2026-10-09. **Chưa cài lên 
 - **Nhắc cập nhật** thành hộp ba trạng thái (`lib/update/update_policy.dart` + test `test/update_policy_test.dart`), bỏ băng nhắc và màn bắt buộc sau 14 ngày.
 - **Chuyển dữ liệu bản cũ**: dữ liệu, file sao lưu Excel và chuỗi cấu hình chưa có `workerKind` thành Công nhân (lương cơ bản = lương giờ ngày thường × 8 × 26, thêm dòng Tiền lương và Tăng ca, giữ khoản cũ). Số tiền gần như không đổi, nhưng khoản cố định cũ nay chia theo ngày công nên giữa kỳ thấp hơn trước.
 - **Đã thử**: `flutter analyze` không lỗi, `flutter test` 170 test qua (Flutter 3.47.6 trên cloud). Bản web build release chạy trong Chromium với dữ liệu kiểu cũ: màn chính, phiếu lương, chế độ Sửa, phần Nâng cao hiện đúng. **Chưa thử**: trên điện thoại thật (GPS rút gọn, công tắc tắt GPS, hộp nhắc cập nhật với Remote Config thật, ô nhập tiền trên bàn phím Android), file Excel mới mở bằng Excel thật.
-- **Chưa làm (mục 9 của bản thiết kế)**: đổi lương cơ bản thì phiếu các kỳ cũ cũng đổi theo; ngày phép / lễ có lương chưa tính vào ngày công; trợ cấp đang tính theo ngày công.
+- **Phần lương theo từng kỳ và ngày nghỉ có lương** (làm ngày 2026-10-10 trên PC): sửa phiếu lương ở kỳ nào thì áp dụng cho kỳ đó, các kỳ trước giữ số của chúng (`PayVersion`, `payFor`, `withPayEdit`); nút "Ngày nghỉ" cho chọn nghỉ có lương (tính một ngày lương cơ bản, `DayRecord.paidLeave`) hoặc không lương. Đã thử nghỉ có lương trên điện thoại người dùng; phần lương theo kỳ mới qua test tự động.
+- **Còn lại ở mục 9 của bản thiết kế**: trợ cấp đang tính theo ngày công (chưa biết công ty trả đủ hay theo ngày công).
 
 ## Đã có
 

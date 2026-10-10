@@ -144,7 +144,7 @@ class _DayCell extends StatelessWidget {
       fill = colors.dayOffMark;
       onFill = Colors.white;
       borderColor = colors.dayOffMark;
-      bottomLabel = 'Nghỉ';
+      bottomLabel = record.paidLeave ? 'Nghỉ ₫' : 'Nghỉ';
     } else if (isFuture) {
       bottomLabel = null;
     } else if (!record.hasAttendance) {

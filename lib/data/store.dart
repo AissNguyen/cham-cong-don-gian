@@ -98,10 +98,17 @@ class AppStore extends ChangeNotifier {
     await _putRecord(r.copyWith(clearCheckOut: true));
   }
 
-  Future<void> setDayOff(DateTime date, bool value) async {
+  /// [paid]: nghỉ có lương (tính một ngày lương cơ bản) hay không lương; chỉ có nghĩa khi [value].
+  Future<void> setDayOff(DateTime date, bool value, {bool paid = false}) async {
     final r = recordFor(date);
     await _putRecord(
-      r.copyWith(isDayOff: value, clearCheckIn: value, clearCheckOut: value, isLate: value ? false : r.isLate),
+      r.copyWith(
+        isDayOff: value,
+        paidLeave: value && paid,
+        clearCheckIn: value,
+        clearCheckOut: value,
+        isLate: value ? false : r.isLate,
+      ),
     );
   }
 

@@ -387,10 +387,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: _ActionButton(
                 icon: Icons.beach_access_outlined,
-                label: 'Ngày nghỉ',
+                label: !record.isDayOff ? 'Ngày nghỉ' : (record.paidLeave ? 'Có lương' : 'Không lương'),
                 active: record.isDayOff,
                 activeColor: context.appColors.dayOffMark,
-                onTap: () => store.setDayOff(_selectedDate, !record.isDayOff),
+                onTap: () => _chooseDayOff(store, record),
               ),
             ),
             Expanded(
@@ -411,6 +411,51 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  /// Bấm "Ngày nghỉ": chọn nghỉ có lương (tính một ngày lương cơ bản) hay không lương.
+  Future<void> _chooseDayOff(AppStore store, DayRecord record) async {
+    final date = _selectedDate;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: const Text('Nghỉ có lương'),
+              subtitle: const Text('Tính một ngày lương cơ bản'),
+              trailing: record.isDayOff && record.paidLeave ? const Icon(Icons.check) : null,
+              onTap: () => Navigator.pop(context, 'paid'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.money_off),
+              title: const Text('Nghỉ không lương'),
+              subtitle: const Text('Không tính tiền ngày này'),
+              trailing: record.isDayOff && !record.paidLeave ? const Icon(Icons.check) : null,
+              onTap: () => Navigator.pop(context, 'unpaid'),
+            ),
+            if (record.isDayOff)
+              ListTile(
+                leading: const Icon(Icons.undo),
+                title: const Text('Bỏ đánh dấu nghỉ'),
+                onTap: () => Navigator.pop(context, 'clear'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    switch (choice) {
+      case 'paid':
+        await store.setDayOff(date, true, paid: true);
+      case 'unpaid':
+        await store.setDayOff(date, true);
+      case 'clear':
+        await store.setDayOff(date, false);
+    }
   }
 
   Widget _buildNoteButton(BuildContext context, AppStore store, DayRecord record) {

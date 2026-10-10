@@ -143,6 +143,8 @@ Payslip computePayslip({
   required DayRecord Function(DateTime date) recordOf,
   required DateTime now,
 }) {
+  // Phần lương (lương cơ bản, các khoản) lấy theo đúng kỳ này, không lấy số của kỳ khác.
+  settings = settings.payFor(period.start);
   final today = dateOnly(now);
   final worker = settings.workerKind == WorkerKind.worker;
   final items = settings.incomeItems;
@@ -154,6 +156,7 @@ Payslip computePayslip({
   final daySalary = <DateTime, double>{}; // tiền lương theo giờ của ngày (công nhật)
   final dayOvertime = <DateTime, double>{}; // tiền tăng ca của ngày
   final dayLate = <DateTime, double>{};
+  final paidLeaveDays = <DateTime>[]; // ngày nghỉ có lương: mỗi ngày tính một ngày lương cơ bản
   final dayItemCounts = <String, Set<DateTime>>{for (final i in perDayItems) i.id: {}};
   // Giây làm theo (nhóm, giá) để viết dòng giải thích, ví dụ ('Tăng ca', 45000) -> 12h.
   final overtimeGroups = <(String, double), int>{};
@@ -175,6 +178,7 @@ Payslip computePayslip({
     final record = recordOf(d);
     if (record.isDayOff) {
       daysOff++;
+      if (record.paidLeave) paidLeaveDays.add(d);
       continue;
     }
     if (record.isLate) daysLate++;
@@ -280,14 +284,29 @@ Payslip computePayslip({
 
     switch (item.calcMethod) {
       case IncomeCalcMethod.salary:
+        // Ngày nghỉ có lương: mỗi ngày tính như một ngày công của lương cơ bản (công nhân) hoặc
+        // một ngày lương (công nhật); không tính vào các khoản khác.
+        final paid = paidLeaveDays.length;
         if (worker) {
-          amount = std > 0 ? base / std * workDays : 0;
-          how = prorateHow(baseText);
-          dayWork.forEach((d, w) => addDay(d, sign * (std > 0 ? base / std * w : 0)));
+          final perDay = std > 0 ? base / std : 0.0;
+          amount = perDay * (workDays + paid);
+          how = paid == 0
+              ? prorateHow(baseText)
+              : std > 0
+              ? '$baseText ÷ ${_num(std)} × (${_num(workDays)} ngày công + $paid ngày nghỉ có lương)'
+              : '$baseText ÷ công chuẩn × ngày công';
+          dayWork.forEach((d, w) => addDay(d, sign * perDay * w));
+          for (final d in paidLeaveDays) {
+            addDay(d, sign * perDay);
+          }
         } else {
-          amount = salaryTotal;
+          amount = salaryTotal + settings.dailyWage * paid;
           how = _dailySalaryHow(settings, salaryGroups);
+          if (paid > 0) how = '$how + $paid ngày nghỉ có lương × ${_money(settings.dailyWage)}';
           daySalary.forEach((d, v) => addDay(d, sign * v));
+          for (final d in paidLeaveDays) {
+            addDay(d, sign * settings.dailyWage);
+          }
         }
       case IncomeCalcMethod.overtime:
         amount = dayOvertime.values.fold(0.0, (s, v) => s + v);

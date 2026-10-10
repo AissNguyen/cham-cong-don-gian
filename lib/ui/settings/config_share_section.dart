@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../data/store.dart';
 import '../../domain/config_share.dart';
+import '../../domain/pay_period.dart';
 import 'settings_card.dart';
 
 /// Sao chép phần lương và cài đặt tính công ra một dòng ngắn, hoặc lấy thẳng cấu hình đang có trong
@@ -13,7 +14,9 @@ class ConfigShareSection extends StatelessWidget {
   final AppStore store;
 
   Future<void> _copy(BuildContext context) async {
-    final text = encodeSettings(store.settings);
+    // Phần lương lấy theo kỳ hiện tại (mỗi kỳ có thể có số riêng).
+    final settings = store.settings;
+    final text = encodeSettings(settings.payFor(periodContaining(DateTime.now(), settings.payPeriod).start));
     await Clipboard.setData(ClipboardData(text: text));
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã sao chép cấu hình.')));

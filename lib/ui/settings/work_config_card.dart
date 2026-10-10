@@ -58,7 +58,9 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
     final (a, b) = semiMonthlyBounds(cfg);
     final std = settings.standardDays[periodContaining(DateTime.now(), cfg).key] ??
         autoStandardDaysOf(periodContaining(DateTime.now(), cfg)).toDouble();
-    final autoHourly = workerAutoHourlyRate(settings, std);
+    // Lương cơ bản / lương ngày lấy theo kỳ hiện tại (mỗi kỳ có thể có số riêng).
+    final pay = settings.payFor(periodContaining(DateTime.now(), cfg).start);
+    final autoHourly = workerAutoHourlyRate(pay, std);
     final valueStyle = const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()]);
     final unitStyle = TextStyle(fontSize: 13, color: colors.ink2);
 
@@ -181,10 +183,10 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
           Text(
             worker
                 ? 'Giờ thường T2–T7 tự tính = lương cơ bản ÷ công chuẩn ÷ 8 '
-                      '(${fmtMoney(settings.baseSalary * monthFractionOf(cfg), unit: false)} ÷ ${fmtN(std)} ÷ 8 = '
+                      '(${fmtMoney(pay.baseSalary * monthFractionOf(cfg), unit: false)} ÷ ${fmtN(std)} ÷ 8 = '
                       '${fmtMoney(autoHourly, unit: false)}), không sửa ở đây.'
-                : 'Mọi ô tự điền = lương ngày ÷ 8 (${fmtMoney(settings.dailyWage, unit: false)} ÷ 8 = '
-                      '${fmtMoney(settings.dailyWage / 8, unit: false)}). Sửa ô nào thì ô đó giữ số bạn nhập.',
+                : 'Mọi ô tự điền = lương ngày ÷ 8 (${fmtMoney(pay.dailyWage, unit: false)} ÷ 8 = '
+                      '${fmtMoney(pay.dailyWage / 8, unit: false)}). Sửa ô nào thì ô đó giữ số bạn nhập.',
             style: TextStyle(fontSize: 11.5, color: colors.ink3),
           ),
           const SizedBox(height: 4),

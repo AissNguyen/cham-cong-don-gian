@@ -136,7 +136,7 @@ Uint8List buildBackupExcel({
         r.checkOut == null ? null : _t(_time(r.checkOut!, r.date)),
         _n(_hours(calc.normalMinutes)),
         _n(_hours(calc.overtimeMinutes)),
-        r.isDayOff ? _t('Nghỉ') : null,
+        r.isDayOff ? _t(r.paidLeave ? 'Nghỉ có lương' : 'Nghỉ') : null,
         r.isLate ? _t('Muộn') : null,
         _n(money.truncateToDouble()),
         note.isEmpty ? null : _t(note),

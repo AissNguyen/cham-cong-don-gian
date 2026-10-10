@@ -164,7 +164,7 @@ Còn lại, nên làm theo thứ tự:
 
 ## 9. Giới hạn và điều chưa chốt
 
-- **Đổi lương cơ bản thì phiếu các kỳ cũ cũng đổi theo.** Người dùng từng nghiêng về "áp dụng từ kỳ đang xem trở đi" nhưng chưa chốt hẳn; bản đầu chưa làm, ghi rõ trong `TIEN-DO.md`.
-- Ngày phép và ngày lễ có lương chưa được tính vào ngày công (chưa biết cách công ty tính).
+- **Phần lương theo từng kỳ (chốt và làm ngày 2026-10-10).** Sửa phiếu lương (lương cơ bản, lương ngày, các khoản) ở kỳ nào thì áp dụng cho kỳ đó: sửa kỳ hiện tại thì các kỳ sau cũng theo số mới, các kỳ trước giữ nguyên; sửa một kỳ đã qua thì chỉ kỳ đó đổi. Trong code: `PayVersion`, `AppSettings.payVersions`, `payFor`, `withPayEdit`; `computePayslip` tự lấy phần lương của đúng kỳ. Đổi Công nhân / Công nhật hoặc dán cấu hình thì bỏ hết số riêng theo kỳ. Cài đặt tính công (kỳ lương, giờ làm, bảng lương/giờ, đi muộn) vẫn dùng chung cho mọi kỳ.
+- **Ngày nghỉ có lương (chốt và làm ngày 2026-10-10).** Bấm nút "Ngày nghỉ" thì chọn "Nghỉ có lương" hoặc "Nghỉ không lương" (đã nghỉ rồi thì có thêm "Bỏ đánh dấu nghỉ"). Nghỉ có lương tính một ngày lương cơ bản (công nhân: lương cơ bản ÷ công chuẩn; công nhật: một ngày lương), chỉ cộng vào dòng Tiền lương, không tính vào ngày công, thưởng thành tích hay các khoản khác. Trên lịch ngày đó ghi "Nghỉ ₫". Trong code: `DayRecord.paidLeave`. App không tự coi ngày lễ là nghỉ có lương; người dùng tự đánh dấu.
 - Trợ cấp: chưa biết công ty trả đủ hay theo ngày công; đang tính theo ngày công.
 - Khóa ký: mọi bản đã phát hành ký bằng một khóa chỉ có trên PC của người dùng. Bản build trên cloud **không cài đè được** lên app người dùng, nên việc cài lên điện thoại, đưa APK lên Releases và deploy web chỉ làm ở PC.

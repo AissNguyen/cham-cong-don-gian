@@ -635,6 +635,33 @@ List<IncomeItem> defaultPayItems(WorkerKind kind) => [
     const IncomeItem(id: payItemUnion, name: 'Công đoàn phí', type: IncomeItemType.deduction, amount: 50000),
 ];
 
+/// Phần lương của phiếu lương (lương cơ bản, lương ngày, các khoản) áp dụng từ kỳ bắt đầu ngày
+/// [from] trở đi, cho tới kỳ có bản ghi kế tiếp. Nhờ đó sửa phiếu lương của kỳ nào thì chỉ kỳ đó
+/// (và các kỳ sau, nếu là kỳ hiện tại) đổi; các kỳ trước giữ nguyên số của chúng.
+class PayVersion {
+  const PayVersion({required this.from, required this.baseSalary, required this.dailyWage, required this.items});
+
+  /// Ngày đầu kỳ (00:00) mà bản ghi này bắt đầu có hiệu lực.
+  final DateTime from;
+  final double baseSalary;
+  final double dailyWage;
+  final List<IncomeItem> items;
+
+  Map<String, dynamic> toJson() => {
+    'from': dateKey(from),
+    'baseSalary': baseSalary,
+    'dailyWage': dailyWage,
+    'items': items.map((e) => e.toJson()).toList(),
+  };
+
+  factory PayVersion.fromJson(Map<String, dynamic> json) => PayVersion(
+    from: DateTime.parse(json['from'] as String),
+    baseSalary: (json['baseSalary'] as num).toDouble(),
+    dailyWage: (json['dailyWage'] as num).toDouble(),
+    items: (json['items'] as List).map((e) => IncomeItem.fromJson(e as Map<String, dynamic>)).toList(),
+  );
+}
+
 /// Toàn bộ cài đặt của app.
 class AppSettings {
   AppSettings({
@@ -656,7 +683,9 @@ class AppSettings {
     Map<String, double>? standardDays,
     this.showNotice = true,
     this.showGps = true,
-  }) : wageTable = wageTable ?? WageTable(),
+    List<PayVersion>? payVersions,
+  }) : payVersions = payVersions ?? [],
+       wageTable = wageTable ?? WageTable(),
        fixedBreakRules = fixedBreakRules ?? [],
        breakSegments = breakSegments ?? [],
        lateRule = lateRule ?? const LateRule(after: Clock(7, 0)),
@@ -743,6 +772,59 @@ class AppSettings {
   /// nhưng vẫn giữ nguyên tọa độ, khung giờ... để bật lại là chạy như cũ.
   GpsConfig get effectiveGps => showGps ? gps : gps.copyWith(enabled: false);
 
+  /// Phần lương theo từng kỳ, xếp theo [PayVersion.from] tăng dần. Kỳ nào bắt đầu trước bản ghi đầu
+  /// tiên thì dùng [baseSalary], [dailyWage], [incomeItems] ở trên.
+  final List<PayVersion> payVersions;
+
+  /// Cài đặt dùng để tính phiếu lương của kỳ bắt đầu ngày [periodStart]: phần lương lấy theo bản
+  /// ghi gần nhất có hiệu lực từ trước hoặc đúng ngày đó.
+  AppSettings payFor(DateTime periodStart) {
+    final start = dateOnly(periodStart);
+    PayVersion? found;
+    for (final v in payVersions) {
+      if (!v.from.isAfter(start)) found = v;
+    }
+    if (found == null) return this;
+    return copyWith(baseSalary: found.baseSalary, dailyWage: found.dailyWage, incomeItems: found.items);
+  }
+
+  /// Sửa phần lương khi đang xem kỳ bắt đầu ngày [periodStart]. Thay đổi áp dụng cho kỳ đó; nếu đó
+  /// là kỳ đã qua ([periodEnded]) thì các kỳ sau nó giữ nguyên như trước khi sửa, còn nếu là kỳ
+  /// hiện tại thì các kỳ sau cũng theo số mới. Các kỳ trước không bao giờ bị đổi.
+  AppSettings withPayEdit({
+    required DateTime periodStart,
+    required DateTime nextPeriodStart,
+    required bool periodEnded,
+    double? baseSalary,
+    double? dailyWage,
+    List<IncomeItem>? incomeItems,
+  }) {
+    final start = dateOnly(periodStart);
+    final next = dateOnly(nextPeriodStart);
+    final before = payFor(start);
+    final edited = PayVersion(
+      from: start,
+      baseSalary: baseSalary ?? before.baseSalary,
+      dailyWage: dailyWage ?? before.dailyWage,
+      items: incomeItems ?? before.incomeItems,
+    );
+    final versions = [
+      for (final v in payVersions)
+        if (v.from != start) v,
+      edited,
+    ];
+    // Sửa một kỳ đã qua: nếu chưa có bản ghi nào bắt đầu sau kỳ này cho tới đầu kỳ kế tiếp thì ghi
+    // lại số cũ ở đầu kỳ kế tiếp, để các kỳ sau không bị đổi theo.
+    final laterCovered = payVersions.any((v) => v.from.isAfter(start) && !v.from.isAfter(next));
+    if (periodEnded && !laterCovered) {
+      versions.add(
+        PayVersion(from: next, baseSalary: before.baseSalary, dailyWage: before.dailyWage, items: before.incomeItems),
+      );
+    }
+    versions.sort((a, b) => a.from.compareTo(b.from));
+    return copyWith(payVersions: versions);
+  }
+
   AppSettings copyWith({
     Clock? workStart,
     Clock? workEnd,
@@ -762,7 +844,9 @@ class AppSettings {
     Map<String, double>? standardDays,
     bool? showNotice,
     bool? showGps,
+    List<PayVersion>? payVersions,
   }) => AppSettings(
+    payVersions: payVersions ?? this.payVersions,
     workStart: workStart ?? this.workStart,
     workEnd: workEnd ?? this.workEnd,
     wageTable: wageTable ?? this.wageTable,
@@ -802,6 +886,7 @@ class AppSettings {
     'standardDays': standardDays,
     'showNotice': showNotice,
     'showGps': showGps,
+    'payVersions': payVersions.map((v) => v.toJson()).toList(),
   };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -836,6 +921,9 @@ class AppSettings {
       standardDays: (json['standardDays'] as Map?)?.map((k, v) => MapEntry('$k', (v as num).toDouble())),
       showNotice: json['showNotice'] as bool? ?? true,
       showGps: json['showGps'] as bool? ?? true,
+      payVersions: (json['payVersions'] as List?)
+          ?.map((e) => PayVersion.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
     return json['workerKind'] == null ? _migrateLegacy(parsed) : parsed;
   }
@@ -867,6 +955,7 @@ class DayRecord {
     this.checkIn,
     this.checkOut,
     this.isDayOff = false,
+    this.paidLeave = false,
     this.isLate = false,
     this.note,
     this.tags = const [],
@@ -878,6 +967,9 @@ class DayRecord {
   final DateTime? checkIn;
   final DateTime? checkOut;
   final bool isDayOff;
+
+  /// Chỉ có nghĩa khi [isDayOff]: ngày nghỉ có lương (tính một ngày lương cơ bản) hay không lương.
+  final bool paidLeave;
   final bool isLate;
   final String? note;
   final List<String> tags;
@@ -895,6 +987,7 @@ class DayRecord {
     DateTime? checkOut,
     bool clearCheckOut = false,
     bool? isDayOff,
+    bool? paidLeave,
     bool? isLate,
     String? note,
     List<String>? tags,
@@ -905,6 +998,8 @@ class DayRecord {
     checkIn: clearCheckIn ? null : (checkIn ?? this.checkIn),
     checkOut: clearCheckOut ? null : (checkOut ?? this.checkOut),
     isDayOff: isDayOff ?? this.isDayOff,
+    // Hết là ngày nghỉ thì cũng hết là nghỉ có lương.
+    paidLeave: (isDayOff ?? this.isDayOff) && (paidLeave ?? this.paidLeave),
     isLate: isLate ?? this.isLate,
     note: note ?? this.note,
     tags: tags ?? this.tags,
@@ -916,6 +1011,7 @@ class DayRecord {
     'checkIn': checkIn?.toIso8601String(),
     'checkOut': checkOut?.toIso8601String(),
     'dayOff': isDayOff,
+    'paidLeave': paidLeave,
     'late': isLate,
     'note': note,
     'tags': tags,
@@ -927,6 +1023,7 @@ class DayRecord {
     checkIn: json['checkIn'] != null ? DateTime.parse(json['checkIn'] as String) : null,
     checkOut: json['checkOut'] != null ? DateTime.parse(json['checkOut'] as String) : null,
     isDayOff: json['dayOff'] as bool? ?? false,
+    paidLeave: (json['dayOff'] as bool? ?? false) && (json['paidLeave'] as bool? ?? false),
     isLate: json['late'] as bool? ?? false,
     note: json['note'] as String?,
     tags: (json['tags'] as List?)?.map((e) => e as String).toList() ?? const [],

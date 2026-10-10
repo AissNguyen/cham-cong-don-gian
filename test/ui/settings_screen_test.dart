@@ -29,6 +29,10 @@ class _MemoryStore extends AppStore {
   }
 }
 
+/// Phần lương của kỳ hiện tại (sửa phiếu lương ở kỳ nào thì ghi riêng cho kỳ đó).
+AppSettings _pay(AppStore store) =>
+    store.settings.payFor(periodContaining(DateTime.now(), store.settings.payPeriod).start);
+
 Future<AppStore> _pump(WidgetTester tester, {Widget? home, AppStore? store}) async {
   tester.view.physicalSize = const Size(420, 6000);
   tester.view.devicePixelRatio = 1.0;
@@ -99,18 +103,18 @@ void main() {
     await tester.enterText(find.descendant(of: base, matching: find.byType(TextField)), '5000000');
     await tester.pump();
     expect(find.text('5.000.000'), findsOneWidget);
-    expect(store.settings.baseSalary, 5000000);
+    expect(_pay(store).baseSalary, 5000000);
 
     // Xóa Công đoàn phí: hỏi lại, đồng ý mới xóa.
-    final before = store.settings.incomeItems.length;
+    final before = _pay(store).incomeItems.length;
     final unionRow = find.ancestor(of: find.text('Công đoàn phí'), matching: find.byType(Row)).first;
     await tester.tap(find.descendant(of: unionRow, matching: find.byIcon(Icons.close)));
     await tester.pumpAndSettle();
     expect(find.text('Bạn chắc chắn muốn xóa "Công đoàn phí" không?'), findsOneWidget);
     await tester.tap(find.text('Xóa'));
     await tester.pumpAndSettle();
-    expect(store.settings.incomeItems.length, before - 1);
-    expect(store.settings.incomeItems.any((i) => i.id == payItemUnion), isFalse);
+    expect(_pay(store).incomeItems.length, before - 1);
+    expect(_pay(store).incomeItems.any((i) => i.id == payItemUnion), isFalse);
   });
 
   testWidgets('Bảng "Khoản mới": không có mục Loại, % nhập được dấu phẩy', (tester) async {
@@ -129,7 +133,7 @@ void main() {
     expect(find.text('1,5'), findsOneWidget);
     await tester.tap(find.text('Lưu'));
     await tester.pumpAndSettle();
-    final added = store.settings.incomeItems.last;
+    final added = _pay(store).incomeItems.last;
     expect(added.name, 'Quỹ tổ');
     expect(added.type, IncomeItemType.deduction);
     expect(added.calcMethod, IncomeCalcMethod.percentOfBaseSalary);
