@@ -77,12 +77,13 @@ class PeriodDayChart extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 188,
+          height: 200,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final slot = constraints.maxWidth / days.length;
-              // Số ngày dưới mỗi cột; chật (mỗi cột hẹp hơn chỗ cho 2 chữ số) thì hiện cách ngày.
-              final labelStep = slot < 15 ? 2 : 1;
+              // Số ngày dưới mỗi cột, hiện đủ mọi ngày. Chật (mỗi cột hẹp hơn chỗ cho 2 chữ số) thì xếp
+              // so le thành hai hàng để các số cạnh nhau không chồng lên nhau.
+              final stagger = slot < 15;
               final barWidth = (slot * 0.6).clamp(2.0, 12.0);
               // Viền của khúc "đi giờ khác" vẽ nằm gọn bên trong cột (thư viện vẽ viền đè lên mép,
               // tràn ra ngoài làm khúc đó trông phình hơn cột): hai cạnh bên bằng dải màu ở mép,
@@ -145,14 +146,14 @@ class PeriodDayChart extends StatelessWidget {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 18,
+                        reservedSize: stagger ? 30 : 18,
                         interval: 1,
                         getTitlesWidget: (value, meta) {
                           final i = value.toInt() - 1;
-                          if (i < 0 || i >= days.length || i % labelStep != 0) return const SizedBox.shrink();
+                          if (i < 0 || i >= days.length) return const SizedBox.shrink();
                           return SideTitleWidget(
                             meta: meta,
-                            space: 3,
+                            space: stagger && i.isOdd ? 15 : 3,
                             child: Text(
                               '${days[i].date.day}',
                               style: TextStyle(fontSize: 9.5, color: colors.ink3),

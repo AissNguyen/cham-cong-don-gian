@@ -35,23 +35,35 @@ void main() {
     expect(gps.allWindows.length, 1);
   });
 
-  test('dữ liệu bản cũ: còn hai khung mặc định cũ thì chuyển sang khung cài sẵn mới', () {
+  test('dữ liệu bản cũ: bỏ hết khung đã đặt trước đây, chuyển sang các khung cài sẵn', () {
+    // Bản chưa có khung lặp.
     final old = GpsConfig(
+      enabled: true,
+      latitude: 10,
+      longitude: 106,
       activeWindows: [
-        const TimeWindow(from: Clock(6, 50), to: Clock(7, 0)),
+        const TimeWindow(from: Clock(5, 30), to: Clock(6, 0)),
         const TimeWindow(from: Clock(16, 0), to: Clock(16, 15)),
       ],
-    ).toJson()..remove('rules');
+    ).toJson()..remove('rules')..remove('v');
     final gps = GpsConfig.fromJson(old);
     expect(gps.repeatRules.length, 2);
     expect(gps.activeWindows.map(show), ['12:50-13:10']);
+    // Tọa độ và việc đang bật GPS giữ nguyên.
+    expect(gps.enabled, isTrue);
+    expect(gps.latitude, 10);
+
+    // Bản thử đầu tiên đã có khung lặp nhưng chưa ghi phiên bản: cũng đặt lại một lần.
+    final trial = GpsConfig(
+      activeWindows: [const TimeWindow(from: Clock(5, 30), to: Clock(6, 0))],
+    ).toJson()..remove('v');
+    expect(GpsConfig.fromJson(trial).activeWindows.map(show), ['12:50-13:10']);
+    expect(GpsConfig.fromJson(trial).repeatRules.length, 2);
   });
 
-  test('dữ liệu bản cũ: đã tự đặt khung thì giữ nguyên, không thêm khung lặp', () {
-    final old = GpsConfig(
-      activeWindows: [const TimeWindow(from: Clock(5, 30), to: Clock(6, 0))],
-    ).toJson()..remove('rules');
-    final gps = GpsConfig.fromJson(old);
+  test('từ bản này về sau: khung người dùng tự đặt được giữ nguyên', () {
+    final mine = GpsConfig(activeWindows: [const TimeWindow(from: Clock(5, 30), to: Clock(6, 0))]);
+    final gps = GpsConfig.fromJson(mine.toJson());
     expect(gps.repeatRules, isEmpty);
     expect(gps.activeWindows.map(show), ['05:30-06:00']);
   });

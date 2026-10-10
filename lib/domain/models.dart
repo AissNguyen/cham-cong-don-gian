@@ -297,13 +297,9 @@ const defaultGpsRules = [
 ];
 const defaultGpsWindows = [TimeWindow(from: Clock(12, 50), to: Clock(13, 10))];
 
-/// Hai khung mặc định của các bản trước khi có khung lặp (06:50–07:00 và 16:00–16:15).
-bool _isOldDefaultGpsWindows(List<TimeWindow> w) =>
-    w.length == 2 &&
-    w[0].from == const Clock(6, 50) &&
-    w[0].to == const Clock(7, 0) &&
-    w[1].from == const Clock(16, 0) &&
-    w[1].to == const Clock(16, 15);
+/// Phiên bản của bộ khung giờ GPS trong dữ liệu. Dữ liệu cũ hơn (chưa có khung lặp, hoặc của bản
+/// thử đầu tiên) được đặt lại về các khung cài sẵn một lần.
+const gpsWindowsVersion = 2;
 
 /// Một địa điểm khác ngoài điểm chấm công chính, chỉ dùng khi đã chấm vào và đang chờ chấm ra.
 /// Ví dụ nhà trọ sát công ty ([checkOut] = true: về tới đây là chấm ra ngay, dù còn trong vòng
@@ -433,6 +429,7 @@ class GpsConfig {
     'departRadius': departRadiusMeters,
     'activeWindows': activeWindows.map((w) => w.toJson()).toList(),
     'rules': repeatRules.map((r) => r.toJson()).toList(),
+    'v': gpsWindowsVersion,
     'freq': frequencyMinutes,
     'sound': soundEnabled,
     'extraPlaces': extraPlaces.map((p) => p.toJson()).toList(),
@@ -449,10 +446,13 @@ class GpsConfig {
         ...?(json['checkOutWindows'] as List?)?.map((w) => TimeWindow.fromJson(w as Map<String, dynamic>)),
       ];
     }
-    final rules = (json['rules'] as List?)?.map((r) => GpsRepeatRule.fromJson(r as Map<String, dynamic>)).toList();
-    // Dữ liệu của bản chưa có khung lặp: khung giờ vẫn là hai khung mặc định cũ thì chuyển sang
-    // các khung cài sẵn mới; người dùng đã tự đặt khung thì giữ nguyên, không thêm khung lặp.
-    if (rules == null && windows != null && _isOldDefaultGpsWindows(windows)) windows = null;
+    var rules = (json['rules'] as List?)?.map((r) => GpsRepeatRule.fromJson(r as Map<String, dynamic>)).toList();
+    // Dữ liệu của bản cũ: bỏ hết các khung giờ đã đặt trước đây, chuyển sang các khung cài sẵn
+    // (hai khung lặp và khung 12:50–13:10). Từ đó về sau người dùng sửa gì thì giữ nguyên.
+    if ((json['v'] as int? ?? 1) < gpsWindowsVersion) {
+      windows = null;
+      rules = null;
+    }
     return GpsConfig(
       enabled: json['enabled'] as bool? ?? false,
       latitude: (json['lat'] as num?)?.toDouble(),

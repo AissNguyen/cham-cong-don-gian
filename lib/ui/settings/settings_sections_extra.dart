@@ -166,6 +166,20 @@ class GpsSection extends StatelessWidget {
     if (ok) await _updateGps((gps) => gps.copyWith(repeatRules: gps.repeatRules.where((r) => r != rule).toList()));
   }
 
+  Future<void> _resetWindows(BuildContext context) async {
+    final ok = await confirmAsk(
+      context,
+      title: 'Đặt lại khung cài sẵn?',
+      text:
+          'Mọi khung giờ bạn tự đặt sẽ bị xóa, chỉ còn hai khung lặp cài sẵn và khung 12:50–13:10. Bạn chắc '
+          'chắn muốn đặt lại không?',
+      yes: 'Đặt lại',
+    );
+    if (ok) {
+      await _updateGps((gps) => gps.copyWith(repeatRules: defaultGpsRules, activeWindows: [...defaultGpsWindows]));
+    }
+  }
+
   Widget _windowList(BuildContext context, {required GpsConfig gps}) {
     final windows = gps.activeWindows;
     return Column(
@@ -185,24 +199,6 @@ class GpsSection extends StatelessWidget {
               onPressed: () => _deleteRule(context, r),
             ),
           ),
-        if (gps.repeatRules.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 4),
-            child: TextButton.icon(
-              icon: const Icon(Icons.restore, size: 18),
-              label: const Text('Dùng lại các khung cài sẵn'),
-              onPressed: () => _updateGps(
-                (gps) => gps.copyWith(
-                  repeatRules: defaultGpsRules,
-                  activeWindows: [
-                    ...gps.activeWindows,
-                    for (final d in defaultGpsWindows)
-                      if (!gps.activeWindows.any((w) => w.from == d.from && w.to == d.to)) d,
-                  ],
-                ),
-              ),
-            ),
-          ),
         for (final w in windows)
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -211,10 +207,21 @@ class GpsSection extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _openWindowForm(context, editing: w),
           ),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.add),
-          label: const Text('Thêm khung giờ'),
-          onPressed: () => _openWindowForm(context),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Thêm khung giờ'),
+              onPressed: () => _openWindowForm(context),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.restore, size: 18),
+              label: const Text('Đặt lại khung cài sẵn'),
+              onPressed: () => _resetWindows(context),
+            ),
+          ],
         ),
       ],
     );

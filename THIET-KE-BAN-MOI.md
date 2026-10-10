@@ -110,20 +110,20 @@ Người dùng thử thấy tin nhắn quá dài nên bị cắt. Làm lại: ch
 
 ### Khung giờ GPS cài sẵn (thêm ngày 2026-10-10)
 
-Máy mới cài (và máy cũ còn nguyên hai khung mặc định cũ 06:50–07:00, 16:00–16:15) có sẵn ba phần, hiện ở Nâng cao › GPS: tùy chọn thêm:
+Máy mới cài và mọi máy cập nhật từ bản cũ (các khung đã đặt trước đây bị bỏ, đặt lại một lần) có sẵn ba phần, hiện ở Nâng cao › GPS: tùy chọn thêm:
 
 - Khung lặp 06:50–12:40, mỗi giờ: phút 50 → 05 và phút 25 → 35 (12 khung).
 - Khung lặp 13:30–23:00, mỗi giờ: phút 00 → 10 và phút 30 → 40 (19 khung).
 - Khung lẻ 12:50–13:10.
 
-Cả ba đều xóa được, nhưng phải hỏi lại trước khi xóa. Xóa hết khung lặp thì có nút "Dùng lại các khung cài sẵn". Máy cũ đã tự đặt khung riêng thì giữ nguyên, không thêm khung lặp. Trong code: `GpsRepeatRule`, `GpsConfig.repeatRules`, `GpsConfig.allWindows`.
+Cả ba đều xóa được, nhưng phải hỏi lại trước khi xóa. Có nút "Đặt lại khung cài sẵn" (hỏi lại trước khi đặt lại). Trong code: `GpsRepeatRule`, `GpsConfig.repeatRules`, `GpsConfig.allWindows`.
 
 ## 5. Màn chính
 
 - Thẻ thu nhập: số to là **Thực nhận** của kỳ hiện tại lấy từ phiếu lương; bấm vào thẻ thì mở Cài đặt (phiếu lương nằm trên cùng).
 - Các ô thống kê: Giờ công (giờ thường T2–T7), Tăng ca (gồm cả giờ chủ nhật và lễ), Tổng giờ, Ngày nghỉ.
 - Tiền từng ngày trên lịch và "Thống kê thu nhập theo kỳ" lấy từ phiếu lương.
-- **Biểu đồ giờ làm theo ngày**: hiện số ngày dưới mỗi cột (chật thì hiện cách ngày).
+- **Biểu đồ giờ làm theo ngày**: hiện số của mọi ngày dưới cột; chật thì xếp so le thành hai hàng (không bỏ cách ngày).
 
 ## 6. Nhắc cập nhật
 
