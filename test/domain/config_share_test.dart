@@ -51,6 +51,28 @@ void main() {
     expect(got.baseSalary, 4000000);
   });
 
+  test('khung tăng ca được chép theo; chuỗi gọn chưa có khung tăng ca thì giữ khung của máy nhận', () {
+    const bracket = OvertimeBracket(from: Clock(16, 0), to: Clock(18, 0), breakMinutes: 15);
+    const myBracket = OvertimeBracket(from: Clock(17, 0), to: Clock(22, 0), breakMinutes: 30);
+    final receiver = mine.copyWith(overtimeBrackets: [myBracket]);
+
+    final sender = AppSettings.defaultsFor(WorkerKind.worker).copyWith(overtimeBrackets: [bracket]);
+    final got = decodeSettings(encodeSettings(sender), current: receiver)!;
+    expect(got.overtimeBrackets.single.from, const Clock(16, 0));
+    expect(got.overtimeBrackets.single.to, const Clock(18, 0));
+    expect(got.overtimeBrackets.single.breakMinutes, 15);
+
+    // Máy gửi không có khung nào thì máy nhận cũng không còn khung nào.
+    final none = decodeSettings(encodeSettings(AppSettings.defaultsFor(WorkerKind.worker)), current: receiver)!;
+    expect(none.overtimeBrackets, isEmpty);
+
+    // Chuỗi gọn của bản chưa kèm khung tăng ca (không có khóa "o").
+    final body = jsonDecode(encodeSettings(sender).substring(configSharePrefix.length)) as Map<String, dynamic>;
+    final legacy = '$configSharePrefix${jsonEncode(body..remove('o'))}';
+    final kept = decodeSettings(legacy, current: receiver)!;
+    expect(kept.overtimeBrackets.single.breakMinutes, 30);
+  });
+
   test('vẫn đọc được chuỗi kiểu cũ (JSON đầy đủ của bản cũ, chưa có workerKind)', () {
     final old = AppSettings(
       wageTable: WageTable(rates: {DayType.weekday: const WageRate(normalPerHour: 25000, overtimePerHour: 40000)}),

@@ -1,8 +1,8 @@
 /// Sao chép / dán cấu hình giữa các máy (thuần Dart).
 ///
 /// Chuỗi kiểu mới viết gọn một dòng, chỉ gồm các con số của phần lương và cài đặt tính công: loại
-/// người dùng, lương cơ bản / lương ngày, kỳ lương, giờ làm, bảng lương/giờ, đi muộn và các khoản của
-/// phiếu lương. Không kèm ngày lễ, GPS, khung tăng ca và các danh sách cũ; máy nhận giữ nguyên những
+/// người dùng, lương cơ bản / lương ngày, kỳ lương, giờ làm, bảng lương/giờ, đi muộn, khung tăng ca và
+/// các khoản của phiếu lương. Không kèm ngày lễ, GPS và các danh sách cũ; máy nhận giữ nguyên những
 /// thứ đó của mình. Vẫn đọc được chuỗi kiểu cũ (toàn bộ cài đặt dạng JSON).
 library;
 
@@ -37,6 +37,9 @@ String encodeSettings(AppSettings s) {
       for (final t in _types) [_n(s.wageTable.of(t).normalPerHour), _n(s.wageTable.of(t).overtimePerHour)],
     ],
     'l': [s.lateRule.unit == LateUnit.minutes ? 'm' : 'đ', _n(s.lateRule.amount), s.lateRule.after.formatted],
+    'o': [
+      for (final b in s.overtimeBrackets) [b.from.formatted, b.to.formatted, b.breakMinutes],
+    ],
     'i': [
       for (final i in s.incomeItems)
         [
@@ -53,16 +56,24 @@ String encodeSettings(AppSettings s) {
   return '$configSharePrefix${jsonEncode(data)}';
 }
 
-/// Áp cấu hình trong [text] lên cài đặt hiện tại [current]: lấy phần lương và cài đặt tính công
-/// theo chuỗi, giữ nguyên ngày lễ, GPS, khung tăng ca, công tắc ẩn/hiện và công chuẩn sửa tay của
-/// máy này. Trả về null nếu chuỗi dán vào không hợp lệ.
+/// Áp cấu hình trong [text] lên cài đặt hiện tại [current]: lấy phần lương, cài đặt tính công và
+/// khung tăng ca theo chuỗi, giữ nguyên ngày lễ, GPS, công tắc ẩn/hiện và công chuẩn sửa tay của
+/// máy này. Chuỗi gọn của bản chưa kèm khung tăng ca thì giữ khung tăng ca của máy này. Trả về null
+/// nếu chuỗi dán vào không hợp lệ.
 AppSettings? decodeSettings(String text, {required AppSettings current}) {
   try {
     final trimmed = text.trim();
-    final incoming = trimmed.startsWith(configSharePrefix.trim())
-        ? _decodeCompact(trimmed.substring(configSharePrefix.trim().length).trim())
-        : AppSettings.fromJson(jsonDecode(trimmed) as Map<String, dynamic>);
+    final AppSettings incoming;
+    var hasBrackets = true;
+    if (trimmed.startsWith(configSharePrefix.trim())) {
+      final body = jsonDecode(trimmed.substring(configSharePrefix.trim().length).trim()) as Map<String, dynamic>;
+      incoming = _decodeCompact(body);
+      hasBrackets = body['o'] != null;
+    } else {
+      incoming = AppSettings.fromJson(jsonDecode(trimmed) as Map<String, dynamic>);
+    }
     return current.copyWith(
+      overtimeBrackets: hasBrackets ? incoming.overtimeBrackets : null,
       workerKind: incoming.workerKind,
       baseSalary: incoming.baseSalary,
       dailyWage: incoming.dailyWage,
@@ -78,8 +89,7 @@ AppSettings? decodeSettings(String text, {required AppSettings current}) {
   }
 }
 
-AppSettings _decodeCompact(String body) {
-  final d = jsonDecode(body) as Map<String, dynamic>;
+AppSettings _decodeCompact(Map<String, dynamic> d) {
   double n(Object? v) => (v as num).toDouble();
   final p = d['p'] as List;
   final h = d['h'] as List;
@@ -109,6 +119,14 @@ AppSettings _decodeCompact(String body) {
       amount: n(l[1]),
       after: Clock.parse(l[2] as String),
     ),
+    overtimeBrackets: [
+      for (final raw in (d['o'] as List?) ?? const [])
+        OvertimeBracket(
+          from: Clock.parse((raw as List)[0] as String),
+          to: Clock.parse(raw[1] as String),
+          breakMinutes: raw[2] as int,
+        ),
+    ],
     incomeItems: [
       for (final raw in d['i'] as List)
         () {

@@ -590,6 +590,7 @@ class _CalcNotesState extends State<_CalcNotes> {
   bool _open = false;
 
   static const _notes = [
+    'Đây là phiếu lương tham khảo, hãy chỉnh sửa lại các mục cho phù hợp bảng lương của mình.',
     'Các khoản cố định như công đoàn phí, trợ cấp, bảo hiểm thực tế được tính một lần vào cuối tháng, '
         'nhưng app sẽ chia đều cho số ngày công chuẩn để ước tính sát theo từng ngày bạn đi làm.',
     'Chủ nhật và ngày lễ không tính các khoản này. Làm những ngày đó chỉ được tính tiền tăng ca.',

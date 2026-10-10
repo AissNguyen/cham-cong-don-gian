@@ -106,7 +106,7 @@ Các mục cũ "Bảng lương/giờ" và "Khoản thu nhập / khấu trừ kh�
 
 ### Sao chép cấu hình
 
-Người dùng thử thấy tin nhắn quá dài nên bị cắt. Làm lại: chỉ gồm các con số của phần lương và cài đặt tính công, viết gọn một dòng, **không kèm ngày lễ, GPS và các danh sách cũ**. Máy nhận giữ nguyên ngày lễ và GPS của mình. Vẫn đọc được chuỗi kiểu cũ.
+Người dùng thử thấy tin nhắn quá dài nên bị cắt. Làm lại: chỉ gồm các con số của phần lương, cài đặt tính công và khung tăng ca, viết gọn một dòng, **không kèm ngày lễ, GPS và các danh sách cũ**. Máy nhận giữ nguyên ngày lễ và GPS của mình. Vẫn đọc được chuỗi kiểu cũ.
 
 ## 5. Màn chính
 
