@@ -36,6 +36,7 @@ Làm theo `THIET-KE-BAN-MOI.md` trên cloud ngày 2026-10-09, sửa thêm trên 
   - *Không xác định được* (không GPS, không Wi-Fi quen): thử lại 3 lần cách nhau 2 phút, vẫn không được thì báo đỏ (`gpsLeftUnknown`: ô lịch đỏ "Chưa ra", dòng lưu ý ở màn chính, một thông báo). Thấy ngoài 200 m mà giờ về tạm đã cũ hơn 45 phút cũng báo đỏ, không tự chấm ra. Lần kiểm tra sau xác định được còn ở chỗ làm thì hết đỏ.
   - *Mở lại ca*: giờ ra do GPS chốt thì cứ 2 tiếng kiểm tra lại; thấy vẫn ở chỗ làm thì bỏ giờ ra, tính công tiếp, có thông báo. Giờ ra bấm tay không bị đụng tới. Đứng ở "Địa điểm khác" loại "Chấm về" thì không mở lại.
   - Báo thức: mỗi khung giờ một cái (như cũ) và mỗi mốc phút 05/35 một cái (`gpsMarkTimes`); app đặt lại khi mở. 204 test qua (`test/domain/gps_engine_test.dart` viết lại). **Chưa kiểm chứng trên máy thật**: quét Wi-Fi khi tắt màn hình trên Realme, độ đúng giờ của báo thức, mức pin thực tế.
+- **Giá trị mặc định cho máy mới theo điện thoại của người dùng** (2026-10-10): Các khoản trợ cấp 800.000 (trước là 0) và 4 khung tăng ca cài sẵn (16–18h trừ nghỉ 15 phút, 18–19h trừ 30, 19–21h trừ 5, 21–22h trừ 5; `defaultOvertimeBrackets`). Chỉ áp dụng cho máy cài lần đầu hoặc khi đổi Công nhân ↔ Công nhật (khung tăng ca đã có thì giữ); máy đang dùng không đổi gì. Phiếu mẫu mặc định ra Thực nhận 10.093.461 đ.
 - **Số ngày lễ ở dòng "Ngày lễ"** ngoài mục Nâng cao nay đếm giống bên trong (gộp các năm lặp lại): 10 chứ không phải 30.
 - **Còn lại ở mục 9 của bản thiết kế**: trợ cấp đang tính theo ngày công (chưa biết công ty trả đủ hay theo ngày công).
 

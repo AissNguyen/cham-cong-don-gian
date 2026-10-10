@@ -63,7 +63,8 @@ void main() {
     expect(got.overtimeBrackets.single.breakMinutes, 15);
 
     // Máy gửi không có khung nào thì máy nhận cũng không còn khung nào.
-    final none = decodeSettings(encodeSettings(AppSettings.defaultsFor(WorkerKind.worker)), current: receiver)!;
+    final empty = AppSettings.defaultsFor(WorkerKind.worker).copyWith(overtimeBrackets: const []);
+    final none = decodeSettings(encodeSettings(empty), current: receiver)!;
     expect(none.overtimeBrackets, isEmpty);
 
     // Chuỗi gọn của bản chưa kèm khung tăng ca (không có khóa "o").

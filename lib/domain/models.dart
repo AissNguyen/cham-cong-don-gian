@@ -173,6 +173,14 @@ class LateRule {
 }
 
 /// Khung giờ tăng ca: phần giờ nằm trong khung, trừ số phút nghỉ của khung.
+/// Khung tăng ca cài sẵn cho máy mới: mỗi khung trừ số phút nghỉ giữa giờ tăng ca.
+const defaultOvertimeBrackets = [
+  OvertimeBracket(from: Clock(16, 0), to: Clock(18, 0), breakMinutes: 15),
+  OvertimeBracket(from: Clock(18, 0), to: Clock(19, 0), breakMinutes: 30),
+  OvertimeBracket(from: Clock(19, 0), to: Clock(21, 0), breakMinutes: 5),
+  OvertimeBracket(from: Clock(21, 0), to: Clock(22, 0), breakMinutes: 5),
+];
+
 class OvertimeBracket {
   const OvertimeBracket({required this.from, required this.to, this.breakMinutes = 0});
 
@@ -614,7 +622,7 @@ List<IncomeItem> defaultPayItems(WorkerKind kind) => [
   if (kind == WorkerKind.worker) ...[
     const IncomeItem(id: payItemPerformance, name: 'Thưởng thành tích', amount: 2000000, inBasis: true),
     const IncomeItem(id: payItemOvertime, name: 'Thưởng vượt khoán', calcMethod: IncomeCalcMethod.overtime),
-    const IncomeItem(id: payItemAllowance, name: 'Các khoản trợ cấp'),
+    const IncomeItem(id: payItemAllowance, name: 'Các khoản trợ cấp', amount: 800000),
     const IncomeItem(
       id: payItemInsurance,
       name: 'Bảo hiểm',
@@ -722,7 +730,7 @@ class AppSettings {
       workerKind: kind,
       fixedBreakRules: keep?.fixedBreakRules,
       breakSegments: keep?.breakSegments,
-      overtimeBrackets: keep?.overtimeBrackets,
+      overtimeBrackets: keep?.overtimeBrackets ?? defaultOvertimeBrackets,
       gps: keep?.gps,
       holidays: keep?.holidays,
       showNotice: keep?.showNotice ?? true,

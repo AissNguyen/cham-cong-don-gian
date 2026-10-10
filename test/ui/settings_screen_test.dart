@@ -157,8 +157,8 @@ void main() {
     expect(sample.days, 25);
     expect(sample.slip.workDays, 25);
     expect(sample.slip.overtimeSeconds, 95 * 3600);
-    // 4.000.000 ÷ 26 × 25 + 2.000.000 ÷ 26 × 25 + 95 × 45.000 − cơm trưa 25 × 10.000 − 420.000 − 50.000
-    expect(sample.slip.net, closeTo(6000000 / 26 * 25 + 95 * 45000 - 250000 - 420000 - 50000, 0.01));
+    // (4.000.000 + 2.000.000 + trợ cấp 800.000) ÷ 26 × 25 + 95 × 45.000 − cơm trưa 25 × 10.000 − 420.000 − 50.000
+    expect(sample.slip.net, closeTo(6800000 / 26 * 25 + 95 * 45000 - 250000 - 420000 - 50000, 0.01));
     expect((tester.widget(find.byKey(const ValueKey('payslip-net'))) as Text).data, fmtMoney(sample.slip.net));
     expect(find.text('Phiếu mẫu'), findsOneWidget);
     expect(find.text('THỰC NHẬN (MẪU)'), findsOneWidget);

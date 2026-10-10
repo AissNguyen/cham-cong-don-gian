@@ -22,6 +22,7 @@ void main() {
       rates: {for (final t in DayType.values) t: const WageRate(normalPerHour: 30000, overtimePerHour: 45000)},
     ),
     incomeItems: [defaultPayItems(WorkerKind.daily).first],
+    overtimeBrackets: const [],
   );
   // Gần 2 năm dữ liệu, có ghi chú tiếng Việt và ký tự đặc biệt, để file đủ lớn phải chia nhiều ô.
   final records = <String, DayRecord>{};
