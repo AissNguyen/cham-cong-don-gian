@@ -70,6 +70,19 @@ class DayCalcResult {
   );
 }
 
+/// Từ giờ này trở đi mà ca của hôm nay vẫn chưa có giờ về thì coi là quên chấm về.
+const missedCheckOutHour = 23;
+
+/// Ngày đã chấm vào nhưng không có giờ về: ca của một ngày đã qua, hoặc ca hôm nay khi đã qua
+/// [missedCheckOutHour] giờ. Ngày như vậy được báo đỏ trên lịch để người dùng chấm lại giờ về; ca
+/// của ngày đã qua không được tính giờ nào cho tới khi có giờ về.
+bool isMissedCheckOut(DayRecord record, DateTime now) {
+  if (record.isDayOff || record.checkIn == null || record.checkOut != null) return false;
+  final day = dateOnly(record.date);
+  final today = dateOnly(now);
+  return day.isBefore(today) || (day == today && now.hour >= missedCheckOutHour);
+}
+
 /// Giờ nghỉ trưa: khoảng này không được tính giờ công (áp dụng mọi ngày, mọi người dùng).
 const lunchBreakFrom = Clock(11, 30);
 const lunchBreakTo = Clock(12, 30);

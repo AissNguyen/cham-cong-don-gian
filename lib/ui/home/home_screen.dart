@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../analytics/analytics_service.dart';
 import '../../data/store.dart';
+import '../../domain/calc.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
 import '../../domain/payslip.dart';
@@ -409,7 +410,40 @@ class _HomeScreenState extends State<HomeScreen> {
           'Chạm để chọn giờ · giữ để chấm giờ hiện tại',
           style: TextStyle(fontSize: 11, color: context.appColors.ink3),
         ),
+        if (isMissedCheckOut(record, DateTime.now())) _missedCheckOutNote(context, record),
       ],
+    );
+  }
+
+  /// Dòng lưu ý đỏ khi ngày đang chọn đã chấm vào mà không có giờ về.
+  Widget _missedCheckOutNote(BuildContext context, DayRecord record) {
+    final red = context.appColors.lateMark;
+    final past = dateOnly(record.date).isBefore(dateOnly(DateTime.now()));
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: red.withValues(alpha: 0.1),
+        border: Border.all(color: red),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: red, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              past
+                  ? 'Ngày này đã chấm vào lúc ${fmtTime(record.checkIn!)} nhưng chưa có giờ về nên chưa được tính công. '
+                        'Hãy bấm nút Chấm ra để nhập giờ về.'
+                  : 'Đã qua 23:00 mà chưa chấm được giờ về. Hãy bấm nút Chấm ra để nhập giờ về, nếu không sang '
+                        'ngày mai ngày này sẽ không được tính công.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: red),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
