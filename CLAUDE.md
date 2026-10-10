@@ -35,6 +35,8 @@ Chưa đổi gì, chờ người dùng quyết định. Danh sách nằm ở `TI
 
 ## Cập nhật lần cuối
 
+2026-10-10 (PC, sau bản 1.1.0): phiếu lương ở Cài đặt chỉ tính khi hết kỳ (kỳ đang chạy hiện "Chưa chốt"), người chưa có kỳ nào chốt thì thấy phiếu lương mẫu, bảo hiểm không trừ khi nghỉ không lương từ 14 ngày. Đã commit, cài lên điện thoại và deploy web; chưa đưa APK mới lên Releases.
+
 2026-10-10 (PC): PR #6 đã merge; sửa thêm theo góp ý của người dùng (khung giờ GPS cài sẵn dạng lặp, phần lương theo từng kỳ, ngày nghỉ có lương / không lương, báo đỏ khi quên chấm về, thẻ thông báo thu gọn được, sao chép cấu hình kèm khung tăng ca); phát hành bản 1.1.0 lên GitHub Releases, cài lên điện thoại người dùng và deploy web. Khóa ký phát hành đã cố định trên PC, bản build ở nơi khác không cài đè được. Chưa đổi Remote Config (xem `TIEN-DO.md`).
 
 2026-10-09 (cloud, nhánh `phieu-luong-moi`, PR vào `master`): làm bản mới theo `THIET-KE-BAN-MOI.md`: bộ tính phiếu lương `lib/domain/payslip.dart` (mọi số tiền lấy từ đây), Công nhân / Công nhật, màn Cài đặt mới, kỳ 2 kỳ/tháng tùy ngày, sao chép cấu hình rút gọn, hộp nhắc cập nhật ba trạng thái, chuyển dữ liệu bản cũ. 170 test qua, analyze không lỗi; đã chạy thử bản web trong Chromium trên cloud. Chưa cài lên điện thoại, chưa deploy web.

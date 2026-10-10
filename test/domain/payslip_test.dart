@@ -32,6 +32,37 @@ void main() {
   final worker = AppSettings.defaultsFor(WorkerKind.worker);
   final daily = AppSettings.defaultsFor(WorkerKind.daily);
 
+  group('bảo hiểm khi nghỉ không lương nhiều', () {
+    // Kỳ 21/07–20/08/2026: công chuẩn 27 ngày.
+    final period = PayPeriod(DateTime(2026, 7, 21), DateTime(2026, 8, 20));
+    final after = DateTime(2026, 8, 25, 9);
+    Payslip slipWith(int days) {
+      final recs = <String, DayRecord>{
+        for (final d in _workdays(period.start, period.end).take(days)) dateKey(d): _shift(d, 7, 0, 16, 0),
+      };
+      return _slip(worker, recs, after, period: period);
+    }
+
+    double insurance(Payslip s) => s.deductions.firstWhere((l) => l.id == payItemInsurance).amount;
+
+    test('nghỉ không lương 13 ngày: vẫn trừ đủ 10,5% lương cơ bản', () {
+      expect(insurance(slipWith(14)), closeTo(420000, 0.01));
+    });
+
+    test('nghỉ không lương từ 14 ngày: kỳ đó không trừ bảo hiểm', () {
+      expect(insurance(slipWith(13)), 0);
+    });
+
+    test('ngày nghỉ có lương không tính là nghỉ không lương', () {
+      final days = _workdays(period.start, period.end).toList();
+      final recs = <String, DayRecord>{
+        for (final d in days.take(13)) dateKey(d): _shift(d, 7, 0, 16, 0),
+        dateKey(days[13]): DayRecord(date: days[13], isDayOff: true, paidLeave: true),
+      };
+      expect(insurance(_slip(worker, recs, after, period: period)), closeTo(420000, 0.01));
+    });
+  });
+
   group('công chuẩn', () {
     test('kỳ 21/07–20/08/2026 ra 27 ngày', () {
       expect(autoStandardDaysOf(PayPeriod(DateTime(2026, 7, 21), DateTime(2026, 8, 20))), 27);

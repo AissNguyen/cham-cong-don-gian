@@ -60,7 +60,7 @@ void main() {
     expect(find.text('Nâng cao và cài đặt khác'), findsOneWidget);
     expect(find.text('Thưởng vượt khoán'), findsOneWidget);
     expect(find.text('Bảo hiểm (10,5%)'), findsOneWidget);
-    expect(find.text('THỰC NHẬN'), findsOneWidget);
+    expect(find.text('THỰC NHẬN (MẪU)'), findsOneWidget); // người mới: phiếu lương mẫu
     expect(find.text('Khoản thu nhập / khấu trừ khác'), findsNothing);
     expect(find.text('Khung giờ ra vào'), findsNothing);
     // Phần nâng cao chỉ là một dòng gợi ý, bấm mới xổ.
@@ -140,9 +140,41 @@ void main() {
     expect(added.amount, 1.5);
   });
 
-  testWidgets('Thực nhận trên phiếu lương ở Cài đặt bằng số tính từ bộ tính phiếu lương', (tester) async {
+  testWidgets('Chưa có kỳ nào chốt: kỳ đang chạy hiện phiếu lương mẫu 25 ngày công, 95 giờ tăng ca', (tester) async {
     final now = DateTime(2026, 10, 2, 14, 0);
     final store = _MemoryStore()..loaded = true;
+    // Có chấm công trong kỳ đang chạy cũng không làm đổi phiếu mẫu.
+    store.records[dateKey(DateTime(2026, 9, 22))] = DayRecord(
+      date: DateTime(2026, 9, 22),
+      checkIn: DateTime(2026, 9, 22, 7),
+      checkOut: DateTime(2026, 9, 22, 17),
+    );
+    await _pump(tester, store: store, home: Scaffold(body: ListView(children: [PayslipCard(store: store, now: now)])));
+    final sample = computeSamplePayslip(
+      settings: store.settings,
+      period: periodContaining(now, store.settings.payPeriod),
+    );
+    expect(sample.days, 25);
+    expect(sample.slip.workDays, 25);
+    expect(sample.slip.overtimeSeconds, 95 * 3600);
+    // 4.000.000 ÷ 26 × 25 + 2.000.000 ÷ 26 × 25 + 95 × 45.000 − cơm trưa 25 × 10.000 − 420.000 − 50.000
+    expect(sample.slip.net, closeTo(6000000 / 26 * 25 + 95 * 45000 - 250000 - 420000 - 50000, 0.01));
+    expect((tester.widget(find.byKey(const ValueKey('payslip-net'))) as Text).data, fmtMoney(sample.slip.net));
+    expect(find.text('Phiếu mẫu'), findsOneWidget);
+    expect(find.text('THỰC NHẬN (MẪU)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('payslip-sample-note')), findsOneWidget);
+    expect(find.text('Chưa chốt'), findsNothing);
+  });
+
+  testWidgets('Đã có kỳ chốt: kỳ đang chạy không hiện mẫu, không hiện số tiền nào', (tester) async {
+    final now = DateTime(2026, 10, 2, 14, 0);
+    final store = _MemoryStore()..loaded = true;
+    // Một ngày công ở kỳ trước (đã hết) -> người dùng đã có phiếu lương được chốt.
+    store.records[dateKey(DateTime(2026, 9, 1))] = DayRecord(
+      date: DateTime(2026, 9, 1),
+      checkIn: DateTime(2026, 9, 1, 7),
+      checkOut: DateTime(2026, 9, 1, 16),
+    );
     for (var d = 21; d <= 30; d++) {
       final day = DateTime(2026, 9, d);
       store.records[dateKey(day)] = DayRecord(
@@ -158,8 +190,39 @@ void main() {
       recordOf: store.recordFor,
       now: now,
     );
-    expect((tester.widget(find.byKey(const ValueKey('payslip-net'))) as Text).data, fmtMoney(slip.net));
-    expect(find.text('Tạm tính'), findsOneWidget);
+    // Kỳ 21/09–20/10 chưa hết: phiếu lương chưa tính, không hiện số tiền nào.
+    expect(slip.ended, isFalse);
+    expect((tester.widget(find.byKey(const ValueKey('payslip-net'))) as Text).data, '—');
+    expect(find.text('Chưa chốt'), findsOneWidget);
+    expect(find.text(fmtMoney(slip.net)), findsNothing);
+    expect(find.text('Lương cơ bản ÷ công chuẩn × ngày công'), findsOneWidget);
+    expect(find.text('Phiếu mẫu'), findsNothing);
+  });
+
+  testWidgets('Kỳ đã hết: phiếu lương tính ra đủ số, Thực nhận bằng số của bộ tính', (tester) async {
+    final now = DateTime(2026, 10, 25, 9, 0); // kỳ hiện tại 21/10–20/11, lùi về kỳ 21/09–20/10 đã hết
+    final store = _MemoryStore()..loaded = true;
+    for (var d = 21; d <= 30; d++) {
+      final day = DateTime(2026, 9, d);
+      store.records[dateKey(day)] = DayRecord(
+        date: day,
+        checkIn: DateTime(2026, 9, d, 7),
+        checkOut: DateTime(2026, 9, d, 17),
+      );
+    }
+    await _pump(tester, store: store, home: Scaffold(body: ListView(children: [PayslipCard(store: store, now: now)])));
+    await tester.tap(find.byTooltip('Kỳ trước'));
+    await tester.pumpAndSettle();
+    final ended = computePayslip(
+      settings: store.settings,
+      period: periodContaining(DateTime(2026, 10, 1), store.settings.payPeriod),
+      recordOf: store.recordFor,
+      now: now,
+    );
+    expect(ended.ended, isTrue);
+    expect(ended.net, isNot(0));
+    expect((tester.widget(find.byKey(const ValueKey('payslip-net'))) as Text).data, fmtMoney(ended.net));
+    expect(find.text('Chưa chốt'), findsNothing);
   });
 
   group('Ô nhập', () {

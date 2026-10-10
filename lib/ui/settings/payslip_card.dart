@@ -207,6 +207,14 @@ class _PayslipCardState extends State<PayslipCard> {
     if (item != null) await _updateItems((list) => [...list, item]);
   }
 
+  /// Đã có phiếu lương nào được chốt chưa: có ngày chấm đủ vào/ra thuộc một kỳ đã hết.
+  bool _hasSettledPayslip(DateTime today) {
+    final currentStart = periodContaining(today, store.settings.payPeriod).start;
+    return store.records.values.any(
+      (r) => r.checkIn != null && r.checkOut != null && dateOnly(r.date).isBefore(currentStart),
+    );
+  }
+
   String _title(PayPeriod p) {
     final cfg = settings.payPeriod;
     if (cfg.type == PayPeriodType.semiMonthly) {
@@ -220,7 +228,12 @@ class _PayslipCardState extends State<PayslipCard> {
   Widget build(BuildContext context) {
     final now = widget.now ?? DateTime.now();
     final period = _periodAt(dateOnly(now));
-    final slip = computePayslip(settings: store.settings, period: period, recordOf: store.recordFor, now: now);
+    final real = computePayslip(settings: store.settings, period: period, recordOf: store.recordFor, now: now);
+    // Người chưa có phiếu lương nào được chốt thì kỳ đang chạy hiện phiếu lương mẫu thay cho dấu "—".
+    final sample = !real.ended && !_hasSettledPayslip(dateOnly(now))
+        ? computeSamplePayslip(settings: store.settings, period: period)
+        : null;
+    final slip = sample?.slip ?? real;
     final colors = context.appColors;
     final pc = PayslipColors.of(context);
     final worker = settings.workerKind == WorkerKind.worker;
@@ -267,12 +280,12 @@ class _PayslipCardState extends State<PayslipCard> {
                       spacing: 6,
                       children: [
                         Text(_title(period), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                        if (!slip.ended)
+                        if (!real.ended)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                             decoration: BoxDecoration(color: colors.warnSoft, borderRadius: BorderRadius.circular(99)),
                             child: Text(
-                              'Tạm tính',
+                              sample != null ? 'Phiếu mẫu' : 'Chưa chốt',
                               style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: colors.warn),
                             ),
                           ),
@@ -280,7 +293,7 @@ class _PayslipCardState extends State<PayslipCard> {
                     ),
                   ),
                   Text(
-                    fmtMoney(slip.net),
+                    slip.ended ? fmtMoney(slip.net) : _pendingMark,
                     key: const ValueKey('payslip-net'),
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: pc.plus),
                   ),
@@ -288,21 +301,45 @@ class _PayslipCardState extends State<PayslipCard> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Thu nhập ${fmtMoney(slip.totalIncome, unit: false)} · trừ ${fmtMoney(slip.totalDeduction, unit: false)}',
+                slip.ended
+                    ? 'Thu nhập ${fmtMoney(slip.totalIncome, unit: false)} · trừ ${fmtMoney(slip.totalDeduction, unit: false)}'
+                    : 'Phiếu lương chỉ được tính khi hết kỳ, sau ngày ${fmtDM(period.end)}.',
                 style: TextStyle(fontSize: 12.5, color: colors.ink3),
               ),
+              if (sample != null)
+                Container(
+                  key: const ValueKey('payslip-sample-note'),
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: colors.warnSoft, borderRadius: BorderRadius.circular(10)),
+                  child: Text(
+                    'Đây là phiếu lương MẪU để bạn xem cách tính, không phải lương của bạn. Mẫu giả sử bạn làm '
+                    '${sample.days} ngày công và ${sample.overtimeHours} giờ tăng ca ngày thường. Sửa các khoản '
+                    'cho đúng bảng lương của mình thì số mẫu đổi theo. Phiếu lương thật có sau khi hết kỳ, sau ngày '
+                    '${fmtDM(period.end)}.',
+                    style: TextStyle(fontSize: 12, color: colors.warn, height: 1.45),
+                  ),
+                ),
               Divider(height: 28, color: context.appColors.line),
               _basisBlock(context, slip, period, worker),
               _sectionLabel('THU NHẬP', pc.plus),
-              for (final line in slip.incomes) _lineRow(context, line, worker),
+              for (final line in slip.incomes) _lineRow(context, line, worker, pending: !slip.ended),
               if (_editing) _addButton('Thêm khoản thu nhập', PayslipSection.income),
-              _totalRow('Tổng thu nhập', fmtMoney(slip.totalIncome, unit: false), pc.plus),
+              _totalRow(
+                'Tổng thu nhập',
+                slip.ended ? fmtMoney(slip.totalIncome, unit: false) : _pendingMark,
+                pc.plus,
+              ),
               _sectionLabel('KHẤU TRỪ', pc.minus),
-              for (final line in slip.deductions) _lineRow(context, line, worker),
+              // Kỳ chưa chốt thì chưa có dòng tự sinh (Đi muộn), chỉ hiện các khoản đã cài.
+              for (final line in slip.deductions)
+                if (slip.ended || line.item != null) _lineRow(context, line, worker, pending: !slip.ended),
               if (_editing) _addButton('Thêm khoản khấu trừ', PayslipSection.deduction),
               _totalRow(
                 'Tổng khấu trừ',
-                slip.totalDeduction > 0 ? '−${fmtMoney(slip.totalDeduction, unit: false)}' : '0',
+                !slip.ended
+                    ? _pendingMark
+                    : (slip.totalDeduction > 0 ? '−${fmtMoney(slip.totalDeduction, unit: false)}' : '0'),
                 pc.minus,
               ),
               const SizedBox(height: 18),
@@ -316,17 +353,26 @@ class _PayslipCardState extends State<PayslipCard> {
                   children: [
                     Expanded(
                       child: Text(
-                        'THỰC NHẬN',
+                        sample != null ? 'THỰC NHẬN (MẪU)' : 'THỰC NHẬN',
                         style: TextStyle(fontSize: 12.5, letterSpacing: 0.8, fontWeight: FontWeight.w700, color: pc.netInk),
                       ),
                     ),
                     Text(
-                      fmtMoney(slip.net),
+                      slip.ended ? fmtMoney(slip.net) : _pendingMark,
                       style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: pc.netInk),
                     ),
                   ],
                 ),
               ),
+              if (!slip.ended)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Kỳ này chưa chốt nên phiếu lương chưa tính. Số ước tính đang chạy xem ở thẻ thu nhập ngoài '
+                    'màn chính.',
+                    style: TextStyle(fontSize: 12, color: colors.ink3, height: 1.45),
+                  ),
+                ),
               if (worker) const _CalcNotes(),
             ],
           ),
@@ -362,24 +408,29 @@ class _PayslipCardState extends State<PayslipCard> {
                     ],
                     const TextSpan(text: '\nCông chuẩn '),
                     b(fmtN(slip.standardDays)),
-                    const TextSpan(text: ' · thực tế '),
-                    b(fmtN(slip.workDays)),
-                    const TextSpan(text: ' ngày'),
-                    if (slip.paidLeaveDays > 0) ...[
-                      const TextSpan(text: ' · nghỉ có lương '),
-                      b('${slip.paidLeaveDays}'),
+                    // Ngày công, giờ công chỉ hiện khi kỳ đã chốt.
+                    if (!slip.ended)
+                      const TextSpan(text: ' ngày')
+                    else ...[
+                      const TextSpan(text: ' · thực tế '),
+                      b(fmtN(slip.workDays)),
                       const TextSpan(text: ' ngày'),
+                      if (slip.paidLeaveDays > 0) ...[
+                        const TextSpan(text: ' · nghỉ có lương '),
+                        b('${slip.paidLeaveDays}'),
+                        const TextSpan(text: ' ngày'),
+                      ],
+                      const TextSpan(text: '\nGiờ công '),
+                      b(fmtHours(slip.normalMinutes)),
+                      const TextSpan(text: ' · tăng ca '),
+                      b(fmtHours(slip.overtimeMinutes)),
                     ],
-                    const TextSpan(text: '\nGiờ công '),
-                    b(fmtHours(slip.normalMinutes)),
-                    const TextSpan(text: ' · tăng ca '),
-                    b(fmtHours(slip.overtimeMinutes)),
                   ]
                 : [
                     const TextSpan(text: 'Lương cơ bản '),
                     b(fmtMoney(settings.dailyWage)),
-                    const TextSpan(text: '/ngày\nTổng giờ công '),
-                    b(fmtHours(hours)),
+                    const TextSpan(text: '/ngày'),
+                    if (slip.ended) ...[const TextSpan(text: '\nTổng giờ công '), b(fmtHours(hours))],
                   ],
           ),
         ),
@@ -483,7 +534,31 @@ class _PayslipCardState extends State<PayslipCard> {
     }
   }
 
-  Widget _lineRow(BuildContext context, PayslipLine line, bool worker) {
+  /// Chỗ của số tiền khi kỳ chưa chốt.
+  static const _pendingMark = '—';
+
+  /// Dòng nhỏ dưới tên khoản khi kỳ chưa chốt: nói cách sẽ tính, không tính ra số.
+  String _pendingHow(PayslipLine line, bool worker) {
+    final item = line.item;
+    if (item == null) return '';
+    switch (item.calcMethod) {
+      case IncomeCalcMethod.salary:
+        return worker ? 'Lương cơ bản ÷ công chuẩn × ngày công' : 'Lương ngày ÷ 8 × số giờ làm';
+      case IncomeCalcMethod.overtime:
+        return 'Giờ tăng ca, chủ nhật, ngày lễ × giá trong bảng lương/giờ';
+      case IncomeCalcMethod.perWorkDay:
+        final gate = item.activeAfter;
+        return '${fmtMoney(item.amount, unit: false)} × số ngày ${gate == null ? 'đi làm' : 'làm qua ${gate.formatted}'}';
+      case IncomeCalcMethod.percentOfBaseSalary:
+        return worker ? '${fmtPercent(item.amount)}% lương cơ bản' : '${fmtPercent(item.amount)}% tiền lương';
+      case IncomeCalcMethod.fixed:
+        if (item.inBasis && worker) return '${fmtMoney(item.amount, unit: false)} ÷ công chuẩn × ngày công';
+        return '${fmtMoney(item.amount, unit: false)} mỗi kỳ';
+    }
+  }
+
+  /// [pending]: kỳ chưa chốt, không hiện số tiền đã tính.
+  Widget _lineRow(BuildContext context, PayslipLine line, bool worker, {bool pending = false}) {
     final colors = context.appColors;
     final pc = PayslipColors.of(context);
     final item = line.item;
@@ -499,8 +574,10 @@ class _PayslipCardState extends State<PayslipCard> {
     final editInline = _editing && !auto;
     // Công nhật: dòng Tiền lương là cách tính chính, không xóa được.
     final deletable = _editing && item != null && !(item.calcMethod == IncomeCalcMethod.salary && !worker);
-    final how = editInline ? _editHow(item, worker) : line.how;
-    final amountText = minus ? '−${fmtMoney(line.amount, unit: false)}' : fmtMoney(line.amount, unit: false);
+    final how = editInline ? _editHow(item, worker) : (pending ? _pendingHow(line, worker) : line.how);
+    final amountText = pending
+        ? _pendingMark
+        : (minus ? '−${fmtMoney(line.amount, unit: false)}' : fmtMoney(line.amount, unit: false));
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
@@ -630,9 +707,12 @@ class _CalcNotesState extends State<_CalcNotes> {
     'Phiếu lương mang tính chất ước lượng. Mức lương nhận được phụ thuộc vào người tính lương cho bạn, nên '
         'khi nhận được lương thật, hãy nhập lại số tiền ở mục "Thống kê thu nhập theo kỳ" bên lịch chấm công '
         'để tính tổng chính xác hơn.',
-    'Các khoản cố định như công đoàn phí, trợ cấp, bảo hiểm thực tế được tính một lần vào cuối tháng, '
-        'nhưng app sẽ chia đều cho số ngày công chuẩn để ước tính sát theo từng ngày bạn đi làm; khi hết kỳ, '
-        'các khoản khấu trừ cố định (bảo hiểm, công đoàn phí) sẽ được tính đủ.',
+    'Ở phần thống kê nhanh (thẻ thu nhập ngoài màn chính), các khoản cố định như công đoàn phí, trợ cấp, bảo '
+        'hiểm được chia đều cho số ngày công chuẩn để ước tính sát theo từng ngày bạn đi làm. Phiếu lương thì '
+        'chỉ tính khi hết kỳ; lúc đó các khoản khấu trừ cố định (bảo hiểm, công đoàn phí) được tính đủ và tổng '
+        'của kỳ lấy theo phiếu lương.',
+    'Bảo hiểm tính trên đủ lương cơ bản dù không đủ ngày công. Riêng tháng nào nghỉ không lương từ 14 ngày làm '
+        'việc trở lên thì tháng đó không trừ bảo hiểm.',
     'Chủ nhật và ngày lễ không tính các khoản cố định. Làm những ngày đó chỉ được tính tiền tăng ca.',
     'Ngày nghỉ có lương được tính một ngày lương cơ bản.',
   ];
