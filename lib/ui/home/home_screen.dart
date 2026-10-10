@@ -437,7 +437,10 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              past
+              record.gpsLeftUnknown && !past
+                  ? 'GPS không xác định được bạn còn ở chỗ làm hay đã về (không có sóng GPS, không thấy Wi-Fi '
+                        'quen). Nếu bạn đã về, hãy bấm nút Chấm ra để nhập giờ về.'
+                  : past
                   ? 'Ngày này đã chấm vào lúc ${fmtTime(record.checkIn!)} nhưng chưa có giờ về nên chưa được tính công. '
                         'Hãy bấm nút Chấm ra để nhập giờ về.'
                   : 'Đã qua 23:00 mà chưa chấm được giờ về. Hãy bấm nút Chấm ra để nhập giờ về, nếu không sang '

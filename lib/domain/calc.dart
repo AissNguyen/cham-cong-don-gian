@@ -78,6 +78,8 @@ const missedCheckOutHour = 23;
 /// của ngày đã qua không được tính giờ nào cho tới khi có giờ về.
 bool isMissedCheckOut(DayRecord record, DateTime now) {
   if (record.isDayOff || record.checkIn == null || record.checkOut != null) return false;
+  // GPS thấy đã rời hẳn mà không xác định được giờ về: báo đỏ ngay, không chờ tới 23:00.
+  if (record.gpsLeftUnknown) return true;
   final day = dateOnly(record.date);
   final today = dateOnly(now);
   return day.isBefore(today) || (day == today && now.hour >= missedCheckOutHour);

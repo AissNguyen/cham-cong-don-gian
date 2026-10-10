@@ -960,6 +960,8 @@ class DayRecord {
     this.note,
     this.tags = const [],
     this.gpsLastSeenNearby,
+    this.gpsLeftUnknown = false,
+    this.checkOutByGps = false,
   });
 
   /// Ngày (đã bỏ giờ phút), dùng làm khóa.
@@ -974,9 +976,19 @@ class DayRecord {
   final String? note;
   final List<String> tags;
 
-  /// Sau khi đã chấm vào, mốc giờ lần quét GPS gần nhất còn thấy trong khoảng chưa rời hẳn
-  /// (≤ departRadiusMeters) — dùng làm giờ chấm ra khi cuối cùng phát hiện đã rời xa hẳn.
+  /// Giờ về tạm: sau khi đã chấm vào, mốc giờ lần kiểm tra GPS gần nhất còn thấy ở chỗ làm
+  /// (≤ departRadiusMeters, hoặc thấy Wi-Fi quen) — thành giờ chấm ra khi lần kiểm tra sau thấy đã
+  /// ra ngoài.
   final DateTime? gpsLastSeenNearby;
+
+  /// GPS không xác định được còn ở chỗ làm hay đã về (không có sóng, không thấy Wi-Fi quen, hoặc
+  /// thấy đã ra ngoài mà không có giờ về tạm): ngày này báo đỏ, người dùng tự xem lại giờ về. Tự
+  /// hết khi lần kiểm tra sau xác định được, khi có giờ về, hoặc khi xóa giờ vào.
+  final bool gpsLeftUnknown;
+
+  /// Giờ ra này do GPS tự chốt (không phải bấm tay). Chỉ giờ ra như vậy mới được GPS mở lại ca khi
+  /// thấy người dùng quay lại chỗ làm.
+  final bool checkOutByGps;
 
   bool get hasAttendance => checkIn != null;
   bool get isOpenShift => checkIn != null && checkOut == null;
@@ -993,6 +1005,8 @@ class DayRecord {
     List<String>? tags,
     DateTime? gpsLastSeenNearby,
     bool clearGpsLastSeenNearby = false,
+    bool? gpsLeftUnknown,
+    bool? checkOutByGps,
   }) => DayRecord(
     date: date,
     checkIn: clearCheckIn ? null : (checkIn ?? this.checkIn),
@@ -1004,6 +1018,12 @@ class DayRecord {
     note: note ?? this.note,
     tags: tags ?? this.tags,
     gpsLastSeenNearby: clearGpsLastSeenNearby ? null : (gpsLastSeenNearby ?? this.gpsLastSeenNearby),
+    gpsLeftUnknown:
+        !clearCheckIn && (clearCheckOut || (checkOut ?? this.checkOut) == null) && (gpsLeftUnknown ?? this.gpsLeftUnknown),
+    // Đặt giờ ra mới mà không nói rõ là do GPS (bấm tay, sửa giờ) thì không còn là giờ ra của GPS.
+    checkOutByGps: clearCheckOut || clearCheckIn
+        ? false
+        : (checkOutByGps ?? (checkOut != null ? false : this.checkOutByGps)),
   );
 
   Map<String, dynamic> toJson() => {
@@ -1016,6 +1036,8 @@ class DayRecord {
     'note': note,
     'tags': tags,
     'gpsLastSeenNearby': gpsLastSeenNearby?.toIso8601String(),
+    if (gpsLeftUnknown) 'gpsLeftUnknown': true,
+    if (checkOutByGps) 'checkOutByGps': true,
   };
 
   factory DayRecord.fromJson(Map<String, dynamic> json) => DayRecord(
@@ -1028,6 +1050,8 @@ class DayRecord {
     note: json['note'] as String?,
     tags: (json['tags'] as List?)?.map((e) => e as String).toList() ?? const [],
     gpsLastSeenNearby: json['gpsLastSeenNearby'] != null ? DateTime.parse(json['gpsLastSeenNearby'] as String) : null,
+    gpsLeftUnknown: json['gpsLeftUnknown'] as bool? ?? false,
+    checkOutByGps: json['checkOutByGps'] as bool? ?? false,
   );
 }
 

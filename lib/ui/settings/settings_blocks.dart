@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/store.dart';
 import '../../domain/models.dart';
 import '../../gps/gps_scheduler.dart';
+import '../../gps/gps_wifi.dart';
 import '../../notice/notice.dart';
 import '../../theme/app_theme.dart';
 import 'android_download_section.dart';
@@ -231,6 +232,8 @@ class _GpsQuickCardState extends State<GpsQuickCard> {
     await store.updateSettings(
       (s) => s.copyWith(gps: s.gps.copyWith(latitude: pos.latitude, longitude: pos.longitude, enabled: true)),
     );
+    // Đổi điểm chấm thì các mạng Wi-Fi quen của điểm cũ không còn đúng nữa; app sẽ tự học lại.
+    await clearKnownWifi();
     await rescheduleGpsAlarms(store.settings.effectiveGps);
     setState(() => _permission = _check());
   }
@@ -385,7 +388,7 @@ class _MoreSettingsCardState extends State<MoreSettingsCard> {
                     ),
                   item(
                     'Ngày lễ',
-                    sub: '${settings.holidays.length} ngày lễ đã thêm',
+                    sub: '${holidayDisplayCount(settings.holidays)} ngày lễ đã thêm',
                     onTap: () => _push('Ngày lễ', (s) => HolidaysSection(store: s)),
                   ),
                   item(

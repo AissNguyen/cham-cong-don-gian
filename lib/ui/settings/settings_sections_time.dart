@@ -6,6 +6,11 @@ import '../../domain/models.dart';
 import '../format.dart';
 import 'settings_card.dart';
 
+String _holidayDedupKey(Holiday h) => h.name.isEmpty ? fmtDM(h.date) : h.name;
+
+/// Số ngày lễ sau khi gộp các năm lặp lại, đúng bằng số dòng hiện trong danh sách ngày lễ.
+int holidayDisplayCount(List<Holiday> holidays) => holidays.map(_holidayDedupKey).toSet().length;
+
 /// Danh sách ngày lễ tự thêm/xóa, dùng cho cột "Ngày lễ" của bảng lương. Thu gọn mặc định (chỉ
 /// hiện số lượng), bấm vào mới xổ ra danh sách — vì cộng cả ngày lễ mặc định lẫn tự thêm có thể
 /// khá dài.
@@ -118,7 +123,7 @@ class _HolidaysSectionState extends State<HolidaysSection> {
   /// Khóa gộp các bản ghi của cùng một ngày lễ lặp lại (mỗi năm tự sinh 1 bản riêng ở dưới) thành
   /// 1 dòng duy nhất để hiện cho người dùng — không ai cần thấy "Quốc khánh" lặp lại 3 lần cho 3
   /// năm tới. Gộp theo tên (ngày nào trùng tên thì coi là cùng 1 ngày lễ lặp lại).
-  String _dedupKey(Holiday h) => h.name.isEmpty ? fmtDM(h.date) : h.name;
+  String _dedupKey(Holiday h) => _holidayDedupKey(h);
 
   @override
   Widget build(BuildContext context) {

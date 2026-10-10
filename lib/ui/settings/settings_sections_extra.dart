@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../data/store.dart';
 import '../../domain/models.dart';
 import '../../gps/gps_scheduler.dart';
+import '../../gps/gps_wifi.dart';
 import 'number_inputs.dart';
 import 'settings_card.dart';
 import 'share_section.dart';
@@ -230,6 +231,8 @@ class GpsSection extends StatelessWidget {
   Future<void> _pickCurrentLocation(BuildContext context) async {
     final pos = await currentGpsPosition(context);
     if (pos == null) return;
+    // Đổi điểm chấm thì các mạng Wi-Fi quen của điểm cũ không còn đúng nữa; app sẽ tự học lại.
+    await clearKnownWifi();
     await _updateGps((gps) => gps.copyWith(latitude: pos.latitude, longitude: pos.longitude));
   }
 
@@ -419,7 +422,9 @@ class GpsSection extends StatelessWidget {
               initialValue: gps.radiusMeters.round().toString(),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Bán kính coi là "đang ở đó" (mét)',
+                labelText: 'Bán kính chấm vào (mét)',
+                helperText: 'Tới gần điểm chấm trong khoảng này thì chấm vào.',
+                helperMaxLines: 2,
                 border: OutlineInputBorder(),
               ),
               onChanged: (v) {
@@ -432,7 +437,9 @@ class GpsSection extends StatelessWidget {
               initialValue: gps.departRadiusMeters.round().toString(),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Cách bao xa (mét) mới coi là đã rời đi hẳn — dùng xác nhận chấm ra',
+                labelText: 'Cách bao xa (mét) mới coi là đã về',
+                helperText: 'Còn trong khoảng này thì coi như vẫn đang làm.',
+                helperMaxLines: 2,
                 border: OutlineInputBorder(),
               ),
               onChanged: (v) {
@@ -447,9 +454,16 @@ class GpsSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Lần đầu vào bán kính trong khung giờ là chấm ngay (chấm vào nếu chưa có giờ vào hôm '
-                'nay, chấm ra nếu đã có). Sau khi chấm vào, máy theo dõi tiếp tới khi thấy cách xa hẳn '
-                'mới xác nhận chấm ra, tránh chấm nhầm lúc đang di chuyển gần đó.',
+                'Chấm vào: trong các khung giờ trên, tới gần điểm chấm là chấm vào.\n'
+                'Chấm ra: sau khi chấm vào, mỗi nửa tiếng máy kiểm tra một lần ở phút 05 và phút 35. Còn ở '
+                'chỗ làm thì máy ghi ngầm một giờ về tạm; lần sau thấy bạn đã đi xa thì giờ về tạm đó thành '
+                'giờ chấm ra.\n'
+                'Trong kho không có sóng GPS: máy nhận ra chỗ làm bằng các mạng Wi-Fi quen (tự ghi nhớ, không '
+                'cần mật khẩu). Hãy để Wi-Fi của điện thoại ở chế độ bật.\n'
+                'Đã chấm ra mà bạn quay lại chỗ làm (đi ăn trưa...): cứ 2 tiếng máy kiểm tra lại, thấy bạn '
+                'vẫn ở đó thì bỏ giờ ra và tính công tiếp. Giờ ra bạn tự bấm thì máy không đụng tới.\n'
+                'Ở trọ sát chỗ làm: thêm phòng trọ vào "Địa điểm khác" loại "Chấm về" để máy không nhầm.\n'
+                'Không xác định được vị trí thì ngày đó báo đỏ để bạn tự xem lại giờ về.',
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
@@ -457,7 +471,12 @@ class GpsSection extends StatelessWidget {
             TextFormField(
               initialValue: gps.frequencyMinutes.toString(),
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Tần suất kiểm tra (phút/lần)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Tần suất kiểm tra (phút/lần)',
+                helperText: 'Chỉ dùng lúc chưa chấm vào: trong khung giờ, máy dò lại theo tần suất này tới khi bạn tới nơi.',
+                helperMaxLines: 2,
+                border: OutlineInputBorder(),
+              ),
               onChanged: (v) {
                 final f = int.tryParse(v.replaceAll(RegExp(r'[^0-9]'), '')) ?? gps.frequencyMinutes;
                 _updateGps((gps) => gps.copyWith(frequencyMinutes: f));
