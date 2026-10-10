@@ -390,7 +390,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.beach_access_outlined,
                 label: !record.isDayOff ? 'Ngày nghỉ' : (record.paidLeave ? 'Có lương' : 'Không lương'),
                 active: record.isDayOff,
-                activeColor: context.appColors.dayOffMark,
+                // Cùng quy ước với lịch: có lương đậm, không lương nhạt.
+                activeColor: record.paidLeave
+                    ? context.appColors.dayOffMark
+                    : Color.lerp(context.appColors.dayOffMark, Colors.white, 0.45)!,
                 onTap: () => _chooseDayOff(store, record),
               ),
             ),

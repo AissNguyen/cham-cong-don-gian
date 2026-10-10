@@ -52,6 +52,7 @@ class Payslip {
     required this.overtimeSeconds,
     required this.allNormalSeconds,
     required this.daysOff,
+    required this.paidLeaveDays,
     required this.daysLate,
     required this.daysWorked,
     required this.incomes,
@@ -85,6 +86,9 @@ class Payslip {
   final int allNormalSeconds;
 
   final int daysOff;
+
+  /// Số ngày nghỉ có lương trong kỳ (nằm trong [daysOff]); mỗi ngày tính một ngày lương cơ bản.
+  final int paidLeaveDays;
   final int daysLate;
 
   /// Số ngày có đi làm (ca đã chấm ra, hoặc ca đang mở của hôm nay).
@@ -388,6 +392,7 @@ Payslip computePayslip({
     overtimeSeconds: overtimeSeconds,
     allNormalSeconds: allNormalSeconds,
     daysOff: daysOff,
+    paidLeaveDays: paidLeaveDays.length,
     daysLate: daysLate,
     daysWorked: daysWorked,
     incomes: incomes,

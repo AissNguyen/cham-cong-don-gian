@@ -141,10 +141,13 @@ class _DayCell extends StatelessWidget {
     String? bottomLabel3;
 
     if (record.isDayOff) {
-      fill = colors.dayOffMark;
-      onFill = Colors.white;
-      borderColor = colors.dayOffMark;
-      bottomLabel = record.paidLeave ? 'Nghỉ ₫' : 'Nghỉ';
+      // Nghỉ có lương tô đậm; nghỉ không lương tô nhạt, chữ sẫm.
+      final paid = record.paidLeave;
+      fill = paid ? colors.dayOffMark : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.surface, 0.6)!;
+      onFill = paid ? Colors.white : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.onSurface, 0.45)!;
+      borderColor = fill;
+      // Nghỉ có lương có tiền của ngày: bật "Lương mỗi ngày" thì hiện số tiền đó.
+      bottomLabel = !paid ? 'Nghỉ' : (showMoneyPerDay ? _shortMoney(money) : 'Nghỉ ₫');
     } else if (isFuture) {
       bottomLabel = null;
     } else if (!record.hasAttendance) {
