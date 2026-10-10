@@ -11,7 +11,8 @@ import '../share/background_unlock.dart';
 import '../share/share_state_file.dart';
 import 'gps_task_handler.dart';
 
-const _maxWindows = 20;
+// Các khung cài sẵn (khung lặp mỗi giờ) đã là hơn 30 khung một ngày.
+const _maxWindows = 64;
 const _serviceId = 300;
 
 int _windowAlarmId(int index) => 5000 + index;
@@ -35,12 +36,13 @@ Future<void> rescheduleGpsAlarms(GpsConfig gps) async {
   await cancelAllGpsAlarms();
   if (!gps.enabled || gps.latitude == null) return;
 
-  for (var i = 0; i < gps.activeWindows.length && i < _maxWindows; i++) {
+  final windows = gps.allWindows;
+  for (var i = 0; i < windows.length && i < _maxWindows; i++) {
     await AndroidAlarmManager.periodic(
       const Duration(days: 1),
       _windowAlarmId(i),
       gpsAlarmCallback,
-      startAt: _nextOccurrence(gps.activeWindows[i].from),
+      startAt: _nextOccurrence(windows[i].from),
       exact: true,
       wakeup: true,
       rescheduleOnReboot: true,

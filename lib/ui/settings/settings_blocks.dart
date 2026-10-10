@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/store.dart';
 import '../../domain/models.dart';
@@ -24,8 +25,11 @@ import 'settings_sections_rules.dart';
 import 'settings_sections_time.dart';
 import 'share_section.dart';
 
-/// Thẻ Thông báo ở đầu Cài đặt: 2 hàng rõ, hàng thứ 3 mờ dần, nút "Xem thêm" / "Thu gọn". Không có
-/// nút xóa. Ẩn khi không có thông báo hoặc người dùng đã tắt "Hiện thông báo".
+const _kNoticeCollapsedKey = 'notice_settings_collapsed';
+
+/// Thẻ Thông báo ở đầu Cài đặt, không có nút xóa. Thông báo mới thì hiện đầy đủ; bấm "Thu gọn" thì
+/// chỉ còn 1 hàng rõ và 1 hàng mờ dần, bấm "Xem thêm" để mở lại. App nhớ thông báo nào đã thu gọn;
+/// đổi nội dung là thành thông báo mới và lại hiện đầy đủ. Ẩn khi không có thông báo.
 class SettingsNoticeCard extends StatefulWidget {
   const SettingsNoticeCard({super.key});
 
@@ -34,16 +38,38 @@ class SettingsNoticeCard extends StatefulWidget {
 }
 
 class _SettingsNoticeCardState extends State<SettingsNoticeCard> {
-  bool _open = false;
+  /// [AppNotice.key] của thông báo người dùng đã thu gọn.
+  String? _collapsedKey;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      if (mounted) setState(() => _collapsedKey = prefs.getString(_kNoticeCollapsedKey));
+    }).catchError((_) {});
+  }
+
+  Future<void> _setCollapsed(AppNotice notice, bool collapsed) async {
+    setState(() => _collapsedKey = collapsed ? notice.key : null);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (collapsed) {
+        await prefs.setString(_kNoticeCollapsedKey, notice.key);
+      } else {
+        await prefs.remove(_kNoticeCollapsedKey);
+      }
+    } catch (_) {
+      // Không lưu được thì lần sau thông báo hiện đầy đủ lại, không sao.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final show = context.select<AppStore, bool>((s) => s.settings.showNotice);
-    if (!show) return const SizedBox.shrink();
     return ValueListenableBuilder<AppNotice?>(
       valueListenable: activeNotice,
       builder: (context, notice, _) {
         if (notice == null) return const SizedBox.shrink();
+        final open = _collapsedKey != notice.key;
         final colors = context.appColors;
         const style = TextStyle(fontSize: 12.5, height: 1.5);
         final body = Text.rich(
@@ -63,46 +89,49 @@ class _SettingsNoticeCardState extends State<SettingsNoticeCard> {
           title: 'Thông báo',
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // Đo xem có quá 3 hàng không; quá thì cắt ở 3 hàng, hàng thứ 3 mờ dần.
+              // Đo xem có quá 2 hàng không; chỉ khi dài hơn (hoặc có link) mới cần nút thu gọn.
               final painter = TextPainter(
-                text: TextSpan(text: '${notice.title}\n${notice.text}', style: style),
-                maxLines: 3,
+                text: TextSpan(text: notice.title.isEmpty ? notice.text : '${notice.title}\n${notice.text}', style: style),
+                maxLines: 2,
                 textDirection: Directionality.of(context),
                 textScaler: MediaQuery.textScalerOf(context),
               )..layout(maxWidth: constraints.maxWidth);
               final tooLong = painter.didExceedMaxLines;
               final lineHeight = painter.preferredLineHeight;
               painter.dispose();
+              final canCollapse = tooLong || notice.hasLink;
+              final showFull = open || !canCollapse;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 4),
-                  if (_open || !tooLong)
+                  if (showFull || !tooLong)
                     body
                   else
+                    // Thu gọn: 1 hàng rõ, hàng thứ 2 mờ dần.
                     SizedBox(
-                      height: lineHeight * 3,
+                      height: lineHeight * 2,
                       child: ShaderMask(
                         shaderCallback: (rect) => const LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [Colors.black, Colors.black, Colors.transparent],
-                          stops: [0, 0.6, 1],
+                          stops: [0, 0.5, 1],
                         ).createShader(rect),
                         blendMode: BlendMode.dstIn,
                         child: ClipRect(child: OverflowBox(alignment: Alignment.topLeft, maxHeight: double.infinity, child: body)),
                       ),
                     ),
-                  if (_open && notice.hasLink) ...[const SizedBox(height: 8), NoticeLinkButtons(links: notice.links)],
-                  if (tooLong || notice.hasLink)
+                  if (showFull && notice.hasLink) ...[const SizedBox(height: 8), NoticeLinkButtons(links: notice.links)],
+                  if (canCollapse)
                     TextButton(
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
                         minimumSize: const Size(0, 30),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      onPressed: () => setState(() => _open = !_open),
-                      child: Text(_open ? 'Thu gọn' : 'Xem thêm'),
+                      onPressed: () => _setCollapsed(notice, open),
+                      child: Text(open ? 'Thu gọn' : 'Xem thêm'),
                     ),
                 ],
               );
@@ -137,13 +166,24 @@ class WorkerKindToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Align(
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 4),
         child: SegmentedButton<WorkerKind>(
           showSelectedIcon: false,
-          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+          // Nút đang chọn tô đậm (nền màu chính, chữ trắng) để thấy rõ đang ở loại nào.
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected) ? scheme.primary : null,
+            ),
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected) ? scheme.onPrimary : scheme.onSurfaceVariant,
+            ),
+            textStyle: const WidgetStatePropertyAll(TextStyle(fontWeight: FontWeight.w600)),
+          ),
           segments: const [
             ButtonSegment(value: WorkerKind.worker, label: Text('Công nhân')),
             ButtonSegment(value: WorkerKind.daily, label: Text('Công nhật')),
@@ -325,10 +365,10 @@ class _MoreSettingsCardState extends State<MoreSettingsCard> {
                 padding: const EdgeInsets.only(top: 3),
                 child: Text(
                   kIsWeb
-                      ? 'Tắt thông báo, ngày lễ, tăng ca theo khung, sao lưu, sao chép cấu hình, chia sẻ app, '
-                            'góp ý, hướng dẫn dùng, tải bản Android.'
-                      : 'Tắt thông báo, tắt chấm công GPS, ngày lễ, tăng ca theo khung, sao lưu, sao chép cấu '
-                            'hình, chia sẻ app, góp ý, hướng dẫn dùng.',
+                      ? 'Ngày lễ, tăng ca theo khung, sao lưu, sao chép cấu hình, chia sẻ app, góp ý, hướng dẫn '
+                            'dùng, tải bản Android.'
+                      : 'Tắt chấm công GPS, ngày lễ, tăng ca theo khung, sao lưu, sao chép cấu hình, chia sẻ '
+                            'app, góp ý, hướng dẫn dùng.',
                   style: TextStyle(fontSize: 12.5, color: colors.ink2, height: 1.45),
                 ),
               ),
@@ -337,14 +377,6 @@ class _MoreSettingsCardState extends State<MoreSettingsCard> {
               padding: const EdgeInsets.only(top: 10),
               child: Column(
                 children: [
-                  item(
-                    'Hiện thông báo',
-                    sub: 'Thẻ Thông báo ở đầu Cài đặt và băng thông báo ở màn chính',
-                    trailing: Switch(
-                      value: settings.showNotice,
-                      onChanged: (v) => widget.store.updateSettings((s) => s.copyWith(showNotice: v)),
-                    ),
-                  ),
                   if (!kIsWeb)
                     item(
                       'Dùng chấm công GPS',
@@ -374,7 +406,7 @@ class _MoreSettingsCardState extends State<MoreSettingsCard> {
                   ),
                   item(
                     'Sao chép / dán cấu hình',
-                    sub: 'Chỉ gồm các con số; không kèm ngày lễ',
+                    sub: 'Gồm phần lương, cài đặt tính công và khung tăng ca; không kèm ngày lễ',
                     onTap: () => _push('Sao chép / dán cấu hình', (s) => ConfigShareSection(store: s)),
                   ),
                   item('Chia sẻ app', onTap: () => _push('Chia sẻ app', (_) => const ShareSection())),

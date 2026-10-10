@@ -78,7 +78,7 @@ GpsDecision decideGpsAction({
   if (todayRecord.isDayOff) return const GpsDecision();
 
   final clock = Clock(now.hour, now.minute);
-  if (!_inWindow(clock, gps.activeWindows)) return const GpsDecision();
+  if (!_inWindow(clock, gps.allWindows)) return const GpsDecision();
 
   final dist = distanceMeters(currentLat, currentLng, gps.latitude!, gps.longitude!);
 
@@ -113,5 +113,5 @@ GpsDecision decideGpsAction({
 bool hasWindowLeftToday({required AppSettings settings, required DayRecord todayRecord, required DateTime now}) {
   if (todayRecord.checkOut != null) return false;
   final clock = Clock(now.hour, now.minute);
-  return settings.gps.activeWindows.any((w) => clock <= w.to);
+  return settings.gps.allWindows.any((w) => clock <= w.to);
 }

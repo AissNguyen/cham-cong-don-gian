@@ -237,6 +237,74 @@ class TimeWindow {
   );
 }
 
+/// Khung giờ GPS lặp lại mỗi giờ: trong khoảng [from]–[to], mỗi giờ bật GPS ở các mốc phút trong
+/// [marks]. Ví dụ từ 06:50 tới 12:40 với mốc 50→05 và 25→35 thành 06:50–07:05, 07:25–07:35,
+/// 07:50–08:05... Chỉ lấy những khung nằm trọn trong khoảng [from]–[to].
+class GpsRepeatRule {
+  const GpsRepeatRule({required this.from, required this.to, required this.marks});
+
+  final Clock from;
+  final Clock to;
+
+  /// Mỗi mốc là `[phút bắt đầu, phút kết thúc]`; kết thúc nhỏ hơn bắt đầu nghĩa là sang giờ sau.
+  final List<List<int>> marks;
+
+  List<TimeWindow> get windows {
+    final result = <TimeWindow>[];
+    for (var h = from.hour; h <= to.hour; h++) {
+      for (final m in marks) {
+        final start = h * 60 + m[0];
+        final length = (m[1] - m[0] + 60) % 60;
+        final end = start + length;
+        if (length == 0 || start < from.totalMinutes || end > to.totalMinutes || end >= 24 * 60) continue;
+        result.add(TimeWindow(from: Clock.fromMinutes(start), to: Clock.fromMinutes(end)));
+      }
+    }
+    result.sort((a, b) => a.from.compareTo(b.from));
+    return result;
+  }
+
+  Map<String, dynamic> toJson() => {'from': from.toJson(), 'to': to.toJson(), 'marks': marks};
+
+  factory GpsRepeatRule.fromJson(Map<String, dynamic> json) => GpsRepeatRule(
+    from: Clock.fromJson(json['from'] as Map<String, dynamic>),
+    to: Clock.fromJson(json['to'] as Map<String, dynamic>),
+    marks: [
+      for (final m in json['marks'] as List) [(m as List)[0] as int, m[1] as int],
+    ],
+  );
+}
+
+/// Khung giờ GPS cài sẵn: buổi sáng canh quanh mỗi mốc giờ tròn và mốc rưỡi, chiều tối canh 10 phút
+/// đầu mỗi nửa giờ, thêm một khung lúc hết giờ nghỉ trưa.
+const defaultGpsRules = [
+  GpsRepeatRule(
+    from: Clock(6, 50),
+    to: Clock(12, 40),
+    marks: [
+      [50, 5],
+      [25, 35],
+    ],
+  ),
+  GpsRepeatRule(
+    from: Clock(13, 30),
+    to: Clock(23, 0),
+    marks: [
+      [0, 10],
+      [30, 40],
+    ],
+  ),
+];
+const defaultGpsWindows = [TimeWindow(from: Clock(12, 50), to: Clock(13, 10))];
+
+/// Hai khung mặc định của các bản trước khi có khung lặp (06:50–07:00 và 16:00–16:15).
+bool _isOldDefaultGpsWindows(List<TimeWindow> w) =>
+    w.length == 2 &&
+    w[0].from == const Clock(6, 50) &&
+    w[0].to == const Clock(7, 0) &&
+    w[1].from == const Clock(16, 0) &&
+    w[1].to == const Clock(16, 15);
+
 /// Một địa điểm khác ngoài điểm chấm công chính, chỉ dùng khi đã chấm vào và đang chờ chấm ra.
 /// Ví dụ nhà trọ sát công ty ([checkOut] = true: về tới đây là chấm ra ngay, dù còn trong vòng
 /// "rời đi hẳn") hoặc xưởng ở xa máy chấm công ([checkOut] = false: ở đây thì không chấm ra, dù
@@ -287,6 +355,8 @@ class GpsPlace {
 /// riêng vào/ra): lần chấm được xác nhận đầu tiên trong ngày là chấm vào, lần tiếp theo là chấm
 /// ra — máy tự phân biệt, không cần khai báo khung nào dùng để làm gì.
 class GpsConfig {
+  /// Không truyền [activeWindows] thì dùng các khung cài sẵn ([defaultGpsWindows] và
+  /// [defaultGpsRules]); đã truyền khung riêng thì mặc định không có khung lặp nào.
   GpsConfig({
     this.enabled = false,
     this.latitude,
@@ -294,11 +364,12 @@ class GpsConfig {
     this.radiusMeters = 30,
     this.departRadiusMeters = 200,
     List<TimeWindow>? activeWindows,
+    List<GpsRepeatRule>? repeatRules,
     this.frequencyMinutes = 2,
     this.soundEnabled = true,
     this.extraPlaces = const [],
-  }) : activeWindows =
-           activeWindows ?? [const TimeWindow(from: Clock(6, 50), to: Clock(7, 0)), const TimeWindow(from: Clock(16, 0), to: Clock(16, 15))];
+  }) : repeatRules = repeatRules ?? (activeWindows == null ? defaultGpsRules : const []),
+       activeWindows = activeWindows ?? [...defaultGpsWindows];
 
   final bool enabled;
   final double? latitude;
@@ -310,7 +381,18 @@ class GpsConfig {
   /// Xa hơn khoảng này (mét) mới coi là chắc chắn đã rời đi hẳn — dùng để xác nhận giờ chấm ra.
   final double departRadiusMeters;
 
+  /// Các khung giờ lẻ do người dùng tự đặt (và khung 12:50–13:10 cài sẵn).
   final List<TimeWindow> activeWindows;
+
+  /// Các khung lặp lại mỗi giờ (cài sẵn hai cái, người dùng xóa được).
+  final List<GpsRepeatRule> repeatRules;
+
+  /// Toàn bộ khung giờ bật GPS trong ngày: khung lẻ cộng các khung sinh ra từ [repeatRules].
+  List<TimeWindow> get allWindows => [
+    ...activeWindows,
+    for (final r in repeatRules) ...r.windows,
+  ];
+
   final int frequencyMinutes;
 
   /// Có kêu chuông/rung khi máy tự chấm công hay không (chỉ áp dụng cho GPS tự động).
@@ -326,6 +408,7 @@ class GpsConfig {
     double? radiusMeters,
     double? departRadiusMeters,
     List<TimeWindow>? activeWindows,
+    List<GpsRepeatRule>? repeatRules,
     int? frequencyMinutes,
     bool? soundEnabled,
     List<GpsPlace>? extraPlaces,
@@ -336,6 +419,7 @@ class GpsConfig {
     radiusMeters: radiusMeters ?? this.radiusMeters,
     departRadiusMeters: departRadiusMeters ?? this.departRadiusMeters,
     activeWindows: activeWindows ?? this.activeWindows,
+    repeatRules: repeatRules ?? this.repeatRules,
     frequencyMinutes: frequencyMinutes ?? this.frequencyMinutes,
     soundEnabled: soundEnabled ?? this.soundEnabled,
     extraPlaces: extraPlaces ?? this.extraPlaces,
@@ -348,6 +432,7 @@ class GpsConfig {
     'radius': radiusMeters,
     'departRadius': departRadiusMeters,
     'activeWindows': activeWindows.map((w) => w.toJson()).toList(),
+    'rules': repeatRules.map((r) => r.toJson()).toList(),
     'freq': frequencyMinutes,
     'sound': soundEnabled,
     'extraPlaces': extraPlaces.map((p) => p.toJson()).toList(),
@@ -364,6 +449,10 @@ class GpsConfig {
         ...?(json['checkOutWindows'] as List?)?.map((w) => TimeWindow.fromJson(w as Map<String, dynamic>)),
       ];
     }
+    final rules = (json['rules'] as List?)?.map((r) => GpsRepeatRule.fromJson(r as Map<String, dynamic>)).toList();
+    // Dữ liệu của bản chưa có khung lặp: khung giờ vẫn là hai khung mặc định cũ thì chuyển sang
+    // các khung cài sẵn mới; người dùng đã tự đặt khung thì giữ nguyên, không thêm khung lặp.
+    if (rules == null && windows != null && _isOldDefaultGpsWindows(windows)) windows = null;
     return GpsConfig(
       enabled: json['enabled'] as bool? ?? false,
       latitude: (json['lat'] as num?)?.toDouble(),
@@ -371,6 +460,7 @@ class GpsConfig {
       radiusMeters: (json['radius'] as num?)?.toDouble() ?? 30,
       departRadiusMeters: (json['departRadius'] as num?)?.toDouble() ?? 200,
       activeWindows: windows,
+      repeatRules: rules,
       soundEnabled: json['sound'] as bool? ?? true,
       frequencyMinutes: json['freq'] as int? ?? 2,
       extraPlaces: [

@@ -66,7 +66,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.expand_more));
     await tester.pumpAndSettle();
     expect(find.text('Sao lưu dữ liệu'), findsOneWidget);
-    expect(find.text('Hiện thông báo'), findsOneWidget);
+    expect(find.text('Hiện thông báo'), findsNothing); // công tắc tắt thông báo đã bỏ, thẻ thông báo tự thu gọn được
     expect(find.text('Sao chép / dán cấu hình'), findsOneWidget);
   });
 

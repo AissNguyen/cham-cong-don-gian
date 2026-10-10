@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../data/store.dart';
 import '../../domain/models.dart';
 import '../../gps/gps_scheduler.dart';
+import 'number_inputs.dart';
 import 'settings_card.dart';
 import 'share_section.dart';
 
@@ -109,9 +110,16 @@ class GpsSection extends StatelessWidget {
           actions: [
             if (editing != null)
               TextButton(
-                onPressed: () {
+                onPressed: () async {
+                  final ok = await confirmAsk(
+                    context,
+                    title: 'Xóa khung giờ này?',
+                    text: 'Bạn chắc chắn muốn xóa khung ${editing.from.formatted}–${editing.to.formatted} không?',
+                    yes: 'Xóa',
+                  );
+                  if (!ok) return;
                   _updateGps((gps) => gps.copyWith(activeWindows: gps.activeWindows.where((w) => w != editing).toList()));
-                  Navigator.pop(context);
+                  if (context.mounted) Navigator.pop(context);
                 },
                 child: const Text('Xóa'),
               ),
@@ -139,11 +147,62 @@ class GpsSection extends StatelessWidget {
     );
   }
 
-  Widget _windowList(BuildContext context, {required List<TimeWindow> windows}) {
+  /// "Phút 50 → 05, phút 25 → 35".
+  String _marksLabel(GpsRepeatRule rule) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final text = rule.marks.map((m) => 'phút ${two(m[0])} → ${two(m[1])}').join(', ');
+    return text.isEmpty ? text : '${text[0].toUpperCase()}${text.substring(1)}';
+  }
+
+  Future<void> _deleteRule(BuildContext context, GpsRepeatRule rule) async {
+    final ok = await confirmAsk(
+      context,
+      title: 'Xóa khung lặp này?',
+      text:
+          'Bạn chắc chắn muốn xóa khung lặp ${rule.from.formatted}–${rule.to.formatted} không? '
+          'Trong khoảng giờ đó app sẽ không tự chấm nữa, trừ khi bạn tự thêm khung giờ.',
+      yes: 'Xóa',
+    );
+    if (ok) await _updateGps((gps) => gps.copyWith(repeatRules: gps.repeatRules.where((r) => r != rule).toList()));
+  }
+
+  Widget _windowList(BuildContext context, {required GpsConfig gps}) {
+    final windows = gps.activeWindows;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Khung giờ bật GPS', style: TextStyle(fontWeight: FontWeight.w600)),
+        for (final r in gps.repeatRules)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text('${r.from.formatted}–${r.to.formatted} · lặp mỗi giờ'),
+            subtitle: Text(_marksLabel(r)),
+            trailing: IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              color: Theme.of(context).colorScheme.error,
+              tooltip: 'Xóa khung lặp',
+              onPressed: () => _deleteRule(context, r),
+            ),
+          ),
+        if (gps.repeatRules.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 4),
+            child: TextButton.icon(
+              icon: const Icon(Icons.restore, size: 18),
+              label: const Text('Dùng lại các khung cài sẵn'),
+              onPressed: () => _updateGps(
+                (gps) => gps.copyWith(
+                  repeatRules: defaultGpsRules,
+                  activeWindows: [
+                    ...gps.activeWindows,
+                    for (final d in defaultGpsWindows)
+                      if (!gps.activeWindows.any((w) => w.from == d.from && w.to == d.to)) d,
+                  ],
+                ),
+              ),
+            ),
+          ),
         for (final w in windows)
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -377,7 +436,7 @@ class GpsSection extends StatelessWidget {
             const SizedBox(height: 12),
             _placeList(context, places: gps.extraPlaces),
             const SizedBox(height: 12),
-            _windowList(context, windows: gps.activeWindows),
+            _windowList(context, gps: gps),
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(

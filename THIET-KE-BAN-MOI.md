@@ -86,7 +86,7 @@ Số giờ từng ngày dùng lại `computeDay` (giờ thường, giờ tăng c
 
 Theo đúng `mockup/luong-va-cai-dat.html`, từ trên xuống:
 
-1. **Thông báo** (nếu có và chưa bị tắt): hiện 2 hàng rõ, hàng thứ 3 mờ dần, nút "Xem thêm" / "Thu gọn". **Không có nút xóa** ở Cài đặt.
+1. **Thông báo** (nếu có): thông báo mới thì hiện đầy đủ; bấm "Thu gọn" thì còn 1 hàng rõ và 1 hàng mờ dần, bấm "Xem thêm" để mở lại. App nhớ thông báo đã thu gọn; đổi nội dung là thành thông báo mới và lại hiện đầy đủ. **Không có nút xóa và không có công tắc tắt thông báo** (sửa ngày 2026-10-10).
 2. **Hai nút nhỏ** Công nhân / Công nhật.
 3. **Thẻ Phiếu lương**: mũi tên chuyển kỳ, nút "Sửa" riêng.
    - *Xem*: đầu phiếu (tháng, nhãn "Tạm tính" khi kỳ chưa kết thúc, Thực nhận, dòng "Thu nhập … · trừ …"); khối **Căn cứ tính**; **Thu nhập** và tổng; **Khấu trừ** và tổng; ô **Thực nhận**; dòng rút gọn **"Lưu ý về cách tính"** bấm mới mở (nội dung trong bản mẫu). Mỗi dòng có một dòng nhỏ giải thích công thức.
@@ -95,7 +95,7 @@ Theo đúng `mockup/luong-va-cai-dat.html`, từ trên xuống:
    - **Mọi dấu ✕ đều hỏi lại** "Bạn chắc chắn muốn xóa … không?" trước khi xóa, kể cả khoản cài sẵn. ✕ ở Lương cơ bản thì đặt về 0.
 4. **Thẻ "Cài đặt tính công"**: một khối gộp, nút "Sửa" riêng, xem / sửa như phiếu lương: kỳ lương, giờ làm, bảng lương/giờ (3 hàng: T2–T7, Chủ nhật, Ngày lễ × 2 cột), đi muộn.
 5. **Thẻ Chấm công GPS** (ẩn trên web): chỉ có nút "Lấy tọa độ", nút "Cấp quyền chấm công" và một dòng trạng thái. Bấm Lấy tọa độ thì bật GPS luôn.
-6. **Thẻ "Nâng cao và cài đặt khác"**: bình thường chỉ là một dòng gợi ý, bấm mới xổ. Bên trong: công tắc **Hiện thông báo** (tắt thì ẩn cả băng ở màn chính), công tắc **Dùng chấm công GPS** (tắt thì ẩn thẻ GPS và GPS ngừng tự chấm); rồi các dòng mở sang màn con dùng lại các mục đã có: Ngày lễ, Tăng ca theo khung, GPS tùy chọn thêm (mục GPS đầy đủ hiện có), Sao lưu dữ liệu, Sao chép / dán cấu hình, Chia sẻ app, Góp ý, Hướng dẫn dùng (web có thêm Tải bản Android).
+6. **Thẻ "Nâng cao và cài đặt khác"**: bình thường chỉ là một dòng gợi ý, bấm mới xổ. Bên trong: công tắc **Dùng chấm công GPS** (tắt thì ẩn thẻ GPS và GPS ngừng tự chấm); rồi các dòng mở sang màn con dùng lại các mục đã có: Ngày lễ, Tăng ca theo khung, GPS tùy chọn thêm (mục GPS đầy đủ hiện có), Sao lưu dữ liệu, Sao chép / dán cấu hình, Chia sẻ app, Góp ý, Hướng dẫn dùng (web có thêm Tải bản Android).
 
 Các mục cũ "Bảng lương/giờ" và "Khoản thu nhập / khấu trừ khác" bỏ khỏi Cài đặt (phiếu lương và khối Cài đặt tính công thay thế).
 
@@ -107,6 +107,16 @@ Các mục cũ "Bảng lương/giờ" và "Khoản thu nhập / khấu trừ kh�
 ### Sao chép cấu hình
 
 Người dùng thử thấy tin nhắn quá dài nên bị cắt. Làm lại: chỉ gồm các con số của phần lương, cài đặt tính công và khung tăng ca, viết gọn một dòng, **không kèm ngày lễ, GPS và các danh sách cũ**. Máy nhận giữ nguyên ngày lễ và GPS của mình. Vẫn đọc được chuỗi kiểu cũ.
+
+### Khung giờ GPS cài sẵn (thêm ngày 2026-10-10)
+
+Máy mới cài (và máy cũ còn nguyên hai khung mặc định cũ 06:50–07:00, 16:00–16:15) có sẵn ba phần, hiện ở Nâng cao › GPS: tùy chọn thêm:
+
+- Khung lặp 06:50–12:40, mỗi giờ: phút 50 → 05 và phút 25 → 35 (12 khung).
+- Khung lặp 13:30–23:00, mỗi giờ: phút 00 → 10 và phút 30 → 40 (19 khung).
+- Khung lẻ 12:50–13:10.
+
+Cả ba đều xóa được, nhưng phải hỏi lại trước khi xóa. Xóa hết khung lặp thì có nút "Dùng lại các khung cài sẵn". Máy cũ đã tự đặt khung riêng thì giữ nguyên, không thêm khung lặp. Trong code: `GpsRepeatRule`, `GpsConfig.repeatRules`, `GpsConfig.allWindows`.
 
 ## 5. Màn chính
 

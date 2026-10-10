@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: _buildHeader(context, store),
             ),
-            if (store.settings.showNotice) const NoticeBanner(),
+            const NoticeBanner(),
             const SizedBox(height: 12),
             _buildIncomeCard(context, period, slip, todayPay),
             const SizedBox(height: 16),
