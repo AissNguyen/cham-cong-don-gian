@@ -35,6 +35,8 @@ Chưa đổi gì, chờ người dùng quyết định. Danh sách nằm ở `TI
 
 ## Cập nhật lần cuối
 
+2026-10-10 (PC): PR #6 đã merge; sửa thêm theo góp ý của người dùng (khung giờ GPS cài sẵn dạng lặp, phần lương theo từng kỳ, ngày nghỉ có lương / không lương, báo đỏ khi quên chấm về, thẻ thông báo thu gọn được, sao chép cấu hình kèm khung tăng ca); phát hành bản 1.1.0 lên GitHub Releases, cài lên điện thoại người dùng và deploy web. Khóa ký phát hành đã cố định trên PC, bản build ở nơi khác không cài đè được. Chưa đổi Remote Config (xem `TIEN-DO.md`).
+
 2026-10-09 (cloud, nhánh `phieu-luong-moi`, PR vào `master`): làm bản mới theo `THIET-KE-BAN-MOI.md`: bộ tính phiếu lương `lib/domain/payslip.dart` (mọi số tiền lấy từ đây), Công nhân / Công nhật, màn Cài đặt mới, kỳ 2 kỳ/tháng tùy ngày, sao chép cấu hình rút gọn, hộp nhắc cập nhật ba trạng thái, chuyển dữ liệu bản cũ. 170 test qua, analyze không lỗi; đã chạy thử bản web trong Chromium trên cloud. Chưa cài lên điện thoại, chưa deploy web.
 
 2026-10-06 (cloud): bỏ mục khung cố định, giờ nghỉ trưa 11:30–12:30 luôn không tính công (về trước 12:30 thì vẫn tính), bỏ cảnh báo đỏ, nút chấm vào/ra đổi ngược (chạm: bảng chọn giờ, giữ: giờ hiện tại). Chưa build APK, chưa deploy web.

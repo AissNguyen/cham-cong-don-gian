@@ -1,6 +1,6 @@
 # Tổng hợp — Chấm Công Đơn Giản
 
-**Cập nhật lần cuối: 2026-10-09 (cloud, nhánh `phieu-luong-moi`).** Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
+**Cập nhật lần cuối: 2026-10-10 (PC).** Bản 1.1.0 đã gộp vào `master`, đã phát hành và deploy web. Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
 
 App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, tăng ca, ngày nghỉ, đi muộn, và ước tính lương theo kỳ. Tách riêng khỏi dự án `so_cong` (bản đầy đủ, đang để đó); chỉ dùng chung `domain/lunar.dart` và font Be Vietnam Pro.
 
@@ -8,15 +8,15 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 
 | Thứ | Ở đâu |
 |---|---|
-| Mã nguồn | GitHub `AissNguyen/cham-cong-don-gian`, nhánh `master` |
-| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-08, gồm các thay đổi của PR #5 và phần sửa biểu đồ nhấp nháy) |
-| Bản Android | File APK ở GitHub Releases, hiện là `v1.0.0` (bản cũ, chưa có các phần làm từ ngày 2026-10-02 tới nay). Trên điện thoại của người dùng (Realme RMX2021) là bản build trên PC tối 2026-10-05 (code `master` commit `d1d82ad` cộng phần sửa màn Cài đặt cùng ngày), chưa đưa lên Releases. Chưa lên Google Play |
+| Mã nguồn | GitHub `AissNguyen/cham-cong-don-gian`, nhánh `master` (bản 1.1.0, PR #6 đã merge ngày 2026-10-10). App trước khi làm lại nằm ở nhánh `cham-cong-don-gian-cu` |
+| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-10, bản 1.1.0) |
+| Bản Android | GitHub Releases `v1.1.0` (đưa lên ngày 2026-10-10, file `app-release.apk`); nút "Tải bản Android" trên web trỏ tới `releases/latest`. Điện thoại của người dùng (Realme RMX2021) đang chạy đúng bản 1.1.0 này. Chưa lên Google Play |
 | Firebase | Dự án `cham-cong-don-gian`: Analytics, Crashlytics, Remote Config, Firestore (máy chủ nam5 – Mỹ), Hosting. Gói miễn phí |
-| Gói Android | `vn.chamcong.cham_cong_don_gian`, phiên bản trong `pubspec.yaml` vẫn là `1.0.0+1` |
+| Gói Android | `vn.chamcong.cham_cong_don_gian`, phiên bản `1.1.0+2`. Mọi bản phát hành ký bằng khóa ở `C:\Users\Admin\Documents\khoa-ky-cham-cong-don-gian\` trên PC (xem `android/key.properties`, không commit) |
 
 ## Bản mới: phiếu lương (nhánh `phieu-luong-moi`, chờ merge)
 
-Làm theo `THIET-KE-BAN-MOI.md` trên cloud ngày 2026-10-09. **Chưa cài lên điện thoại, chưa deploy web, chưa đưa lên Releases.** Các mục "Đã có" bên dưới là của bản trên `master`; sau khi merge thì những chỗ sau thay đổi:
+Làm theo `THIET-KE-BAN-MOI.md` trên cloud ngày 2026-10-09, sửa thêm trên PC ngày 2026-10-10. **Đã merge vào `master`, cài lên điện thoại người dùng, đưa lên Releases (v1.1.0) và deploy web ngày 2026-10-10.** Remote Config chưa đổi: `latest_version` vẫn là `1.0.0` và `update_url` chưa đặt, nên chưa máy nào bị nhắc cập nhật. Muốn nhắc: đặt `update_url` = `https://github.com/AissNguyen/cham-cong-don-gian/releases/latest/download/app-release.apk` trước, rồi mới đổi `latest_version` thành `1.1.0`. Các điểm chính của bản mới:
 
 - **Bộ tính phiếu lương** `lib/domain/payslip.dart` (test `test/domain/payslip_test.dart`): bộ tính tiền duy nhất. Thẻ thu nhập màn chính (số to = Thực nhận), số "Hôm nay", tiền từng ngày trên lịch, "Thống kê thu nhập theo kỳ" và file Excel đều lấy số từ đây. Công nhân: lương cơ bản ÷ công chuẩn × ngày công, khoản căn cứ, Thưởng vượt khoán (tăng ca + chủ nhật + lễ), khoản cố định / % chia theo ngày công (hết kỳ thì khấu trừ tính đủ), cơm trưa theo ngày làm qua 12:30, đi muộn trừ tiền thành một dòng. Công nhật: tổng giờ × bảng lương/giờ (ô 0 = lương ngày ÷ 8). Phần đếm giây của ca đang mở tách thành `liveDayHours` trong `calc.dart`; `computePeriodStats` / `liveItemsEstimate` đã bỏ.
 - **Kỳ lương 2 kỳ/tháng** theo ngày tự chọn (kỳ 1 từ A đến B, kỳ 2 từ B+1 tới trước A tháng sau), `pay_period.dart`.
