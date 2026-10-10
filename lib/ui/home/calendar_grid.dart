@@ -16,6 +16,7 @@ class CalendarGrid extends StatelessWidget {
     required this.showLunar,
     required this.showMoneyPerDay,
     required this.showCheckTimes,
+    required this.moneyOf,
     required this.onSelect,
   });
 
@@ -25,6 +26,9 @@ class CalendarGrid extends StatelessWidget {
   final bool showLunar;
   final bool showMoneyPerDay;
   final bool showCheckTimes;
+
+  /// Tiền của một ngày, lấy từ phiếu lương của kỳ chứa ngày đó.
+  final double Function(DateTime date) moneyOf;
   final ValueChanged<DateTime> onSelect;
 
   @override
@@ -77,6 +81,7 @@ class CalendarGrid extends StatelessWidget {
                             showLunar: showLunar,
                             showMoneyPerDay: showMoneyPerDay,
                             showCheckTimes: showCheckTimes,
+                            money: showMoneyPerDay ? moneyOf(date) : 0,
                             onTap: () => onSelect(date),
                           );
                         },
@@ -100,6 +105,7 @@ class _DayCell extends StatelessWidget {
     required this.showLunar,
     required this.showMoneyPerDay,
     required this.showCheckTimes,
+    required this.money,
     required this.onTap,
   });
 
@@ -110,6 +116,9 @@ class _DayCell extends StatelessWidget {
   final bool showLunar;
   final bool showMoneyPerDay;
   final bool showCheckTimes;
+
+  /// Tiền của ngày theo phiếu lương (chỉ dùng khi bật "Lương mỗi ngày").
+  final double money;
   final VoidCallback onTap;
 
   @override
@@ -132,10 +141,13 @@ class _DayCell extends StatelessWidget {
     String? bottomLabel3;
 
     if (record.isDayOff) {
-      fill = colors.dayOffMark;
-      onFill = Colors.white;
-      borderColor = colors.dayOffMark;
-      bottomLabel = 'Nghỉ';
+      // Nghỉ có lương tô đậm; nghỉ không lương tô nhạt, chữ sẫm.
+      final paid = record.paidLeave;
+      fill = paid ? colors.dayOffMark : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.surface, 0.6)!;
+      onFill = paid ? Colors.white : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.onSurface, 0.45)!;
+      borderColor = fill;
+      // Nghỉ có lương có tiền của ngày: bật "Lương mỗi ngày" thì hiện số tiền đó.
+      bottomLabel = !paid ? 'Nghỉ' : (showMoneyPerDay ? _shortMoney(money) : 'Nghỉ ₫');
     } else if (isFuture) {
       bottomLabel = null;
     } else if (!record.hasAttendance) {
@@ -143,14 +155,16 @@ class _DayCell extends StatelessWidget {
       onFill = colors.warn;
       bottomLabel = date.isBefore(today) ? 'Chưa' : null;
     } else if (record.isOpenShift) {
-      fill = colors.openShiftMark;
+      // Đã chấm vào mà qua 23:00 (hoặc đã sang ngày khác) vẫn chưa có giờ về: báo đỏ để chấm lại.
+      final missed = isMissedCheckOut(record, DateTime.now());
+      fill = missed ? colors.lateMark : colors.openShiftMark;
       onFill = Colors.white;
-      borderColor = colors.openShiftMark;
+      borderColor = fill;
       if (showCheckTimes) {
         bottomLabel = Clock(record.checkIn!.hour, record.checkIn!.minute).formatted;
-        bottomLabel2 = '…';
+        bottomLabel2 = missed ? '?' : '…';
       } else {
-        bottomLabel = 'Đang';
+        bottomLabel = missed ? 'Chưa ra' : 'Đang';
       }
     } else {
       fill = Theme.of(context).colorScheme.primary;
@@ -161,7 +175,7 @@ class _DayCell extends StatelessWidget {
         bottomLabel2 = Clock(record.checkOut!.hour, record.checkOut!.minute).formatted;
         bottomLabel3 = fmtHours(result.normalMinutes + result.overtimeMinutes);
       } else {
-        bottomLabel = showMoneyPerDay ? _shortMoney(result.pay) : fmtHours(result.normalMinutes);
+        bottomLabel = showMoneyPerDay ? _shortMoney(money) : fmtHours(result.normalMinutes);
       }
     }
 
@@ -308,9 +322,12 @@ class _DayCell extends StatelessWidget {
     );
   }
 
+  /// "1,2tr", "350k": bỏ phần lẻ (không làm tròn lên); âm thì có dấu "−".
   String _shortMoney(double v) {
-    if (v >= 1e6) return '${fmtN(v / 1e6)}tr';
-    if (v >= 1e3) return '${(v / 1e3).round()}k';
-    return v.round().toString();
+    final sign = v < 0 ? '−' : '';
+    final a = v.abs();
+    if (a >= 1e6) return '$sign${fmtN((a / 1e5).truncate() / 10)}tr';
+    if (a >= 1e3) return '$sign${(a / 1e3).truncate()}k';
+    return '$sign${a.truncate()}';
   }
 }

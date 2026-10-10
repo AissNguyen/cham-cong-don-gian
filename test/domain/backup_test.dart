@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cham_cong_don_gian/domain/backup.dart';
@@ -65,6 +67,30 @@ void main() {
     test('ngày giống hệt nhau không tính là thay', () {
       final r = mergeBackup(_appData([_day(9, 1)]), _backup([_day(9, 1)], DateTime(2026, 10, 5)));
       expect(r.changedDays, 0);
+    });
+
+    test('file sao lưu của bản cũ (cài đặt chưa có workerKind) vẫn đọc và khôi phục được', () {
+      final oldSettings = AppSettings(
+        wageTable: WageTable(rates: {DayType.weekday: const WageRate(normalPerHour: 30000, overtimePerHour: 45000)}),
+      ).toJson()..remove('workerKind');
+      final text = jsonEncode({
+        'format': backupFormat,
+        'version': 1,
+        'exportedAt': DateTime(2026, 10, 5).toIso8601String(),
+        'appVersion': '1.0.0',
+        'data': {
+          'settings': oldSettings,
+          'records': {dateKey(DateTime(2026, 9, 1)): _day(9, 1).toJson()},
+          'periodOverrides': {},
+        },
+      });
+      final payload = BackupPayload.decode(text);
+      final r = mergeBackup(_appData([]), payload);
+      expect(r.added, 1);
+      final restored = AppSettings.fromJson(r.merged['settings'] as Map<String, dynamic>);
+      expect(restored.workerKind, WorkerKind.worker);
+      expect(restored.baseSalary, 30000 * 8 * 26);
+      expect(restored.incomeItems.first.id, payItemSalary);
     });
 
     test('ngày trống trong app (không có dữ liệu) coi như chưa có', () {

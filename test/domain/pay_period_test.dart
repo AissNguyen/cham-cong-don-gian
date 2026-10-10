@@ -42,6 +42,52 @@ void main() {
     });
   });
 
+  group('2 kỳ mỗi tháng, kỳ 1 tự chọn ngày', () {
+    const cfg = PayPeriodConfig(type: PayPeriodType.semiMonthly, semiFirstStart: 5, semiFirstEnd: 19);
+
+    test('10/09 -> kỳ 1 từ 05/09 tới 19/09', () {
+      final p = periodContaining(DateTime(2026, 9, 10), cfg);
+      expect(p.start, DateTime(2026, 9, 5));
+      expect(p.end, DateTime(2026, 9, 19));
+    });
+
+    test('25/09 -> kỳ 2 từ 20/09 tới 04/10 (trước ngày đầu kỳ 1 của tháng sau)', () {
+      final p = periodContaining(DateTime(2026, 9, 25), cfg);
+      expect(p.start, DateTime(2026, 9, 20));
+      expect(p.end, DateTime(2026, 10, 4));
+    });
+
+    test('03/10 (trước ngày đầu kỳ 1) -> vẫn thuộc kỳ 2 của tháng trước', () {
+      final p = periodContaining(DateTime(2026, 10, 3), cfg);
+      expect(p.start, DateTime(2026, 9, 20));
+      expect(p.end, DateTime(2026, 10, 4));
+    });
+
+    test('qua năm: 02/01/2027 -> kỳ 2 từ 20/12/2026 tới 04/01/2027', () {
+      final p = periodContaining(DateTime(2027, 1, 2), cfg);
+      expect(p.start, DateTime(2026, 12, 20));
+      expect(p.end, DateTime(2027, 1, 4));
+    });
+
+    test('các kỳ nối liền nhau, không hở không trùng', () {
+      var p = periodContaining(DateTime(2026, 1, 1), cfg);
+      for (var i = 0; i < 30; i++) {
+        final next = periodContaining(p.end.add(const Duration(days: 1)), cfg);
+        expect(next.start, p.end.add(const Duration(days: 1)));
+        expect(next.end.isBefore(next.start), isFalse);
+        p = next;
+      }
+    });
+
+    test('số ngoài khoảng an toàn bị ép lại: kỳ 1 từ 1 tới 31 -> 1 tới 27, tháng 2 vẫn có kỳ 2', () {
+      const bad = PayPeriodConfig(type: PayPeriodType.semiMonthly, semiFirstStart: 1, semiFirstEnd: 31);
+      expect(semiMonthlyBounds(bad), (1, 27));
+      final p = periodContaining(DateTime(2026, 2, 28), bad);
+      expect(p.start, DateTime(2026, 2, 28));
+      expect(p.end, DateTime(2026, 2, 28));
+    });
+  });
+
   test('recentPeriods trả về đúng số kỳ liền trước, mới nhất trước', () {
     const cfg = PayPeriodConfig(type: PayPeriodType.semiMonthly);
     final periods = recentPeriods(DateTime(2026, 9, 20), cfg, count: 3);

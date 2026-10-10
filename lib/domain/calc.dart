@@ -1,8 +1,7 @@
-/// Công thức tính giờ công, tăng ca, đi muộn và tiền lương một ngày.
+/// Công thức tính giờ công, tăng ca, đi muộn của một ngày. Tiền lương tính ở `payslip.dart`.
 library;
 
 import 'models.dart';
-import 'pay_period.dart';
 
 DayType dayTypeOf(DateTime date, List<Holiday> holidays) {
   final d = dateOnly(date);
@@ -54,6 +53,9 @@ class DayCalcResult {
   final int normalMinutes;
   final int overtimeMinutes;
   final double lateDeductionMoney;
+
+  /// Tiền theo đúng bảng lương/giờ (cách tính của bản cũ). Phiếu lương (`payslip.dart`) không dùng
+  /// số này; chỉ còn để đối chiếu khi chuyển dữ liệu của bản cũ.
   final double pay;
 
   double get normalHours => normalMinutes / 60;
@@ -66,6 +68,19 @@ class DayCalcResult {
     lateDeductionMoney: 0,
     pay: 0,
   );
+}
+
+/// Từ giờ này trở đi mà ca của hôm nay vẫn chưa có giờ về thì coi là quên chấm về.
+const missedCheckOutHour = 23;
+
+/// Ngày đã chấm vào nhưng không có giờ về: ca của một ngày đã qua, hoặc ca hôm nay khi đã qua
+/// [missedCheckOutHour] giờ. Ngày như vậy được báo đỏ trên lịch để người dùng chấm lại giờ về; ca
+/// của ngày đã qua không được tính giờ nào cho tới khi có giờ về.
+bool isMissedCheckOut(DayRecord record, DateTime now) {
+  if (record.isDayOff || record.checkIn == null || record.checkOut != null) return false;
+  final day = dateOnly(record.date);
+  final today = dateOnly(now);
+  return day.isBefore(today) || (day == today && now.hour >= missedCheckOutHour);
 }
 
 /// Giờ nghỉ trưa: khoảng này không được tính giờ công (áp dụng mọi ngày, mọi người dùng).
@@ -147,15 +162,31 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
   );
 }
 
-/// Ước tính lương đang kiếm được tính tới [now], chính xác theo **giây** — chỉ để hiện số chạy
-/// mượt trên màn chính (khi ca đang mở). Áp dụng giờ nghỉ trưa, đi muộn và tăng ca theo khung
-/// như [computeDay].
-double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
-  if (record.isDayOff || record.checkIn == null) return 0;
-  if (record.checkOut != null) return computeDay(record, settings).pay;
+/// Số giây giờ thường / tăng ca của một ca **đang mở** tính tới [now], chính xác theo giây — để số
+/// trên màn chính chạy mượt. Áp dụng giờ nghỉ trưa, đi muộn và tăng ca theo khung như [computeDay];
+/// lúc chấm ra, số giây khớp với số phút của [computeDay] (trừ phần lẻ giây).
+class LiveDayHours {
+  const LiveDayHours({required this.normalSeconds, required this.overtimeSeconds, required this.lateDeductionMoney});
 
-  final dayType = dayTypeOf(record.date, settings.holidays);
-  final wage = settings.wageTable.of(dayType);
+  final int normalSeconds;
+  final int overtimeSeconds;
+  final double lateDeductionMoney;
+
+  static const zero = LiveDayHours(normalSeconds: 0, overtimeSeconds: 0, lateDeductionMoney: 0);
+}
+
+/// Đã chấm ra thì lấy đúng số của [computeDay]; ca đang mở thì đếm tới [now].
+LiveDayHours liveDayHours(DayRecord record, AppSettings settings, DateTime now) {
+  if (record.isDayOff || record.checkIn == null) return LiveDayHours.zero;
+  if (record.checkOut != null) {
+    final r = computeDay(record, settings);
+    return LiveDayHours(
+      normalSeconds: r.normalMinutes * 60,
+      overtimeSeconds: r.overtimeMinutes * 60,
+      lateDeductionMoney: r.lateDeductionMoney,
+    );
+  }
+
   final (windowStart, windowEnd) = _span(settings.workStart, settings.workEnd, dateOnly(record.date));
   final checkIn = record.checkIn!;
 
@@ -201,137 +232,20 @@ double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
   }
   if (overtimeSeconds < 0) overtimeSeconds = 0;
 
-  var pay = (normalSeconds / 3600) * wage.normalPerHour + (overtimeSeconds / 3600) * wage.overtimePerHour;
-  pay -= lateDeductionMoney;
+  return LiveDayHours(normalSeconds: normalSeconds, overtimeSeconds: overtimeSeconds, lateDeductionMoney: lateDeductionMoney);
+}
+
+/// Tiền theo đúng bảng lương/giờ (cách tính của bản cũ, trước khi có phiếu lương) tính tới [now].
+/// Phiếu lương không dùng hàm này; chỉ còn để đối chiếu (test chuyển dữ liệu của bản cũ).
+double liveEstimatedPay(DayRecord record, AppSettings settings, DateTime now) {
+  if (record.isDayOff || record.checkIn == null) return 0;
+  if (record.checkOut != null) return computeDay(record, settings).pay;
+  final wage = settings.wageTable.of(dayTypeOf(record.date, settings.holidays));
+  final live = liveDayHours(record, settings, now);
+  final pay =
+      (live.normalSeconds / 3600) * wage.normalPerHour +
+      (live.overtimeSeconds / 3600) * wage.overtimePerHour -
+      live.lateDeductionMoney;
   return pay < 0 ? 0 : pay;
 }
 
-/// Phần thu nhập/khấu trừ tự tạo tính cho riêng hôm nay, chạy mượt theo giây — chỉ dùng để cộng
-/// thêm vào số "hôm nay"/số chạy sống trên màn chính (không đụng tới tổng chính thức của cả kỳ,
-/// vốn đã cộng trọn phần của mỗi khoản qua [computePeriodStats]).
-///
-/// Mỗi khoản được chia đều cho [workDayCountInPeriod] ngày công của kỳ để ra "phần của hôm nay",
-/// rồi phần đó chạy dần từ lúc chấm vào (hoặc từ [IncomeItem.activeAfter] nếu khoản có mốc giờ,
-/// ví dụ tiền cơm trưa chỉ tính từ 13:00) tới giờ ra chuẩn — chạm mốc giờ ra là nhận đủ, không chờ
-/// qua kỳ mới thấy.
-double liveItemsEstimate(DayRecord record, AppSettings settings, DateTime now, int workDayCountInPeriod) {
-  if (!settings.includeItemsInEstimate) return 0;
-  if (record.isDayOff || record.checkIn == null || workDayCountInPeriod <= 0) return 0;
-
-  final (windowStart, windowEnd) = _span(settings.workStart, settings.workEnd, dateOnly(record.date));
-  final checkIn = record.checkIn!;
-  final shiftStart = checkIn.isBefore(windowStart) ? windowStart : checkIn;
-  if (!windowEnd.isAfter(shiftStart)) return 0;
-  final nowCapped = record.checkOut ?? now;
-
-  var total = 0.0;
-  for (final item in settings.incomeItems) {
-    final sign = item.type == IncomeItemType.income ? 1 : -1;
-    double periodAmount;
-    switch (item.calcMethod) {
-      case IncomeCalcMethod.fixed:
-        periodAmount = item.amount;
-      case IncomeCalcMethod.perWorkDay:
-        periodAmount = item.amount * workDayCountInPeriod;
-      case IncomeCalcMethod.percentOfBaseSalary:
-        periodAmount = settings.baseSalary * (item.amount / 100);
-    }
-    final dailyShare = periodAmount / workDayCountInPeriod;
-
-    var itemStart = shiftStart;
-    if (item.activeAfter != null) {
-      final gate = _anchor(item.activeAfter!, dateOnly(record.date));
-      if (gate.isAfter(itemStart)) itemStart = gate;
-    }
-    // Mẫu số là khoảng hoạt động CỦA RIÊNG khoản này (không phải cả ca) — để khoản có mốc giờ
-    // (vd tiền cơm sau 13h) vẫn nhận đủ phần của ngày đúng lúc tới giờ ra chuẩn, không bị "ăn non"
-    // vì mốc giờ bắt đầu muộn hơn đầu ca.
-    final itemWindowSeconds = windowEnd.difference(itemStart).inSeconds;
-    if (itemWindowSeconds <= 0) continue;
-    var itemEnd = nowCapped.isBefore(itemStart) ? itemStart : nowCapped;
-    if (itemEnd.isAfter(windowEnd)) itemEnd = windowEnd;
-    final elapsed = itemEnd.difference(itemStart).inSeconds;
-    final fraction = (elapsed <= 0 ? 0.0 : elapsed / itemWindowSeconds).clamp(0.0, 1.0);
-    total += sign * dailyShare * fraction;
-  }
-  return total;
-}
-
-class PeriodStats {
-  const PeriodStats({
-    required this.period,
-    required this.normalMinutes,
-    required this.overtimeMinutes,
-    required this.daysOff,
-    required this.daysLate,
-    required this.workDayCount,
-    required this.attendanceIncome,
-    required this.itemsIncome,
-  });
-
-  final PayPeriod period;
-  final int normalMinutes;
-  final int overtimeMinutes;
-  final int daysOff;
-  final int daysLate;
-  final int workDayCount;
-  final double attendanceIncome;
-  final double itemsIncome;
-
-  double get normalHours => normalMinutes / 60;
-  double get overtimeHours => overtimeMinutes / 60;
-  double get totalIncome => attendanceIncome + itemsIncome;
-}
-
-/// [recordsInPeriod] chỉ cần chứa các bản ghi có trong khoảng [period]; ngày không có bản ghi coi như chưa chấm.
-PeriodStats computePeriodStats(PayPeriod period, Iterable<DayRecord> recordsInPeriod, AppSettings settings) {
-  var normalMinutes = 0;
-  var overtimeMinutes = 0;
-  var daysOff = 0;
-  var daysLate = 0;
-  var workDayCount = 0;
-  var attendanceIncome = 0.0;
-
-  for (final record in recordsInPeriod) {
-    if (record.isDayOff) {
-      daysOff++;
-      continue;
-    }
-    if (record.isLate) daysLate++;
-    if (record.hasAttendance) workDayCount++;
-    final result = computeDay(record, settings);
-    normalMinutes += result.normalMinutes;
-    overtimeMinutes += result.overtimeMinutes;
-    attendanceIncome += result.pay;
-  }
-
-  // Khoản thu nhập/khấu trừ tự tạo chỉ cộng vào số ước tính khi người dùng bật "cộng thêm thu
-  // nhập/khấu trừ" trong Cài đặt — tắt thì các khoản này chỉ để tham khảo.
-  var itemsIncome = 0.0;
-  if (settings.includeItemsInEstimate) {
-    for (final item in settings.incomeItems) {
-      final sign = item.type == IncomeItemType.income ? 1 : -1;
-      double amount;
-      switch (item.calcMethod) {
-        case IncomeCalcMethod.fixed:
-          amount = item.amount;
-        case IncomeCalcMethod.perWorkDay:
-          amount = item.amount * workDayCount;
-        case IncomeCalcMethod.percentOfBaseSalary:
-          amount = settings.baseSalary * (item.amount / 100);
-      }
-      itemsIncome += sign * amount;
-    }
-  }
-
-  return PeriodStats(
-    period: period,
-    normalMinutes: normalMinutes,
-    overtimeMinutes: overtimeMinutes,
-    daysOff: daysOff,
-    daysLate: daysLate,
-    workDayCount: workDayCount,
-    attendanceIncome: attendanceIncome,
-    itemsIncome: itemsIncome,
-  );
-}

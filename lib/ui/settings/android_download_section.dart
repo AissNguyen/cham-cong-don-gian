@@ -7,7 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'settings_card.dart';
 
-const androidApkUrl = 'https://github.com/AissNguyen/cham-cong-don-gian/releases/download/v1.0.0/app-release.apk';
+// Luôn trỏ tới bản phát hành mới nhất: mỗi lần ra bản chỉ cần đưa file tên app-release.apk lên
+// GitHub Releases, không phải sửa link này.
+const androidApkUrl = 'https://github.com/AissNguyen/cham-cong-don-gian/releases/latest/download/app-release.apk';
 
 class AndroidDownloadSection extends StatelessWidget {
   const AndroidDownloadSection({super.key});

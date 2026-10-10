@@ -43,7 +43,7 @@ class PeriodDayChart extends StatelessWidget {
 
   List<_DayBar> _buildDays() {
     final days = <_DayBar>[];
-    for (var d = period.start; !d.isAfter(period.end); d = d.add(const Duration(days: 1))) {
+    for (var d = period.start; !d.isAfter(period.end); d = DateTime(d.year, d.month, d.day + 1)) {
       final record = recordOf(d);
       if (record.isDayOff || record.checkIn == null || record.checkOut == null) {
         days.add(_DayBar(date: d, paidHours: 0, lateHours: 0, hasData: false));
@@ -77,10 +77,13 @@ class PeriodDayChart extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 170,
+          height: 200,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final slot = constraints.maxWidth / days.length;
+              // Số ngày dưới mỗi cột, hiện đủ mọi ngày. Chật (mỗi cột hẹp hơn chỗ cho 2 chữ số) thì xếp
+              // so le thành hai hàng để các số cạnh nhau không chồng lên nhau.
+              final stagger = slot < 15;
               final barWidth = (slot * 0.6).clamp(2.0, 12.0);
               // Viền của khúc "đi giờ khác" vẽ nằm gọn bên trong cột (thư viện vẽ viền đè lên mép,
               // tràn ra ngoài làm khúc đó trông phình hơn cột): hai cạnh bên bằng dải màu ở mép,
@@ -140,7 +143,25 @@ class PeriodDayChart extends StatelessWidget {
                   titlesData: FlTitlesData(
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: stagger ? 30 : 18,
+                        interval: 1,
+                        getTitlesWidget: (value, meta) {
+                          final i = value.toInt() - 1;
+                          if (i < 0 || i >= days.length) return const SizedBox.shrink();
+                          return SideTitleWidget(
+                            meta: meta,
+                            space: stagger && i.isOdd ? 15 : 3,
+                            child: Text(
+                              '${days[i].date.day}',
+                              style: TextStyle(fontSize: 9.5, color: colors.ink3),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                     leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
                   gridData: FlGridData(

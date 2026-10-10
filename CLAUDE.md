@@ -35,6 +35,8 @@ Chưa đổi gì, chờ người dùng quyết định. Danh sách nằm ở `TI
 
 ## Cập nhật lần cuối
 
+2026-10-09 (cloud, nhánh `phieu-luong-moi`, PR vào `master`): làm bản mới theo `THIET-KE-BAN-MOI.md`: bộ tính phiếu lương `lib/domain/payslip.dart` (mọi số tiền lấy từ đây), Công nhân / Công nhật, màn Cài đặt mới, kỳ 2 kỳ/tháng tùy ngày, sao chép cấu hình rút gọn, hộp nhắc cập nhật ba trạng thái, chuyển dữ liệu bản cũ. 170 test qua, analyze không lỗi; đã chạy thử bản web trong Chromium trên cloud. Chưa cài lên điện thoại, chưa deploy web.
+
 2026-10-06 (cloud): bỏ mục khung cố định, giờ nghỉ trưa 11:30–12:30 luôn không tính công (về trước 12:30 thì vẫn tính), bỏ cảnh báo đỏ, nút chấm vào/ra đổi ngược (chạm: bảng chọn giờ, giữ: giờ hiện tại). Chưa build APK, chưa deploy web.
 
 2026-10-05: sao lưu/khôi phục dữ liệu bằng file Excel (Cài đặt › Sao lưu dữ liệu); thông báo nhiều link + mục Cài đặt › Thông báo, hướng dẫn soạn trên Firebase (`help_text`), bản web mở nhanh và chạy offline (xem `TIEN-DO.md`). Cùng ngày: build trên PC từ `master` commit `d1d82ad` và cài đè lên điện thoại của người dùng (mới cài và mở, chưa thử tính năng); chưa đưa lên GitHub Releases. Cũng ngày này trên PC: bỏ các thư mục `ios`, `macos`, `windows`, `linux`, nâng Flutter lên 3.47.6, màn Cài đặt gập được và đổi thứ tự, bỏ mục "Khung nhiều mục (dự phòng)" (xem `TIEN-DO.md`).

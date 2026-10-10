@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../data/store.dart';
-import '../../domain/calc.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
+import '../../domain/payslip.dart';
 import '../format.dart';
+import '../settings/number_inputs.dart';
 import '../../theme/app_theme.dart';
 
-/// Thống kê thu nhập từng kỳ lương đã qua, mỗi kỳ nhập tay được số tiền thực nhận (ghi đè số tự tính).
+/// Thống kê thu nhập từng kỳ lương (Thực nhận của phiếu lương), mỗi kỳ nhập tay được số tiền thực
+/// nhận (ghi đè số tự tính).
 class PeriodHistorySection extends StatelessWidget {
   const PeriodHistorySection({super.key, required this.store});
 
@@ -15,14 +17,14 @@ class PeriodHistorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = dateOnly(DateTime.now());
-    final periods = recentPeriods(today, store.settings.payPeriod, count: 12);
+    final now = DateTime.now();
+    final periods = recentPeriods(dateOnly(now), store.settings.payPeriod, count: 12);
 
+    // Số tự tính là Thực nhận của phiếu lương từng kỳ; người dùng vẫn nhập tay được số thật nhận.
     final rows = periods.map((p) {
-      final records = store.records.values.where((r) => p.contains(r.date));
-      final stats = computePeriodStats(p, records, store.settings);
+      final slip = computePayslip(settings: store.settings, period: p, recordOf: store.recordFor, now: now);
       final override = store.periodOverrides[p.key];
-      return (period: p, stats: stats, amount: override ?? stats.totalIncome, isOverridden: override != null);
+      return (period: p, stats: slip, amount: override ?? slip.net, isOverridden: override != null);
     }).toList();
 
     final total = rows.fold<double>(0, (sum, r) => sum + r.amount);
@@ -60,7 +62,7 @@ class _PeriodRow extends StatefulWidget {
   });
 
   final PayPeriod period;
-  final PeriodStats stats;
+  final Payslip stats;
   final double amount;
   final bool isOverridden;
   final ValueChanged<double?> onChanged;
@@ -76,7 +78,7 @@ class _PeriodRowState extends State<_PeriodRow> {
   @override
   void initState() {
     super.initState();
-    controller = TextEditingController(text: widget.amount.round().toString());
+    controller = TextEditingController(text: _text(widget.amount));
     focusNode = FocusNode();
     focusNode.addListener(() {
       if (!focusNode.hasFocus) _commit();
@@ -87,14 +89,16 @@ class _PeriodRowState extends State<_PeriodRow> {
   void didUpdateWidget(covariant _PeriodRow oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!focusNode.hasFocus && oldWidget.amount != widget.amount) {
-      controller.text = widget.amount.round().toString();
+      controller.text = _text(widget.amount);
     }
   }
 
+  /// "2.363.293": có dấu chấm ngăn hàng nghìn, bỏ phần lẻ.
+  String _text(double amount) => fmtMoney(amount, unit: false);
+
   void _commit() {
-    final digits = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final value = double.tryParse(digits) ?? 0;
-    controller.text = value.round().toString();
+    final value = parseMoney(controller.text);
+    controller.text = _text(value);
     widget.onChanged(value);
   }
 
@@ -146,6 +150,7 @@ class _PeriodRowState extends State<_PeriodRow> {
               focusNode: focusNode,
               textAlign: TextAlign.right,
               keyboardType: TextInputType.number,
+              inputFormatters: const [MoneyInputFormatter()],
               onSubmitted: (_) => _commit(),
               decoration: InputDecoration(
                 isDense: true,

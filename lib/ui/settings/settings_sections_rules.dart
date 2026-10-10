@@ -7,56 +7,6 @@ import 'settings_card.dart';
 TimeOfDay _toTod(Clock c) => TimeOfDay(hour: c.hour, minute: c.minute);
 Clock _toClock(TimeOfDay t) => Clock(t.hour, t.minute);
 
-/// Đi muộn: vào sau giờ nào thì đánh dấu, trừ bao nhiêu phút hoặc tiền khi có đánh dấu.
-class LateRuleSection extends StatelessWidget {
-  const LateRuleSection({super.key, required this.store});
-
-  final AppStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    final rule = store.settings.lateRule;
-    return SettingsCard(
-      title: 'Đi muộn',
-      collapsible: true,
-      subtitle: 'Số phút/tiền bị trừ được cài ở đây; ở màn chính chỉ cần bấm nút đánh dấu đi muộn.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TimeChip(
-            label: 'Vào sau',
-            time: _toTod(rule.after),
-            onPick: (t) => store.updateSettings((s) => s.copyWith(lateRule: s.lateRule.copyWith(after: _toClock(t)))),
-          ),
-          const SizedBox(height: 12),
-          SegmentedButton<LateUnit>(
-            segments: const [
-              ButtonSegment(value: LateUnit.minutes, label: Text('Trừ phút')),
-              ButtonSegment(value: LateUnit.money, label: Text('Trừ tiền')),
-            ],
-            selected: {rule.unit},
-            onSelectionChanged: (v) => store.updateSettings((s) => s.copyWith(lateRule: s.lateRule.copyWith(unit: v.first))),
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            key: ValueKey(rule.unit),
-            initialValue: rule.amount.round().toString(),
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: rule.unit == LateUnit.minutes ? 'Số phút bị trừ' : 'Số tiền bị trừ (đ)',
-              border: const OutlineInputBorder(),
-            ),
-            onChanged: (v) {
-              final amount = double.tryParse(v.replaceAll(RegExp(r'[^0-9]'), '')) ?? rule.amount;
-              store.updateSettings((s) => s.copyWith(lateRule: s.lateRule.copyWith(amount: amount)));
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Khung giờ tăng ca: mỗi khung trừ số phút nghỉ riêng, hệ số lấy theo bảng lương.
 class OvertimeBracketsSection extends StatelessWidget {
   const OvertimeBracketsSection({super.key, required this.store});
@@ -133,7 +83,6 @@ class OvertimeBracketsSection extends StatelessWidget {
     final brackets = store.settings.overtimeBrackets;
     return SettingsCard(
       title: 'Tăng ca theo khung',
-      collapsible: true,
       subtitle: 'Không có hệ số riêng — hệ số tăng ca lấy theo bảng lương/giờ ở trên.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

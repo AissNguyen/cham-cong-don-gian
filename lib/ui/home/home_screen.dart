@@ -8,13 +8,12 @@ import '../../data/store.dart';
 import '../../domain/calc.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
+import '../../domain/payslip.dart';
 import '../../domain/share_gate.dart';
 import '../../notice/notice.dart';
 import '../../share/share_service.dart';
 import '../../theme/app_theme.dart';
 import '../format.dart';
-import '../../update/update_screen.dart';
-import '../../update/update_service.dart';
 import '../settings/settings_screen.dart';
 import '../settings/share_section.dart';
 import 'calendar_grid.dart';
@@ -24,10 +23,10 @@ import 'period_day_chart.dart';
 import 'period_history.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.updateStatus = UpdateStatus.none, this.onDismissUpdateBanner});
+  const HomeScreen({super.key, this.clock});
 
-  final UpdateStatus updateStatus;
-  final VoidCallback? onDismissUpdateBanner;
+  /// Chỉ dùng trong test để cố định "bây giờ"; bình thường là giờ hiện tại.
+  final DateTime Function()? clock;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -91,6 +90,11 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _openSettings() {
+    logOncePerDay(eventOpenedSettings);
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+  }
+
   void _changeMonth(int delta) {
     setState(() => _viewedMonth = DateTime(_viewedMonth.year, _viewedMonth.month + delta));
   }
@@ -106,19 +110,20 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final today = dateOnly(DateTime.now());
+    final now = widget.clock?.call() ?? DateTime.now();
+    final today = dateOnly(now);
     final period = periodContaining(today, store.settings.payPeriod);
-    final recordsInPeriod = store.records.values.where((r) => period.contains(r.date));
-    final stats = computePeriodStats(period, recordsInPeriod, store.settings);
-    final incomeOverridden = store.periodOverrides.containsKey(period.key);
-    final totalIncome = store.periodOverrides[period.key] ?? stats.totalIncome;
-    final selectedRecord = store.recordFor(_selectedDate);
+    // Mọi con số tiền trên màn chính lấy từ phiếu lương (cùng bộ tính với Cài đặt › Phiếu lương).
+    final slip = computePayslip(settings: store.settings, period: period, recordOf: store.recordFor, now: now);
+    final slips = <String, Payslip>{period.key: slip};
+    double moneyOf(DateTime date) {
+      final p = periodContaining(date, store.settings.payPeriod);
+      final s = slips[p.key] ??= computePayslip(settings: store.settings, period: p, recordOf: store.recordFor, now: now);
+      return s.amountOn(date);
+    }
 
-    final todayRecord = store.recordFor(today);
-    final now = DateTime.now();
-    final todayPay =
-        liveEstimatedPay(todayRecord, store.settings, now) +
-        liveItemsEstimate(todayRecord, store.settings, now, stats.workDayCount);
+    final selectedRecord = store.recordFor(_selectedDate);
+    final todayPay = slip.amountOn(today);
 
     return Scaffold(
       body: SafeArea(
@@ -134,13 +139,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: _buildHeader(context, store),
             ),
-            if (widget.updateStatus.hasUpdate) ...[
-              const SizedBox(height: 10),
-              UpdateBanner(status: widget.updateStatus, onDismiss: () => widget.onDismissUpdateBanner?.call()),
-            ],
             const NoticeBanner(),
             const SizedBox(height: 12),
-            _buildIncomeCard(context, period, stats, totalIncome, incomeOverridden, todayPay),
+            _buildIncomeCard(context, period, slip, todayPay),
             const SizedBox(height: 16),
             CalendarGrid(
               month: _viewedMonth,
@@ -149,6 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
               showLunar: _showLunar,
               showMoneyPerDay: _showMoneyPerDay,
               showCheckTimes: _showCheckTimes,
+              moneyOf: moneyOf,
               onSelect: (d) => setState(() => _selectedDate = d),
             ),
             const SizedBox(height: 16),
@@ -194,10 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _headerIcon(
           icon: Icons.settings_outlined,
-          onPressed: () {
-            logOncePerDay(eventOpenedSettings);
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-          },
+          onPressed: _openSettings,
         ),
         _headerIcon(icon: Icons.chevron_left, onPressed: () => _changeMonth(-1)),
         Expanded(
@@ -244,21 +243,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildIncomeCard(
-    BuildContext context,
-    PayPeriod period,
-    PeriodStats stats,
-    double totalIncome,
-    bool isOverridden,
-    double todayPay,
-  ) {
+  /// Thẻ thu nhập: số to là Thực nhận của kỳ hiện tại lấy từ phiếu lương; bấm vào thì mở Cài đặt
+  /// (phiếu lương nằm trên cùng).
+  Widget _buildIncomeCard(BuildContext context, PayPeriod period, Payslip slip, double todayPay) {
     final colors = context.appColors;
     final showIntro = _showTodayIntro;
     const animDuration = Duration(milliseconds: 500);
     const bigSize = 27.0;
     const smallSize = 15.0;
 
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: colors.primaryGradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
@@ -277,24 +271,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Thu nhập tạm tính · kỳ ${fmtDM(period.start)}–${fmtDM(period.end)}',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isOverridden)
-                          Container(
-                            margin: const EdgeInsets.only(left: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(6)),
-                            child: const Text('đã sửa tay', style: TextStyle(color: Colors.white, fontSize: 10)),
-                          ),
-                      ],
+                    Text(
+                      'Thực nhận tạm tính · kỳ ${fmtDM(period.start)}–${fmtDM(period.end)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     AnimatedDefaultTextStyle(
@@ -305,7 +286,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                       ),
-                      child: Text(fmtMoney(totalIncome), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        fmtMoney(slip.net),
+                        key: const ValueKey('home-net'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -326,7 +312,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
-                    child: Text(fmtMoney(todayPay), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      fmtMoney(todayPay),
+                      key: const ValueKey('home-today'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -335,15 +326,16 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _statTile(context, 'Giờ công', fmtHours(stats.normalMinutes)),
-              _statTile(context, 'Tăng ca', fmtHours(stats.overtimeMinutes)),
-              _statTile(context, 'Tổng giờ', fmtHours(stats.normalMinutes + stats.overtimeMinutes)),
-              _statTile(context, 'Ngày nghỉ', '${stats.daysOff}'),
+              _statTile(context, 'Giờ công', fmtHours(slip.normalMinutes)),
+              _statTile(context, 'Tăng ca', fmtHours(slip.overtimeMinutes)),
+              _statTile(context, 'Tổng giờ', fmtHours(slip.normalMinutes + slip.overtimeMinutes)),
+              _statTile(context, 'Ngày nghỉ', '${slip.daysOff}'),
             ],
           ),
         ],
       ),
     );
+    return GestureDetector(onTap: _openSettings, child: card);
   }
 
   Widget _statTile(BuildContext context, String label, String value) {
@@ -396,10 +388,13 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: _ActionButton(
                 icon: Icons.beach_access_outlined,
-                label: 'Ngày nghỉ',
+                label: !record.isDayOff ? 'Ngày nghỉ' : (record.paidLeave ? 'Có lương' : 'Không lương'),
                 active: record.isDayOff,
-                activeColor: context.appColors.dayOffMark,
-                onTap: () => store.setDayOff(_selectedDate, !record.isDayOff),
+                // Cùng quy ước với lịch: có lương đậm, không lương nhạt.
+                activeColor: record.paidLeave
+                    ? context.appColors.dayOffMark
+                    : Color.lerp(context.appColors.dayOffMark, Colors.white, 0.45)!,
+                onTap: () => _chooseDayOff(store, record),
               ),
             ),
             Expanded(
@@ -418,8 +413,86 @@ class _HomeScreenState extends State<HomeScreen> {
           'Chạm để chọn giờ · giữ để chấm giờ hiện tại',
           style: TextStyle(fontSize: 11, color: context.appColors.ink3),
         ),
+        if (isMissedCheckOut(record, DateTime.now())) _missedCheckOutNote(context, record),
       ],
     );
+  }
+
+  /// Dòng lưu ý đỏ khi ngày đang chọn đã chấm vào mà không có giờ về.
+  Widget _missedCheckOutNote(BuildContext context, DayRecord record) {
+    final red = context.appColors.lateMark;
+    final past = dateOnly(record.date).isBefore(dateOnly(DateTime.now()));
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: red.withValues(alpha: 0.1),
+        border: Border.all(color: red),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: red, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              past
+                  ? 'Ngày này đã chấm vào lúc ${fmtTime(record.checkIn!)} nhưng chưa có giờ về nên chưa được tính công. '
+                        'Hãy bấm nút Chấm ra để nhập giờ về.'
+                  : 'Đã qua 23:00 mà chưa chấm được giờ về. Hãy bấm nút Chấm ra để nhập giờ về, nếu không sang '
+                        'ngày mai ngày này sẽ không được tính công.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Bấm "Ngày nghỉ": chọn nghỉ có lương (tính một ngày lương cơ bản) hay không lương.
+  Future<void> _chooseDayOff(AppStore store, DayRecord record) async {
+    final date = _selectedDate;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: const Text('Nghỉ có lương'),
+              subtitle: const Text('Tính một ngày lương cơ bản'),
+              trailing: record.isDayOff && record.paidLeave ? const Icon(Icons.check) : null,
+              onTap: () => Navigator.pop(context, 'paid'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.money_off),
+              title: const Text('Nghỉ không lương'),
+              subtitle: const Text('Không tính tiền ngày này'),
+              trailing: record.isDayOff && !record.paidLeave ? const Icon(Icons.check) : null,
+              onTap: () => Navigator.pop(context, 'unpaid'),
+            ),
+            if (record.isDayOff)
+              ListTile(
+                leading: const Icon(Icons.undo),
+                title: const Text('Bỏ đánh dấu nghỉ'),
+                onTap: () => Navigator.pop(context, 'clear'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    switch (choice) {
+      case 'paid':
+        await store.setDayOff(date, true, paid: true);
+      case 'unpaid':
+        await store.setDayOff(date, true);
+      case 'clear':
+        await store.setDayOff(date, false);
+    }
   }
 
   Widget _buildNoteButton(BuildContext context, AppStore store, DayRecord record) {

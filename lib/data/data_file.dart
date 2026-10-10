@@ -22,7 +22,7 @@ Future<File> dataFile() async {
 }
 
 Map<String, dynamic> _emptyJson() => {
-  'settings': AppSettings().toJson(),
+  'settings': AppSettings.defaultsFor(WorkerKind.worker).toJson(),
   'records': <String, dynamic>{},
   'periodOverrides': <String, dynamic>{},
   'manualIncomeEntries': <String, dynamic>{},

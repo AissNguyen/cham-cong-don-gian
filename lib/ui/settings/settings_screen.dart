@@ -3,18 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/store.dart';
-import 'android_download_section.dart';
-import 'backup_section.dart';
-import 'config_share_section.dart';
-import 'feedback_section.dart';
-import 'help_screen.dart';
-import 'income_items_section.dart';
-import 'notice_section.dart';
-import 'settings_sections_extra.dart';
-import 'settings_sections_rules.dart';
-import 'settings_sections_time.dart';
-import 'share_section.dart';
+import 'payslip_card.dart';
+import 'settings_blocks.dart';
+import 'work_config_card.dart';
 
+/// Màn Cài đặt theo `mockup/luong-va-cai-dat.html`, từ trên xuống: thông báo, Công nhân / Công
+/// nhật, phiếu lương, cài đặt tính công, chấm công GPS (ẩn trên web hoặc khi đã tắt), nâng cao.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -24,25 +18,14 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Cài đặt')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         children: [
-          const NoticeSection(),
-          if (kIsWeb) const AndroidDownloadSection(),
-          // Lương và giờ làm: thứ người mới cài cần chỉnh đầu tiên.
-          PayPeriodSection(store: store),
-          WorkHoursSection(store: store),
-          WageTableSection(store: store),
-          IncomeItemsSection(store: store),
-          HolidaysSection(store: store),
-          LateRuleSection(store: store),
-          OvertimeBracketsSection(store: store),
-          GpsSection(store: store),
-          // Tiện ích ít dùng nằm cuối.
-          BackupSection(store: store),
-          ConfigShareSection(store: store),
-          const ShareSection(),
-          const FeedbackSection(),
-          const HelpEntrySection(),
+          const SettingsNoticeCard(),
+          WorkerKindToggle(store: store),
+          PayslipCard(store: store),
+          WorkConfigCard(store: store),
+          if (!kIsWeb && store.settings.showGps) GpsQuickCard(store: store),
+          MoreSettingsCard(store: store),
         ],
       ),
     );
