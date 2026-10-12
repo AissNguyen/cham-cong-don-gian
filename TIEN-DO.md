@@ -73,6 +73,24 @@ Làm theo `THIET-KE-BAN-MOI.md` trên cloud ngày 2026-10-09, sửa thêm trên 
 
 App tải lại Remote Config tối đa 6 giờ một lần.
 
+## Đang thảo luận, chưa chốt: dắt người mới đi từng bước (từ 2026-10-12)
+
+Người dùng đang bàn ý này ở một phiên phụ; chốt xong sẽ quay lại phiên chính trên PC để làm. **Chưa có gì được viết thành code.** Theo cách làm việc ở `CLAUDE.md`: bàn xong thì vẽ mẫu HTML trước, người dùng duyệt rồi mới viết Flutter.
+
+Ý của người dùng:
+- Giới thiệu app là app **chấm công**, làm nổi bật chấm công tự động (GPS). Phần tính tiền không bày ra lúc đầu; sau đó mới gợi ý "muốn biết thêm về tính tiền thì bật", để người mới không có cảm giác phải điền phiếu lương.
+- Bố trí lại để **dắt người mới đi từng bước** bằng hướng dẫn ngay trong app, đỡ bị ngợp.
+- Không lấy bản web làm chỗ bắt đầu nữa (web chỉ là bản dùng tạm), vì cài qua link phải qua nhiều bước (tải file, tắt bảo vệ của CH Play).
+- Cách thử: người dùng tự cài sẵn app lên máy vài người rồi đưa cho họ, **không hướng dẫn gì thêm**; họ tự làm theo hướng dẫn trong app.
+- GPS kiểu mới và phần tính toán đang được người dùng nhờ vài người thử, chưa có kết quả.
+
+Đề xuất của Claude ở phiên chính (người dùng chưa trả lời đồng ý hay không):
+- Thẻ "Bắt đầu" trên màn chính dạng danh sách việc, tích dần: (1) bấm thử Chấm vào / Chấm ra, (2) tới chỗ làm bấm Lấy tọa độ, (3) cấp quyền từng cái một, mỗi quyền một màn có giải thích, (4) xong thì thẻ biến mất. Lý do chọn kiểu thẻ thay vì chuỗi màn hình chạy liền lúc mới mở: bước lấy tọa độ phải đứng ở chỗ làm, mà người ta thường cài app ở nhà.
+- Khi chưa bật tính tiền: thẻ thu nhập ở màn chính đổi thành thẻ công (ngày công, giờ công, giờ tăng ca), ô ngày trên lịch hiện số giờ. Vài ngày sau khi đã có dữ liệu mới gợi ý bật phần lương (dùng phiếu lương mẫu đã có).
+- Người đang dùng rồi giữ nguyên, không hiện lại hướng dẫn.
+- Ghi ẩn danh từng bước hướng dẫn vào Firebase Analytics để biết người thử kẹt ở bước nào.
+- Điểm cần nghĩ: chấm công tự động đang có giới hạn dùng thử (`share_trial_days`), nếu đưa nó lên làm điểm chính thì phải xem lại; bản web không có GPS.
+
 ## Mặc định Claude tự chọn, chờ người dùng xác nhận
 
 1. **Ngày nghỉ không tính lương** (lương = 0). Muốn đủ lương hoặc một phần thì cần thêm cấu hình.
