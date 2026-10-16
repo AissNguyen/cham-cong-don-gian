@@ -172,7 +172,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
             if (!store.loaded) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
-            return const HomeScreen();
+            return const HomeScreen(showOnboarding: true);
           },
         ),
       ),

@@ -18,6 +18,7 @@ class CalendarGrid extends StatelessWidget {
     required this.showCheckTimes,
     required this.moneyOf,
     required this.onSelect,
+    this.keyFor,
   });
 
   final DateTime month;
@@ -30,6 +31,9 @@ class CalendarGrid extends StatelessWidget {
   /// Tiền của một ngày, lấy từ phiếu lương của kỳ chứa ngày đó.
   final double Function(DateTime date) moneyOf;
   final ValueChanged<DateTime> onSelect;
+
+  /// Khóa cho ô của một ngày (null = không cần); chuyến hướng dẫn dùng để khoét sáng đúng một ô.
+  final GlobalKey? Function(DateTime date)? keyFor;
 
   @override
   Widget build(BuildContext context) {
@@ -74,6 +78,7 @@ class CalendarGrid extends StatelessWidget {
                           if (dayNum < 1 || dayNum > daysInMonth) return SizedBox(height: showCheckTimes ? 70 : 58);
                           final date = DateTime(month.year, month.month, dayNum);
                           return _DayCell(
+                            key: keyFor?.call(date),
                             date: date,
                             isToday: date == today,
                             isSelected: date == selectedDate,
@@ -98,6 +103,7 @@ class CalendarGrid extends StatelessWidget {
 
 class _DayCell extends StatelessWidget {
   const _DayCell({
+    super.key,
     required this.date,
     required this.isToday,
     required this.isSelected,

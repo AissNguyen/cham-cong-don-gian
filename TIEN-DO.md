@@ -79,7 +79,10 @@ Làm theo `THIET-KE-BAN-MOI.md` trên cloud ngày 2026-10-09, sửa thêm trên 
 
 App tải lại Remote Config tối đa 6 giờ một lần.
 
-## Giao cho cloud: khung giới thiệu và chuyến hướng dẫn làm thử (2026-10-16)
+## Khung giới thiệu và chuyến hướng dẫn làm thử (2026-10-16)
+
+**Đã làm trên cloud (nhánh `claude/huong-dan-tung-buoc`, PR vào `master`), chờ người dùng thử trên điện thoại.** Mới qua `flutter analyze` và 219 test tự động (13 test mới ở `test/onboarding/tour_test.dart`); chưa chạy trên điện thoại thật. Code: `lib/onboarding/` (`tour_controller.dart`, `tour_overlay.dart`, `intro_dialog.dart`), `AppStore.restoreRecord`, `HomeScreen(showOnboarding)`, `SettingsScreen(scrollToGps)`, nút "Xem lại hướng dẫn làm thử" ở Hướng dẫn sử dụng. Phần đặc tả dưới đây giữ nguyên để đối chiếu.
+
 
 Người dùng đã chốt thiết kế, **chỉ còn viết code Flutter**. Không bàn lại thiết kế; chỗ nào lệch thì ghi vào mô tả PR. Mẫu hình ảnh: `mockup/gioi-thieu.html` (khung giới thiệu) và `mockup/huong-dan-tung-buoc.html` (các bước hướng dẫn); chữ trong hai mẫu là chữ người dùng chốt, dùng đúng như vậy (các chỗ đã sửa bên dưới ghi rõ).
 
