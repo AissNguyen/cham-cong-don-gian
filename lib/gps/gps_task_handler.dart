@@ -1,13 +1,13 @@
-/// Dịch vụ chạy nền có thông báo: chỉ sống trong lúc có việc (khung giờ chấm vào, hoặc mốc kiểm tra
-/// giờ về phút 05/35). Mỗi lần "tick" xác định vị trí, tự chấm công nếu đúng điều kiện, xong việc thì
-/// tắt ngay; báo thức của khung / mốc kế tiếp bật lại (xem `gps_scheduler.dart`). Cách chấm ghi ở đầu
-/// `domain/gps_engine.dart`.
+/// Dịch vụ chạy nền có thông báo: báo thức bật nó đúng mốc dò (phút 00/15/30/45), nó dò vị trí, thử lại
+/// tối đa 2 lần cách 3 phút nếu không dò ra, ghi kết quả rồi tắt ngay. Cách chấm ghi ở đầu
+/// `domain/gps_engine.dart`; lịch báo thức ở `gps_scheduler.dart`.
 library;
 
 import 'dart:async';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:wifi_scan/wifi_scan.dart' show WiFiAccessPoint;
 
 import '../analytics/analytics_service.dart' show eventGpsUsed;
 import '../data/data_file.dart';
@@ -15,6 +15,7 @@ import '../domain/gps_engine.dart';
 import '../domain/models.dart';
 import '../share/share_state_file.dart';
 import '../widget/widget_sync.dart';
+import 'gps_log.dart';
 import 'gps_notify.dart';
 import 'gps_wifi.dart';
 
@@ -24,15 +25,21 @@ void gpsStartCallback() {
   FlutterForegroundTask.setTaskHandler(GpsTaskHandler());
 }
 
-/// Sau một lần xong việc trong khung chấm vào dài, nghỉ ngần này rồi mới dò lại trong cùng khung.
-const _restInLongWindow = Duration(minutes: 30);
-
 class GpsTaskHandler extends TaskHandler {
-  /// Số lần liên tiếp chưa xác định được vị trí trong việc đang làm.
-  int _failures = 0;
+  /// Mốc đang dò (cố định suốt các lần thử lại) và số lần đã dò ở mốc đó.
+  GpsPlan? _plan;
+  int _attempts = 0;
 
-  /// Đang nghỉ giữa một khung chấm vào dài: trước giờ này không lấy vị trí.
-  DateTime? _restUntil;
+  String _hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  /// Ghi mốc vào danh sách đã làm của ngày đó, để báo thức dự phòng không dò lại.
+  DayRecord _withDone(DayRecord r, DateTime mark) =>
+      r.copyWith(gpsDoneMarks: [mark, ...r.gpsDoneMarks.where((m) => m != mark)].take(12).toList());
+
+  Future<void> _markDone(GpsPlan p) async {
+    final json = await readDataJson();
+    await writeDataJson(putRecordJson(json, _withDone(recordFromJson(json, p.day), p.mark)));
+  }
   bool _busy = false;
 
   @override
@@ -46,7 +53,7 @@ class GpsTaskHandler extends TaskHandler {
 
   Future<void> _stop() => FlutterForegroundTask.stopService();
 
-  /// Lấy tọa độ GPS; null nếu không lấy được (mất sóng, tắt định vị, lỗi khác).
+  /// Lấy tọa độ GPS; null nếu không dò ra (mất sóng, tắt định vị, lỗi khác).
   Future<Position?> _fix() async {
     try {
       return await Geolocator.getCurrentPosition(
@@ -61,139 +68,156 @@ class GpsTaskHandler extends TaskHandler {
     if (_busy) return;
     _busy = true;
     try {
-      final json = await readDataJson();
+      var json = await readDataJson();
       final settings = settingsFromJson(json);
       final started = DateTime.now();
-      final record = recordFromJson(json, started);
-
-      final task = gpsTaskAt(settings: settings, todayRecord: record, now: started);
-      if (task == GpsTask.none || !await autoFeatureAllowed()) {
-        await _stop();
-        return;
+      GpsPlan plan;
+      if (_plan == null) {
+        // Lượt đầu của dịch vụ: ghi nhật ký các mốc bị bỏ (báo thức trễ quá hoặc không reo), rồi lấy
+        // mốc đang chạy nếu còn trong giới hạn trễ.
+        final plans = gpsPendingPlans(
+          settings: settings,
+          today: recordFromJson(json, started),
+          yesterday: recordFromJson(json, started.subtract(const Duration(days: 1))),
+          now: started,
+        );
+        for (final p in plans.where((p) => p.tooLate)) {
+          _attempts = 1;
+          await _log(p, started, '', '', 'Bỏ mốc: tới ${_hm(started)} máy mới chạy, trễ ${p.lateMinutes} phút');
+          await _markDone(p);
+        }
+        if (plans.isEmpty || plans.last.tooLate) {
+          await _stop();
+          return;
+        }
+        plan = plans.last;
+        _plan = plan;
+        _attempts = 0;
+        json = await readDataJson();
+        if (!await autoFeatureAllowed()) {
+          _attempts = 1;
+          await _log(plan, started, '', '', 'Bỏ qua: chấm công tự động đang bị khóa (hết dùng thử)');
+          await _markDone(plan);
+          await _stop();
+          return;
+        }
+      } else {
+        plan = _plan!;
       }
-      if (_restUntil != null && started.isBefore(_restUntil!)) return;
+      _attempts++;
+      final today = recordFromJson(json, started);
+      final yesterday = recordFromJson(json, started.subtract(const Duration(days: 1)));
+      final original = dateOnly(today.date) == plan.day ? today : yesterday;
+      var record = original;
 
+      final gps = settings.gps;
       final position = await _fix();
       final now = DateTime.now();
-      switch (task) {
-        case GpsTask.none:
-          break;
-        case GpsTask.arrival:
-          await _arrival(json, settings, record, position, now);
-        case GpsTask.departure:
-          await _departure(json, settings, record, position, now);
-        case GpsTask.reopen:
-          await _reopen(json, settings, record, position, now);
+      final found = await scanWifi();
+      GpsSight sight;
+      String gpsText;
+      var wifiText = '';
+      if (position != null) {
+        sight = classifyGpsFix(gps, position.latitude, position.longitude);
+        final dist = distanceToWork(gps, position.latitude, position.longitude).round();
+        final where = switch (sight) {
+          GpsSight.atCheckOutPlace => 'ở địa điểm "chấm về"',
+          GpsSight.near => dist <= gps.departRadiusMeters ? 'trong phạm vi' : 'ở địa điểm "không chấm về"',
+          _ => 'ngoài phạm vi',
+        };
+        gpsText = 'dò ra vị trí, cách $dist m, $where (sai số ${position.accuracy.round()} m)';
+        record = record.copyWith(gpsLastFixAt: now);
+        await noteWifi(found, mark: plan.mark, learnAtWork: sight == GpsSight.near);
+      } else {
+        gpsText = 'không dò ra vị trí';
+        final reading = readWifi(found, await readKnownWifi());
+        sight = reading.sight;
+        wifiText = reading.text;
+        await noteWifi(found, mark: plan.mark);
       }
+
+      // Không biết gì: thử lại (lượt tick sau, cách 3 phút), tối đa 2 lần.
+      if (sight == GpsSight.unknown && _attempts <= gpsRetries) {
+        await _log(plan, now, gpsText, wifiText, 'Thử lại sau $gpsRetryMinutes phút', seen: _seenText(found));
+        return;
+      }
+
+      final decision = switch (plan.task) {
+        GpsTask.arrivalCheck => const GpsDecision(GpsAction.none),
+        GpsTask.arrival => decideArrival(
+          mark: plan.mark,
+          sight: sight,
+          previousCheckGotFix: previousCheckGotFix(record, plan.mark),
+        ),
+        GpsTask.departure => decideDeparture(mark: plan.mark, sight: sight),
+        GpsTask.reopen => decideReopen(sight),
+      };
+      final before = record;
+      final updated = _withDone(applyGpsDecision(record, decision), plan.mark);
+      if (updated.toJson().toString() != original.toJson().toString()) {
+        // Đọc lại file ngay trước khi ghi để không đè mất thay đổi người dùng vừa làm trong lúc dò.
+        final fresh = await readDataJson();
+        final punched = decision.action == GpsAction.checkIn || decision.action == GpsAction.checkOut;
+        final next = putRecordJson(fresh, updated);
+        await writeDataJson(punched ? markPendingAnalyticsEvent(next, eventGpsUsed) : next);
+      }
+
+      var result = describeDecision(plan.task, decision, sight);
+      if (plan.task == GpsTask.arrival && decision.action == GpsAction.checkIn && sight == GpsSight.unknown) {
+        result += ' (lần dò trước đã dò ra vị trí)';
+      }
+      await _log(plan, now, gpsText, wifiText, result, seen: _seenText(found));
+
+      switch (decision.action) {
+        case GpsAction.checkIn:
+        case GpsAction.checkOut:
+          await recordAutoUse();
+          await recordUsage(usageGpsUses);
+          await refreshWidgetDisplay();
+          await showGpsPunchNotification(
+            isCheckIn: decision.action == GpsAction.checkIn,
+            time: decision.time!,
+            soundEnabled: gps.soundEnabled,
+          );
+        case GpsAction.reopen:
+          await refreshWidgetDisplay();
+          await showGpsReopenNotification(oldCheckOut: before.checkOut!, soundEnabled: gps.soundEnabled);
+        case GpsAction.none:
+          break;
+      }
+      await _stop();
     } catch (_) {
-      // Một lượt kiểm tra lỗi thì bỏ qua, lượt sau (vài phút nữa) thử lại.
+      // Một lượt lỗi thì bỏ qua; mốc sau dò lại.
+      await _stop();
     } finally {
       _busy = false;
     }
   }
 
-  Future<void> _arrival(
-    Map<String, dynamic> json,
-    AppSettings settings,
-    DayRecord record,
-    Position? position,
-    DateTime now,
-  ) async {
-    if (position == null) {
-      // Không có sóng: thử lại vài lần rồi bỏ qua khung này.
-      if (++_failures > gpsUnknownRetries) await _restOrStop(settings, now);
-      return;
+  /// Các mạng quét được, sóng mạnh trước: "Xuong (-55), NhaTro (-80) · 6 mạng".
+  String _seenText(List<WiFiAccessPoint>? found) {
+    if (found == null) return 'không quét được Wi-Fi';
+    if (found.isEmpty) return 'không thấy mạng nào';
+    final best = <String, int>{};
+    for (final ap in found) {
+      final name = ap.ssid.isEmpty ? '(mạng ẩn)' : ap.ssid;
+      if (!best.containsKey(name) || ap.level > best[name]!) best[name] = ap.level;
     }
-    _failures = 0;
-    if (isInsideCheckInRadius(settings.gps, position.latitude, position.longitude)) {
-      final decision = GpsDecision(GpsAction.checkIn, time: roundToHalfHour(now));
-      await _savePunch(json, settings, applyGpsDecision(record, decision, now), isCheckIn: true, time: decision.time!);
-      await learnWifiHere();
-      await _stop();
-      return;
-    }
-    if (!arrivalShouldPollAgain(now)) await _restOrStop(settings, now);
+    final sorted = best.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return '${sorted.map((e) => '${e.key} (${e.value})').join(', ')} · ${found.length} thiết bị phát';
   }
 
-  Future<void> _departure(
-    Map<String, dynamic> json,
-    AppSettings settings,
-    DayRecord record,
-    Position? position,
-    DateTime now,
-  ) async {
-    final sight = await _sight(settings, position);
-    // Không GPS, không Wi-Fi quen: thử lại vài lần (cách nhau theo tần suất đã cài) rồi mới báo đỏ.
-    if (sight == GpsSight.unknown && ++_failures <= gpsUnknownRetries) return;
-
-    final decision = decideDeparture(todayRecord: record, now: now, sight: sight);
-    final updated = applyGpsDecision(record, decision, now);
-    switch (decision.action) {
-      case GpsAction.checkOut:
-        await _savePunch(json, settings, updated, isCheckIn: false, time: decision.time!);
-      case GpsAction.flagUnknown:
-        await writeDataJson(putRecordJson(json, updated));
-        // Chỉ báo một lần khi ngày chuyển sang đỏ, không nhắc lại mỗi nửa tiếng.
-        if (!record.gpsLeftUnknown) {
-          await refreshWidgetDisplay();
-          await showGpsUnknownNotification(soundEnabled: settings.gps.soundEnabled);
-        }
-      default:
-        await writeDataJson(putRecordJson(json, updated));
-        if (position != null) await learnWifiHere();
-    }
-    await _stop();
-  }
-
-  Future<void> _reopen(
-    Map<String, dynamic> json,
-    AppSettings settings,
-    DayRecord record,
-    Position? position,
-    DateTime now,
-  ) async {
-    final decision = decideReopen(await _sight(settings, position));
-    if (decision.action == GpsAction.reopen) {
-      final oldCheckOut = record.checkOut!;
-      await writeDataJson(putRecordJson(json, applyGpsDecision(record, decision, now)));
-      await refreshWidgetDisplay();
-      await showGpsReopenNotification(oldCheckOut: oldCheckOut, soundEnabled: settings.gps.soundEnabled);
-    }
-    await _stop();
-  }
-
-  /// Có tọa độ thì phân loại theo tọa độ; không có thì xem có thấy Wi-Fi quen của chỗ làm không.
-  Future<GpsSight> _sight(AppSettings settings, Position? position) async {
-    if (position != null) return classifyGpsFix(settings.gps, position.latitude, position.longitude);
-    return await seesKnownWifi() ? GpsSight.near : GpsSight.unknown;
-  }
-
-  Future<void> _savePunch(
-    Map<String, dynamic> json,
-    AppSettings settings,
-    DayRecord updated, {
-    required bool isCheckIn,
-    required DateTime time,
-  }) async {
-    await writeDataJson(markPendingAnalyticsEvent(putRecordJson(json, updated), eventGpsUsed));
-    await recordAutoUse();
-    await recordUsage(usageGpsUses);
-    await refreshWidgetDisplay();
-    await showGpsPunchNotification(isCheckIn: isCheckIn, time: time, soundEnabled: settings.gps.soundEnabled);
-  }
-
-  /// Khung chấm vào này xong lượt: tắt dịch vụ chờ báo thức của khung sau. Riêng khung còn mở lâu hơn
-  /// [_restInLongWindow] thì giữ dịch vụ, nghỉ ngần đó rồi dò lại trong cùng khung.
-  Future<void> _restOrStop(AppSettings settings, DateTime now) async {
-    _failures = 0;
-    final until = now.add(_restInLongWindow);
-    final a = Clock(now.hour, now.minute);
-    final b = Clock(until.hour, until.minute);
-    final sameWindow = settings.gps.allWindows.any((w) => a >= w.from && a <= w.to && b <= w.to);
-    if (dateOnly(until) == dateOnly(now) && sameWindow) {
-      _restUntil = until;
-    } else {
-      await _stop();
-    }
-  }
+  Future<void> _log(GpsPlan plan, DateTime now, String gps, String wifi, String result, {String seen = ''}) =>
+      addGpsLog(
+        GpsLogEntry(
+          mark: plan.mark,
+          at: now,
+          task: plan.label,
+          gps: gps,
+          wifi: wifi,
+          result: result,
+          attempt: _attempts == 0 ? 1 : _attempts,
+          wifiSeen: seen,
+        ),
+      );
 }

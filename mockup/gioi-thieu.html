@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khung giới thiệu lần đầu mở app</title>
+<style>
+  /* Khung giới thiệu hiện một lần khi mở app lần đầu. Chữ do người dùng viết, chỉ sắp lại bố cục. */
+  :root {
+    --accent: #17695A;
+    --accent-soft: #DCEEE9;
+    --ink: #1B2420;
+    --ink2: #52615B;
+    --ink3: #86938E;
+    --line: #E0E6E3;
+    --bg: #F2F4F3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 12px 40px;
+    background: #DDE2E0;
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { width: 330px; max-width: 100%; margin: 0 auto; }
+  .caption { margin: 0 0 8px 4px; font-size: 13px; font-weight: 600; color: var(--ink2); line-height: 1.4; }
+  .caption small { display: block; font-weight: 400; color: var(--ink3); }
+
+  /* Màn chính mờ phía sau, chỉ để thấy khung nổi lên trên. */
+  .phone { position: relative; height: 640px; border-radius: 18px; overflow: hidden; background: var(--bg); }
+  .fake { padding: 16px; filter: blur(1px); }
+  .fake .bar { height: 44px; border-radius: 14px; background: #E6ECE9; }
+  .fake .hero { height: 130px; margin-top: 12px; border-radius: 18px; background: linear-gradient(120deg, #1CAE8F, #2F7FE0); }
+  .fake .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; }
+  .fake .grid i { height: 44px; border-radius: 10px; background: #fff; border: 1px solid var(--line); }
+  .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; padding: 16px; }
+
+  .card { width: 100%; background: #fff; border-radius: 22px; padding: 24px 20px 14px; }
+  .card h2 { margin: 0 0 14px; font-size: 19px; font-weight: 700; }
+
+  /* Bốn ý viết đúng nguyên văn; mỗi ý một đoạn, cách nhau bằng khoảng trống, không đường kẻ, không icon.
+     Cụm chính in đậm để lướt mắt là thấy. */
+  .list { display: flex; flex-direction: column; gap: 14px; }
+  .list p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink); }
+  .list b { font-weight: 700; color: var(--accent); }
+
+  /* Tính năng phụ: chữ nhạt hơn, câu lưu ý nhỏ hơn. */
+  .list .extra { color: var(--ink2); }
+  .list .extra b { color: var(--ink2); }
+  .list .extra small { display: block; margin-top: 4px; font-size: 12.5px; line-height: 1.45; color: var(--ink3); }
+  .actions { display: flex; flex-direction: column; gap: 6px; margin-top: 22px; }
+  .btn { padding: 12px; border-radius: 999px; font-size: 14px; font-weight: 600; text-align: center; }
+  .btn.fill { background: var(--accent); color: #fff; }
+  .btn.text { padding: 8px; color: var(--ink2); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="caption">Khung giới thiệu, hiện một lần khi mở app lần đầu<small>Chữ là chữ của bạn; bấm "Bắt đầu" thì vào thẻ việc cần làm, "Để sau" thì đóng</small></p>
+  <div class="phone">
+    <div class="fake">
+      <div class="bar"></div>
+      <div class="hero"></div>
+      <div class="grid">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+    </div>
+    <div class="scrim">
+      <div class="card">
+        <h2>Tính năng cơ bản</h2>
+
+        <div class="list">
+          <p>App <b>tự động ghi lại giờ đi làm và giờ về</b> của bạn, mà bạn không cần phải nhập tay.</p>
+          <p>Tính ra <b>số giờ tăng ca</b> mỗi ngày.</p>
+          <p>Tính ra <b>số ngày công</b>, tổng số giờ tăng ca.</p>
+          <p class="extra"><b>Ước tính số tiền lương</b> nhận được, dựa trên phiếu lương thật.
+            <small>Lưu ý, đây là số tiền ước tính, mang tính chất tham khảo, đây là tính năng phụ, bạn có thể bỏ qua.</small>
+          </p>
+        </div>
+        <div class="actions">
+          <div class="btn fill">Bắt đầu</div>
+          <div class="btn text">Để sau</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

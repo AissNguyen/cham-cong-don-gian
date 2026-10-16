@@ -6,7 +6,8 @@ import '../../data/store.dart';
 import '../../domain/models.dart';
 import '../../gps/gps_scheduler.dart';
 import '../../gps/gps_wifi.dart';
-import 'number_inputs.dart';
+import 'gps_log_view.dart';
+import 'gps_measure_dialog.dart';
 import 'settings_card.dart';
 import 'share_section.dart';
 
@@ -81,148 +82,38 @@ class GpsSection extends StatelessWidget {
     await rescheduleGpsAlarms(store.settings.effectiveGps);
   }
 
-  Future<void> _openWindowForm(BuildContext context, {TimeWindow? editing}) async {
-    var from = editing?.from ?? const Clock(6, 50);
-    var to = editing?.to ?? const Clock(7, 0);
-
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Khung giờ bật GPS'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Máy chỉ kiểm tra vị trí trong các khung này. Lần xác nhận đầu tiên trong ngày tính '
-                'là chấm vào, lần tiếp theo tính là chấm ra — không cần khai riêng khung nào là vào/ra.',
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                children: [
-                  TimeChip(label: 'Từ', time: _toTod(from), onPick: (t) => setState(() => from = _toClock(t))),
-                  TimeChip(label: 'Đến', time: _toTod(to), onPick: (t) => setState(() => to = _toClock(t))),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            if (editing != null)
-              TextButton(
-                onPressed: () async {
-                  final ok = await confirmAsk(
-                    context,
-                    title: 'Xóa khung giờ này?',
-                    text: 'Bạn chắc chắn muốn xóa khung ${editing.from.formatted}–${editing.to.formatted} không?',
-                    yes: 'Xóa',
-                  );
-                  if (!ok) return;
-                  _updateGps((gps) => gps.copyWith(activeWindows: gps.activeWindows.where((w) => w != editing).toList()));
-                  if (context.mounted) Navigator.pop(context);
-                },
-                child: const Text('Xóa'),
-              ),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
-            FilledButton(
-              onPressed: () {
-                final window = TimeWindow(from: from, to: to);
-                _updateGps((gps) {
-                  final list = [...gps.activeWindows];
-                  if (editing != null) {
-                    final i = list.indexOf(editing);
-                    if (i >= 0) list[i] = window;
-                  } else {
-                    list.add(window);
-                  }
-                  return gps.copyWith(activeWindows: list);
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Lưu'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// "Phút 50 → 05, phút 25 → 35".
-  String _marksLabel(GpsRepeatRule rule) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    final text = rule.marks.map((m) => 'phút ${two(m[0])} → ${two(m[1])}').join(', ');
-    return text.isEmpty ? text : '${text[0].toUpperCase()}${text.substring(1)}';
-  }
-
-  Future<void> _deleteRule(BuildContext context, GpsRepeatRule rule) async {
-    final ok = await confirmAsk(
-      context,
-      title: 'Xóa khung lặp này?',
-      text:
-          'Bạn chắc chắn muốn xóa khung lặp ${rule.from.formatted}–${rule.to.formatted} không? '
-          'Trong khoảng giờ đó app sẽ không tự chấm nữa, trừ khi bạn tự thêm khung giờ.',
-      yes: 'Xóa',
-    );
-    if (ok) await _updateGps((gps) => gps.copyWith(repeatRules: gps.repeatRules.where((r) => r != rule).toList()));
-  }
-
-  Future<void> _resetWindows(BuildContext context) async {
-    final ok = await confirmAsk(
-      context,
-      title: 'Đặt lại khung cài sẵn?',
-      text:
-          'Mọi khung giờ bạn tự đặt sẽ bị xóa, chỉ còn hai khung lặp cài sẵn và khung 12:50–13:10. Bạn chắc '
-          'chắn muốn đặt lại không?',
-      yes: 'Đặt lại',
-    );
-    if (ok) {
-      await _updateGps((gps) => gps.copyWith(repeatRules: defaultGpsRules, activeWindows: [...defaultGpsWindows]));
-    }
-  }
-
-  Widget _windowList(BuildContext context, {required GpsConfig gps}) {
-    final windows = gps.activeWindows;
+  /// Ba mốc giờ của chấm công GPS: khoảng giờ tự chấm vào và giờ cuối dò giờ về.
+  Widget _timesBlock(BuildContext context, {required GpsConfig gps}) {
+    final muted = TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Khung giờ bật GPS', style: TextStyle(fontWeight: FontWeight.w600)),
-        for (final r in gps.repeatRules)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            title: Text('${r.from.formatted}–${r.to.formatted} · lặp mỗi giờ'),
-            subtitle: Text(_marksLabel(r)),
-            trailing: IconButton(
-              icon: const Icon(Icons.close, size: 20),
-              color: Theme.of(context).colorScheme.error,
-              tooltip: 'Xóa khung lặp',
-              onPressed: () => _deleteRule(context, r),
-            ),
-          ),
-        for (final w in windows)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            title: Text('${w.from.formatted}–${w.to.formatted}'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openWindowForm(context, editing: w),
-          ),
+        const Text('Giờ tự chấm', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Text('Tự chấm vào (dò ở phút 00 và 30, dò trước ở phút 45 và 15)', style: muted),
+        const SizedBox(height: 4),
         Wrap(
           spacing: 8,
-          runSpacing: 4,
           children: [
-            OutlinedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Thêm khung giờ'),
-              onPressed: () => _openWindowForm(context),
+            TimeChip(
+              label: 'Từ',
+              time: _toTod(gps.arriveFrom),
+              onPick: (t) => _updateGps((g) => g.copyWith(arriveFrom: _toClock(t))),
             ),
-            TextButton.icon(
-              icon: const Icon(Icons.restore, size: 18),
-              label: const Text('Đặt lại khung cài sẵn'),
-              onPressed: () => _resetWindows(context),
+            TimeChip(
+              label: 'Đến',
+              time: _toTod(gps.arriveTo),
+              onPick: (t) => _updateGps((g) => g.copyWith(arriveTo: _toClock(t))),
             ),
           ],
+        ),
+        const SizedBox(height: 10),
+        Text('Dò giờ về (phút 15 và 45) tới, có thể sang sáng hôm sau', style: muted),
+        const SizedBox(height: 4),
+        TimeChip(
+          label: 'Tới',
+          time: _toTod(gps.departUntil),
+          onPick: (t) => _updateGps((g) => g.copyWith(departUntil: _toClock(t))),
         ),
       ],
     );
@@ -417,28 +308,29 @@ class GpsSection extends StatelessWidget {
               label: const Text('Lấy vị trí hiện tại'),
               onPressed: () => _pickCurrentLocation(context),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              initialValue: gps.radiusMeters.round().toString(),
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Bán kính chấm vào (mét)',
-                helperText: 'Tới gần điểm chấm trong khoảng này thì chấm vào.',
-                helperMaxLines: 2,
-                border: OutlineInputBorder(),
+            if (gps.latitude != null) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.straighten),
+                label: const Text('Đo vị trí ngay'),
+                onPressed: () => showMeasureDialog(context, gps),
               ),
-              onChanged: (v) {
-                final r = double.tryParse(v.replaceAll(RegExp(r'[^0-9]'), '')) ?? gps.radiusMeters;
-                _updateGps((gps) => gps.copyWith(radiusMeters: r));
-              },
-            ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Xem lúc này cách điểm chấm bao xa, GPS mạnh hay yếu, để ước lượng mà chỉnh phạm vi chỗ làm. '
+                  'Mỗi lần đo được ghi vào Nhật ký GPS.',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
               initialValue: gps.departRadiusMeters.round().toString(),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Cách bao xa (mét) mới coi là đã về',
-                helperText: 'Còn trong khoảng này thì coi như vẫn đang làm.',
+                labelText: 'Phạm vi chỗ làm (mét)',
+                helperText: 'Trong khoảng này là đang ở chỗ làm (chấm vào, vẫn đang làm); ra ngoài là đã về.',
                 helperMaxLines: 2,
                 border: OutlineInputBorder(),
               ),
@@ -450,37 +342,35 @@ class GpsSection extends StatelessWidget {
             const SizedBox(height: 12),
             _placeList(context, places: gps.extraPlaces),
             const SizedBox(height: 12),
-            _windowList(context, gps: gps),
+            _timesBlock(context, gps: gps),
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Chấm vào: trong các khung giờ trên, tới gần điểm chấm là chấm vào.\n'
-                'Chấm ra: sau khi chấm vào, mỗi nửa tiếng máy kiểm tra một lần ở phút 05 và phút 35. Còn ở '
-                'chỗ làm thì máy ghi ngầm một giờ về tạm; lần sau thấy bạn đã đi xa thì giờ về tạm đó thành '
-                'giờ chấm ra.\n'
-                'Trong kho không có sóng GPS: máy nhận ra chỗ làm bằng các mạng Wi-Fi quen (tự ghi nhớ, không '
-                'cần mật khẩu). Hãy để Wi-Fi của điện thoại ở chế độ bật.\n'
-                'Đã chấm ra mà bạn quay lại chỗ làm (đi ăn trưa...): cứ 2 tiếng máy kiểm tra lại, thấy bạn '
-                'vẫn ở đó thì bỏ giờ ra và tính công tiếp. Giờ ra bạn tự bấm thì máy không đụng tới.\n'
-                'Ở trọ sát chỗ làm: thêm phòng trọ vào "Địa điểm khác" loại "Chấm về" để máy không nhầm.\n'
-                'Không xác định được vị trí thì ngày đó báo đỏ để bạn tự xem lại giờ về.',
+                'Chấm vào: dò chính ở phút 00 và 30, ở chỗ làm thì giờ vào là đúng mốc đó. Dò trước ở phút 45 '
+                'và 15 để biết điện thoại còn bắt được GPS; lần dò chính mất sóng mà lần dò trước bắt được thì '
+                'vẫn chấm vào.\n'
+                'Chấm ra: sau khi vào, dò ở phút 15 và 45. Ra khỏi phạm vi chỗ làm thì giờ ra là x:00 (dò phút '
+                '15) hoặc x:30 (dò phút 45). Không dò ra vị trí thì coi như vẫn đang làm.\n'
+                'Đã chấm ra: dò lại 3 lần, cách nhau 1 tiếng; còn ở chỗ làm hoặc không dò ra vị trí thì bỏ giờ ra, '
+                'tính công tiếp. Giờ ra bạn tự bấm thì máy không đụng tới.\n'
+                'Mỗi lần không dò ra vị trí thì thử lại 2 lần, cách 3 phút. Lúc mất GPS máy xem Wi-Fi quen (tự học, '
+                'không cần mật khẩu): Wi-Fi chỗ làm là đang ở chỗ làm, Wi-Fi ở ngoài (nhà...) là đã về. Hãy để Wi-Fi '
+                'của điện thoại ở chế độ bật.',
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              initialValue: gps.frequencyMinutes.toString(),
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Tần suất kiểm tra (phút/lần)',
-                helperText: 'Chỉ dùng lúc chưa chấm vào: trong khung giờ, máy dò lại theo tần suất này tới khi bạn tới nơi.',
-                helperMaxLines: 2,
-                border: OutlineInputBorder(),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Nhật ký GPS và Wi-Fi quen'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: const Text('Nhật ký GPS')),
+                    body: const GpsLogView(),
+                  ),
+                ),
               ),
-              onChanged: (v) {
-                final f = int.tryParse(v.replaceAll(RegExp(r'[^0-9]'), '')) ?? gps.frequencyMinutes;
-                _updateGps((gps) => gps.copyWith(frequencyMinutes: f));
-              },
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

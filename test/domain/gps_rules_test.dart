@@ -1,4 +1,3 @@
-import 'package:cham_cong_don_gian/domain/gps_engine.dart';
 import 'package:cham_cong_don_gian/domain/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -72,29 +71,5 @@ void main() {
     final gps = GpsConfig.fromJson(GpsConfig().copyWith(repeatRules: const []).toJson());
     expect(gps.repeatRules, isEmpty);
     expect(gps.activeWindows.map(show), ['12:50-13:10']);
-  });
-
-  test('GPS tự chấm trong khung lặp, không chấm ngoài khung', () {
-    final settings = AppSettings(gps: GpsConfig(enabled: true, latitude: 10, longitude: 106));
-    GpsTask at(int h, int m) => gpsTaskAt(
-      settings: settings,
-      todayRecord: DayRecord(date: DateTime(2026, 10, 12)),
-      now: DateTime(2026, 10, 12, h, m),
-    );
-    expect(at(6, 55), GpsTask.arrival); // trong 06:50-07:05
-    expect(at(7, 10), GpsTask.none); // giữa hai khung
-    expect(at(7, 30), GpsTask.arrival); // trong 07:25-07:35
-    expect(at(13, 0), GpsTask.arrival); // khung lẻ 12:50-13:10
-    expect(at(13, 20), GpsTask.none);
-    expect(at(18, 5), GpsTask.arrival); // trong 18:00-18:10
-    expect(at(23, 5), GpsTask.none);
-  });
-
-  test('mốc kiểm tra giờ về: phút 05 và 35, từ khung đầu tới một tiếng sau khung cuối', () {
-    final marks = gpsMarkTimes(GpsConfig()).map((c) => c.formatted).toList();
-    expect(marks.first, '07:05'); // khung đầu bắt đầu 06:50
-    expect(marks[1], '07:35');
-    expect(marks.last, '23:35'); // khung cuối hết 22:40, cộng một tiếng
-    expect(gpsMarkTimes(GpsConfig(activeWindows: const [], repeatRules: const [])), isEmpty);
   });
 }

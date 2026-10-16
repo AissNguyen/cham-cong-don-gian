@@ -71,14 +71,14 @@ class DayCalcResult {
 }
 
 /// Từ giờ này trở đi mà ca của hôm nay vẫn chưa có giờ về thì coi là quên chấm về.
-const missedCheckOutHour = 23;
+const missedCheckOutHour = 22;
 
 /// Ngày đã chấm vào nhưng không có giờ về: ca của một ngày đã qua, hoặc ca hôm nay khi đã qua
 /// [missedCheckOutHour] giờ. Ngày như vậy được báo đỏ trên lịch để người dùng chấm lại giờ về; ca
 /// của ngày đã qua không được tính giờ nào cho tới khi có giờ về.
 bool isMissedCheckOut(DayRecord record, DateTime now) {
   if (record.isDayOff || record.checkIn == null || record.checkOut != null) return false;
-  // GPS thấy đã rời hẳn mà không xác định được giờ về: báo đỏ ngay, không chờ tới 23:00.
+  // GPS thấy đã rời hẳn mà không xác định được giờ về: báo đỏ ngay, không chờ tới 22:00.
   if (record.gpsLeftUnknown) return true;
   final day = dateOnly(record.date);
   final today = dateOnly(now);

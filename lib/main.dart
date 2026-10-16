@@ -10,6 +10,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 
 import 'analytics/analytics_service.dart';
+import 'bell/bell_service.dart';
 import 'data/store.dart';
 import 'firebase_options.dart';
 import 'gps/gps_scheduler.dart';
@@ -118,6 +119,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
       _checkUpdate();
       if (!kIsWeb) {
         rescheduleGpsAlarms(store.settings.effectiveGps);
+        rescheduleBells(store.settings.bells);
         refreshWidgetDisplay();
         HomeWidget.initiallyLaunchedFromHomeWidget().then(_onWidgetLaunch);
         _widgetClickSub = HomeWidget.widgetClicked.listen(_onWidgetLaunch);
@@ -170,7 +172,7 @@ class _ChamCongAppState extends State<ChamCongApp> with WidgetsBindingObserver {
             if (!store.loaded) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
-            return const HomeScreen();
+            return const HomeScreen(showOnboarding: true);
           },
         ),
       ),

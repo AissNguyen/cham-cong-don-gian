@@ -78,6 +78,22 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  /// Đặt một ngày về đúng bản ghi cũ ([record] null = xóa bản ghi của ngày đó). Dùng để trả lại
+  /// dữ liệu sau chuyến hướng dẫn làm thử (xem `onboarding/tour_controller.dart`).
+  Future<void> restoreRecord(DateTime date, DayRecord? record) async {
+    final key = dateKey(dateOnly(date));
+    if (record == null) {
+      _records.remove(key);
+    } else {
+      _records[key] = record;
+    }
+    notifyListeners();
+    await _save();
+    if (!kIsWeb && dateOnly(date) == dateOnly(DateTime.now())) {
+      await refreshWidgetDisplay();
+    }
+  }
+
   Future<void> punchIn(DateTime date, DateTime time) async {
     final r = recordFor(date);
     await _putRecord(r.copyWith(checkIn: time, isDayOff: false));

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hướng dẫn từng bước, làm thử trực tiếp</title>
+<style>
+  /* Chuyến hướng dẫn mức 1 (chấm công): mỗi bước sáng đúng một chỗ trên màn chính, chờ người dùng tự
+     bấm thử. Chữ chỉ dẫn là chữ của người dùng. Chưa nói tới tiền: ở mức 1 thẻ chỉ có giờ công. */
+  :root {
+    --accent: #17695A;
+    --accent-soft: #DCEEE9;
+    --ink: #1B2420;
+    --ink2: #52615B;
+    --ink3: #86938E;
+    --line: #E0E6E3;
+    --bg: #F2F4F3;
+    --warn: #C25A00;
+    --red: #D9433C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 12px 40px;
+    background: #DDE2E0;
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { margin: 0 0 4px; font-size: 18px; text-align: center; }
+  .sub { margin: 0 auto 20px; max-width: 760px; text-align: center; font-size: 13px; color: var(--ink2); line-height: 1.5; }
+  .screens { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; align-items: flex-start; }
+  .wrap { width: 270px; }
+  .caption { margin: 0 0 6px 4px; font-size: 12.5px; font-weight: 600; color: var(--ink2); line-height: 1.35; }
+  .caption small { display: block; font-weight: 400; color: var(--ink3); }
+
+  /* Khung điện thoại và màn chính giản lược. */
+  .phone { position: relative; height: 560px; border-radius: 18px; overflow: hidden; background: var(--bg); }
+  .home { position: absolute; inset: 0; padding: 10px 10px 0; }
+  .top { display: flex; align-items: center; justify-content: space-between; height: 30px; }
+  .top b { font-size: 12px; }
+  .top .chips { display: flex; gap: 4px; }
+  .chip { font-size: 9px; padding: 4px 6px; border-radius: 999px; background: #E6ECE9; color: var(--ink2); }
+  .hero { margin-top: 8px; height: 92px; border-radius: 16px; padding: 10px 12px; color: #fff; background: linear-gradient(120deg, #1CAE8F, #2F7FE0); }
+  .hero .t { font-size: 10px; opacity: .9; }
+  .hero .nums { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 12px; text-align: center; }
+  .hero .nums b { display: block; font-size: 15px; }
+  .hero .nums span { font-size: 9.5px; opacity: .9; }
+  .wd { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; text-align: center; font-size: 9px; color: var(--ink3); }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 4px; }
+  .cell { position: relative; height: 40px; border-radius: 8px; background: #fff; border: 1px solid #F1E3CF; text-align: center; padding-top: 3px; line-height: 1.1; }
+  .cell b { display: block; font-size: 11.5px; color: #B5530C; }
+  .cell i { display: block; font-style: normal; font-size: 7px; color: var(--ink2); }
+  .cell.ok { background: #E3F4EA; border-color: #BFE3CE; }
+  .cell.ok b { color: #1D7A46; }
+  .cell.off { background: #FBE3E8; border-color: #F3C0CB; }
+  .cell.off b { color: #B3395A; }
+  .cell.sel { outline: 2px solid #EE7B1B; }
+  .cell .ot { position: absolute; top: -5px; right: -3px; padding: 0 4px; border-radius: 999px; background: var(--red); color: #fff; font-size: 7.5px; font-weight: 700; line-height: 12px; }
+  .cell.empty { visibility: hidden; }
+  .btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
+  .btn { height: 42px; border-radius: 12px; background: #fff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 600; text-align: center; color: var(--ink); }
+  .btn.in, .btn.out { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .note { margin-top: 8px; height: 34px; border-radius: 12px; background: #fff; border: 1px solid var(--line); padding: 9px 12px; font-size: 10px; color: var(--ink3); }
+
+  /* Lớp hướng dẫn: phủ mờ, khoét sáng đúng chỗ cần bấm. */
+  .spot { position: absolute; border-radius: 12px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .58); pointer-events: none; }
+  .ring { position: absolute; border-radius: 14px; border: 2px solid #fff; animation: pulse 1.4s ease-out infinite; pointer-events: none; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.7); } 100% { box-shadow: 0 0 0 12px rgba(255,255,255,0); } }
+  .hand { position: absolute; font-size: 26px; transform: rotate(-20deg); filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); pointer-events: none; }
+  .tip { position: absolute; left: 10px; right: 10px; background: #fff; border-radius: 16px; padding: 12px 14px 10px; font-size: 12px; line-height: 1.5; color: var(--ink); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  .tip .n { font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+  .tip .row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .tip .skip { font-size: 10.5px; color: var(--ink3); }
+  .tip .next { padding: 6px 14px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
+  .tip .wait { font-size: 10.5px; color: var(--ink3); }
+
+  .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .58); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .dlg { background: #fff; border-radius: 20px; padding: 20px 18px 14px; font-size: 13px; line-height: 1.55; }
+  .dlg h3 { margin: 0 0 8px; font-size: 15px; }
+  .dlg .actions { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+  .dlg .b { padding: 10px; border-radius: 999px; text-align: center; font-size: 13px; font-weight: 600; }
+  .dlg .b.fill { background: var(--accent); color: #fff; }
+  .dlg .b.text { color: var(--ink2); font-weight: 500; }
+
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 18px 18px 0 0; padding: 14px 14px 16px; box-shadow: 0 -6px 20px rgba(0,0,0,.2); }
+  .sheet h4 { margin: 0 0 10px; font-size: 12.5px; }
+  .opt { padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line); margin-top: 6px; font-size: 12px; font-weight: 600; }
+
+  .legend { max-width: 760px; margin: 26px auto 0; background: #fff; border-radius: 16px; padding: 14px 18px; font-size: 12.5px; line-height: 1.6; color: var(--ink2); }
+  .legend b { color: var(--ink); }
+</style>
+</head>
+<body>
+<h1>Hướng dẫn từng bước, làm thử trực tiếp</h1>
+<p class="sub">Mỗi bước chỉ sáng đúng một chỗ, người dùng tự bấm thử, bấm đúng thì sang bước sau. Chữ chỉ dẫn là chữ của bạn. Các ngày vừa tập tự xóa khi người dùng sang mục Cài đặt.</p>
+<div class="screens" id="screens"></div>
+
+<div class="legend">
+  <b>Quy ước</b><br>
+  Vòng trắng nhấp nháy và bàn tay là chỗ người dùng phải bấm. Phần còn lại của màn hình bị phủ mờ, bấm vào không có tác dụng.<br>
+  Ngày "hôm qua" trong bước 3 là ngày thật của hôm trước (ở đây ví dụ ngày 15), không cố định là ngày 12.<br>
+  Nút "Bỏ qua" ở góc mỗi bước cho thoát chuyến hướng dẫn bất cứ lúc nào; xem lại được ở Cài đặt, mục Hướng dẫn dùng.
+</div>
+
+<script>
+// Màn chính giản lược: trả về HTML. `sel` là ô đang chọn, `done` cho biết đã nhập giờ chưa.
+function home(opts) {
+  opts = opts || {};
+  const days = [];
+  // Kỳ bắt đầu thứ Năm: hai tuần đầu để trống vài ô cho giống lịch thật.
+  for (let i = 0; i < 3; i++) days.push('<div class="cell empty"></div>');
+  const cellsData = {
+    1: ['ok', '07:00', '17:00'], 2: ['ok', '07:00', '16:00'], 3: ['ok', '07:00', '19:00', '3h'],
+    4: ['', 'Chưa'], 5: ['ok', '07:00', '16:00'], 6: ['ok', '07:00', '18:00', '2h'], 7: ['ok', '07:00', '16:00'],
+    8: ['off', 'Nghỉ'], 9: ['ok', '07:00', '16:00'], 10: ['ok', '07:00', '17:30', '1h30'], 11: ['ok', '07:00', '16:00'],
+    12: ['ok', '07:00', '16:00'], 13: ['ok', '07:00', '16:00'], 14: ['', 'Chưa'], 15: ['', 'Chưa'], 16: ['', '']
+  };
+  for (let d = 1; d <= 16; d++) {
+    const [cls, a, b, ot] = cellsData[d];
+    let c = cls;
+    if (d === (opts.sel || 0)) c += ' sel';
+    if (d === 15 && opts.dayOff) c = 'off sel';
+    days.push('<div class="cell ' + c + '" id="d' + d + '"><b>' + d + '</b><i>' + (d === 15 && opts.dayOff ? 'Nghỉ' : a) + '</i>' +
+      (b && !(d === 15 && opts.dayOff) && cls ? '<i>' + b + '</i>' : '') +
+      (ot ? '<span class="ot">' + ot + '</span>' : '') + '</div>');
+  }
+  const inT = opts.inDone ? '07:00' : 'Chấm vào';
+  const outT = opts.outDone ? '16:00' : 'Chấm ra';
+  return '<div class="home">' +
+    '<div class="top"><b>21/09 – 20/10</b><div class="chips"><span class="chip" id="chipLunar">Âm lịch</span><span class="chip" id="chipTime">Giờ vào/ra</span></div></div>' +
+    '<div class="hero" id="hero"><div class="t">Tổng quan kỳ 21/09 – 20/10</div><div class="nums">' +
+    '<div><b>96h</b><span>Giờ công</span></div><div><b>6h30</b><span>Tăng ca</span></div><div><b>102h30</b><span>Tổng giờ</span></div><div><b>1</b><span>Ngày nghỉ</span></div></div></div>' +
+    '<div class="wd"><span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span></div>' +
+    '<div class="cal" id="cal">' + days.join('') + '</div>' +
+    '<div class="btns"><div class="btn in" id="bIn">' + inT + '</div><div class="btn out" id="bOut">' + outT + '</div><div class="btn" id="bOff">Ngày nghỉ</div><div class="btn" id="bLate">Đi muộn</div></div>' +
+    '<div class="note" id="bNote">Ghi chú cho ngày này...</div>' +
+    '</div>';
+}
+
+// Các bước. `target` là id của chỗ sáng; `pos` là tooltip nằm trên (top) hay dưới (bottom) màn hình.
+const steps = [
+  { cap: '0. Lời mở', small: 'Hiện ngay sau khung giới thiệu', dialog: {
+      title: 'Hướng dẫn cách dùng',
+      text: 'Mình sẽ hướng dẫn bạn cách dùng, hãy làm theo chỉ dẫn nhé.', ok: 'Bắt đầu', skip: 'Bỏ qua' } },
+  { cap: '0b. Nói trước về nhập tay', small: 'Hiện trước hai bước nhập giờ, bấm Tiếp để đi tiếp', dialog: {
+      title: 'Nhập tay',
+      text: 'Chức năng nhập tay này được dùng khi bạn không muốn dùng tự động chấm công hoặc muốn sửa lại.', ok: 'Tiếp', skip: '' } },
+  { cap: '1. Nút chấm giờ vào', small: 'Chờ người dùng chạm nút, chọn giờ, lưu', target: 'bIn', pos: 'top', hand: true,
+      n: 'Bước 1/8', text: 'Đây là nút chấm giờ vào. Bạn hãy thử nhập giờ vào của bạn nhé.', wait: 'Chạm vào nút sáng để thử' },
+  { cap: '2. Nút chấm giờ ra', small: 'Giống bước 1', target: 'bOut', pos: 'top', hand: true, home: { inDone: true },
+      n: 'Bước 2/8', text: 'Đây là nút chấm giờ ra. Bạn hãy thử nhập giờ ra của bạn nhé.', wait: 'Chạm vào nút sáng để thử' },
+  { cap: '3a. Chọn ngày nghỉ', small: 'Dùng ngày hôm qua của hôm đó (ví dụ 15)', target: 'd15', pos: 'bottom', hand: true, home: { inDone: true, outDone: true },
+      n: 'Bước 3/8', text: 'Giả sử hôm qua (ngày 15) bạn nghỉ. Hãy chọn ngày 15.', wait: 'Chạm vào ô sáng' },
+  { cap: '3b. Nút Ngày nghỉ', small: 'Chọn có lương hay không lương', target: 'bOff', pos: 'top', hand: true, home: { inDone: true, outDone: true, sel: 15 }, sheet: true,
+      n: 'Bước 3/8', text: 'Bấm nút Ngày nghỉ, rồi chọn nghỉ có lương hay không lương.', wait: 'Chạm vào nút sáng' },
+  { cap: '4. Nút Đi muộn', small: 'Bấm thử', target: 'bLate', pos: 'top', hand: true, home: { inDone: true, outDone: true, dayOff: true },
+      n: 'Bước 4/8', text: 'Nếu đi muộn, hãy chọn vào nút Đi muộn.', wait: 'Chạm vào nút sáng để thử' },
+  { cap: '5. Ghi chú', small: 'Bấm thử và gõ vài chữ', target: 'bNote', pos: 'top', hand: true, home: { inDone: true, outDone: true, dayOff: true },
+      n: 'Bước 5/8', text: 'Bạn muốn ghi nhớ điều gì hôm nay thì có thể ghi lại ở đây, như bị ốm chẳng hạn.', wait: 'Chạm vào ô sáng để thử' },
+  { cap: '6. Các ô trên lịch', small: 'Màn cuộn lên, giới thiệu số trên ô', target: 'cal', pos: 'bottom', home: { inDone: true, outDone: true, dayOff: true },
+      n: 'Bước 6/8', text: 'Số màu đỏ ở góc ô là giờ tăng ca. Hai dòng chữ nhỏ trong ô là giờ vào và giờ ra. Chữ "Chưa" nghĩa là ngày đó chưa chấm.', next: 'Tiếp' },
+  { cap: '7. Khung thống kê nhanh', small: 'Chưa có số tiền, đó là mức 2', target: 'hero', pos: 'bottom', home: { inDone: true, outDone: true, dayOff: true },
+      n: 'Bước 7/8', text: 'Đây là khung thống kê nhanh: số ngày công làm được, số giờ tăng ca, số ngày nghỉ...', next: 'Tiếp' },
+  { cap: '8. Các nút trên cùng', small: 'Âm lịch, giờ vào/ra...', target: 'topChips', pos: 'bottom', home: { inDone: true, outDone: true, dayOff: true },
+      n: 'Bước 8/8', text: 'Các nút trên cùng: Âm lịch xem ngày âm, Giờ vào/ra xem và sửa giờ làm chuẩn.', next: 'Tiếp' },
+  { cap: '9. Xong, sang chấm công tự động', small: 'Bấm Tiếp theo thì chuyển tới nút cài GPS (tự xóa ngày vừa tập)', home: { inDone: true, outDone: true, dayOff: true }, dialog: {
+      title: 'Vậy là cơ bản đã xong',
+      text: 'Nếu bạn muốn chấm công tự động thì bấm Tiếp theo nhé.<br><br><span style="color:#52615B;font-size:12px">Để dùng chức năng này, bây giờ bạn hãy đến chỗ nơi bạn hay chấm công nhé, hoặc chờ lúc về, cài đặt sau.</span>',
+      ok: 'Tiếp theo', skip: 'Để sau' } }
+];
+
+const root = document.getElementById('screens');
+steps.forEach(function (s) {
+  const wrap = document.createElement('div');
+  wrap.className = 'wrap';
+  wrap.innerHTML = '<p class="caption">' + s.cap + '<small>' + s.small + '</small></p><div class="phone">' + home(s.home) + '</div>';
+  root.appendChild(wrap);
+  const phone = wrap.querySelector('.phone');
+
+  if (s.dialog) {
+    const d = s.dialog;
+    phone.insertAdjacentHTML('beforeend',
+      '<div class="scrim"><div class="dlg"><h3>' + d.title + '</h3><div>' + d.text + '</div><div class="actions"><div class="b fill">' + d.ok + '</div>' +
+      (d.skip ? '<div class="b text">' + d.skip + '</div>' : '') + '</div></div></div>');
+    return;
+  }
+
+  // Mục tiêu "topChips" gồm hai nút trên cùng.
+  let box;
+  const pr = phone.getBoundingClientRect();
+  if (s.target === 'topChips') {
+    const a = phone.querySelector('#chipLunar').getBoundingClientRect();
+    const b = phone.querySelector('#chipTime').getBoundingClientRect();
+    box = { left: a.left, top: a.top, width: b.right - a.left, height: a.height };
+  } else {
+    box = phone.querySelector('#' + s.target).getBoundingClientRect();
+  }
+  const pad = 4;
+  const x = box.left - pr.left - pad, y = box.top - pr.top - pad, w = box.width + pad * 2, h = box.height + pad * 2;
+  let html = '<div class="spot" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px"></div>';
+  html += '<div class="ring" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px"></div>';
+  if (s.hand) html += '<div class="hand" style="left:' + (x + w / 2 - 6) + 'px;top:' + (y + h - 4) + 'px">👆</div>';
+  const foot = s.wait ? '<span class="wait">' + s.wait + '</span>' : '<span class="next">' + s.next + '</span>';
+  const tipPos = s.pos === 'top' ? 'top:' + Math.max(8, y - 128) + 'px' : 'top:' + (y + h + 14) + 'px';
+  html += '<div class="tip" style="' + tipPos + '"><div class="n">' + s.n + '</div>' + s.text +
+    '<div class="row"><span class="skip">Bỏ qua</span>' + foot + '</div></div>';
+  if (s.sheet) {
+    html += '<div class="sheet" style="z-index:5"><h4>Ngày 15/10, chọn loại nghỉ</h4><div class="opt">Nghỉ có lương</div><div class="opt">Nghỉ không lương</div></div>';
+  }
+  phone.insertAdjacentHTML('beforeend', html);
+});
+</script>
+</body>
+</html>

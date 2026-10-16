@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:provider/provider.dart';
 
 import '../../analytics/analytics_service.dart';
@@ -11,6 +12,9 @@ import '../../domain/pay_period.dart';
 import '../../domain/payslip.dart';
 import '../../domain/share_gate.dart';
 import '../../notice/notice.dart';
+import '../../onboarding/intro_dialog.dart';
+import '../../onboarding/tour_controller.dart';
+import '../../onboarding/tour_overlay.dart';
 import '../../share/share_service.dart';
 import '../../theme/app_theme.dart';
 import '../format.dart';
@@ -23,10 +27,14 @@ import 'period_day_chart.dart';
 import 'period_history.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.clock});
+  const HomeScreen({super.key, this.clock, this.showOnboarding = false});
 
   /// Chỉ dùng trong test để cố định "bây giờ"; bình thường là giờ hiện tại.
   final DateTime Function()? clock;
+
+  /// Cho phép tự hiện khung giới thiệu lần đầu mở app. Mặc định tắt để test không bị hộp thoại chặn;
+  /// `main.dart` truyền true.
+  final bool showOnboarding;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -39,6 +47,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showMoneyPerDay = false;
   bool _showCheckTimes = false;
   final _scrollController = ScrollController();
+
+  // Các chỗ sáng của chuyến hướng dẫn (xem `onboarding/tour_overlay.dart`).
+  final _checkInKey = GlobalKey();
+  final _checkOutKey = GlobalKey();
+  final _dayOffKey = GlobalKey();
+  final _lateKey = GlobalKey();
+  final _noteKey = GlobalKey();
+  final _calendarKey = GlobalKey();
+  final _statsKey = GlobalKey();
+  final _topButtonsKey = GlobalKey();
+  final _practiceDayKey = GlobalKey();
 
   /// Trong 5 giây đầu mở app, số to hiện thu nhập hôm nay (tăng dần theo giây); sau đó chuyển lại
   /// hiện tổng thu nhập của kỳ như bình thường, thu nhập hôm nay thu nhỏ thành 1 ô thống kê.
@@ -58,12 +77,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => _showTodayIntro = false);
     });
     shareController.addListener(_onShareChanged);
+    tourController.addListener(_onTourChanged);
     _onShareChanged();
+    if (widget.showOnboarding) WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowIntro());
   }
 
   @override
   void dispose() {
     shareController.removeListener(_onShareChanged);
+    tourController.removeListener(_onTourChanged);
     _scrollController.dispose();
     _tickTimer?.cancel();
     super.dispose();
@@ -75,7 +97,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// động (và mỗi lần người dùng chạm nút "Mở khóa" trên widget).
   void _onShareChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _shareDialogOpen) return;
+      // Đang hiện khung giới thiệu hoặc chạy chuyến hướng dẫn thì chờ xong mới hỏi (gọi lại sau).
+      if (!mounted || _shareDialogOpen || _introOpen || tourController.active) return;
       final s = shareController.state;
       final askReferral = shouldPromptReferral(s, DateTime.now());
       final tellLocked = !shareController.allowed && (!s.lockNoticeShown || shareController.lockNoticeRequested);
@@ -87,7 +110,68 @@ class _HomeScreenState extends State<HomeScreen> {
         await showLockNotice(context);
       }
       _shareDialogOpen = false;
+      _maybeShowIntro();
     });
+  }
+
+  bool _introOpen = false;
+
+  /// Khung giới thiệu lần đầu: chỉ khi máy chưa từng thấy và chưa có ngày chấm công nào; chờ hộp
+  /// "Ai giới thiệu bạn?" (nếu có) xong trước. Bấm "Bắt đầu" thì vào chuyến hướng dẫn.
+  Future<void> _maybeShowIntro() async {
+    if (!widget.showOnboarding || _introOpen || _shareDialogOpen || tourController.active) return;
+    _introOpen = true; // giữ chỗ ngay, kẻo hai lần gọi chồng nhau cùng hiện hộp
+    var start = false;
+    try {
+      final store = context.read<AppStore>();
+      // App bị tắt giữa chuyến lần trước thì trả dữ liệu tập về trước đã.
+      await tourController.restoreIfInterrupted(store);
+      if (!mounted || _shareDialogOpen || shouldPromptReferral(shareController.state, DateTime.now())) return;
+      if (!await tourController.shouldAutoStart(store) || !mounted) return;
+      await tourController.markSeen();
+      if (!mounted) return;
+      start = await showIntroDialog(context);
+    } finally {
+      _introOpen = false;
+    }
+    if (!mounted) return;
+    if (start) {
+      await _startTour();
+    } else {
+      _onShareChanged();
+    }
+  }
+
+  DateTime get _today => dateOnly(widget.clock?.call() ?? DateTime.now());
+
+  /// Bắt đầu chuyến hướng dẫn: về hôm nay, đúng tháng này, đầu trang; chụp và xóa trắng hai ngày tập.
+  Future<void> _startTour({bool replay = false}) async {
+    final store = context.read<AppStore>();
+    final today = _today;
+    setState(() {
+      _selectedDate = today;
+      _viewedMonth = DateTime(today.year, today.month);
+    });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    await tourController.start(store, today: today, replay: replay);
+  }
+
+  /// Kết thúc chuyến: trả hai ngày tập về như cũ; [goSettings] thì mở Cài đặt, cuộn tới thẻ GPS.
+  Future<void> _endTour({bool goSettings = false}) async {
+    await tourController.end(context.read<AppStore>());
+    if (goSettings && mounted) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen(scrollToGps: true)));
+    }
+  }
+
+  void _onTourChanged() {
+    if (!mounted) return;
+    if (tourController.replayRequested && !tourController.active) {
+      _startTour(replay: true);
+      return;
+    }
+    setState(() {});
+    if (!tourController.active) _onShareChanged();
   }
 
   void _openSettings() {
@@ -125,10 +209,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final selectedRecord = store.recordFor(_selectedDate);
     final todayPay = slip.amountOn(today);
 
-    return Scaffold(
-      body: SafeArea(
+    final touring = tourController.active;
+    if (touring) {
+      // Sau khi dựng xong, tự chuyển bước theo thao tác vừa làm (và chọn lại hôm nay nếu cần).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final select = tourController.update(store, _selectedDate);
+        if (select != null && select != _selectedDate) setState(() => _selectedDate = select);
+      });
+    }
+
+    final list = SafeArea(
         child: ListView(
           controller: _scrollController,
+          // Đang chạy chuyến thì dựng sẵn cả trang để mọi chỗ sáng đều đo được.
+          scrollCacheExtent: touring ? const ScrollCacheExtent.pixels(5000) : null,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
             Container(
@@ -144,6 +239,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildIncomeCard(context, period, slip, todayPay),
             const SizedBox(height: 16),
             CalendarGrid(
+              key: _calendarKey,
+              keyFor: (d) => d == tourController.practiceDate ? _practiceDayKey : null,
               month: _viewedMonth,
               selectedDate: _selectedDate,
               store: store,
@@ -172,6 +269,31 @@ class _HomeScreenState extends State<HomeScreen> {
             PeriodDayChartSection(store: store),
           ],
         ),
+      );
+    return Scaffold(
+      body: Stack(
+        children: [
+          list,
+          if (touring)
+            Positioned.fill(
+              child: TourOverlay(
+                controller: tourController,
+                targets: {
+                  TourStep.checkIn: _checkInKey,
+                  TourStep.checkOut: _checkOutKey,
+                  TourStep.pickDayOff: _practiceDayKey,
+                  TourStep.chooseDayOff: _dayOffKey,
+                  TourStep.lateButton: _lateKey,
+                  TourStep.note: _noteKey,
+                  TourStep.calendar: _calendarKey,
+                  TourStep.stats: _statsKey,
+                  TourStep.topButtons: _topButtonsKey,
+                },
+                onSkip: _endTour,
+                onFinish: () => _endTour(goSettings: true),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -221,17 +343,24 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() => _viewedMonth = DateTime(now.year, now.month));
             },
           ),
-        _headerIcon(
-          icon: Icons.brightness_2_outlined,
-          tooltip: 'Âm lịch',
-          color: _showLunar ? primary : null,
-          onPressed: () => setState(() => _showLunar = !_showLunar),
-        ),
-        _headerIcon(
-          icon: Icons.access_time_outlined,
-          tooltip: 'Giờ vào/ra',
-          color: _showCheckTimes ? primary : null,
-          onPressed: () => setState(() => _showCheckTimes = !_showCheckTimes),
+        // Hai nút Âm lịch và Giờ vào/ra gom trong một Row để chuyến hướng dẫn khoét sáng cả hai.
+        Row(
+          key: _topButtonsKey,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _headerIcon(
+              icon: Icons.brightness_2_outlined,
+              tooltip: 'Âm lịch',
+              color: _showLunar ? primary : null,
+              onPressed: () => setState(() => _showLunar = !_showLunar),
+            ),
+            _headerIcon(
+              icon: Icons.access_time_outlined,
+              tooltip: 'Giờ vào/ra',
+              color: _showCheckTimes ? primary : null,
+              onPressed: () => setState(() => _showCheckTimes = !_showCheckTimes),
+            ),
+          ],
         ),
         _headerIcon(
           icon: Icons.payments_outlined,
@@ -253,6 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const smallSize = 15.0;
 
     final card = Container(
+      key: _statsKey,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: colors.primaryGradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
@@ -367,6 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Expanded(
               child: _ActionButton(
+                key: _checkInKey,
                 icon: Icons.login,
                 label: record.checkIn != null ? fmtTime(record.checkIn!) : 'Chấm vào',
                 active: record.checkIn != null,
@@ -377,6 +508,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Expanded(
               child: _ActionButton(
+                key: _checkOutKey,
                 icon: Icons.logout,
                 label: record.checkOut != null ? fmtTime(record.checkOut!) : 'Chấm ra',
                 active: record.checkOut != null,
@@ -387,6 +519,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Expanded(
               child: _ActionButton(
+                key: _dayOffKey,
                 icon: Icons.beach_access_outlined,
                 label: !record.isDayOff ? 'Ngày nghỉ' : (record.paidLeave ? 'Có lương' : 'Không lương'),
                 active: record.isDayOff,
@@ -399,6 +532,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Expanded(
               child: _ActionButton(
+                key: _lateKey,
                 icon: Icons.watch_later_outlined,
                 label: 'Đi muộn',
                 active: record.isLate,
@@ -443,7 +577,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   : past
                   ? 'Ngày này đã chấm vào lúc ${fmtTime(record.checkIn!)} nhưng chưa có giờ về nên chưa được tính công. '
                         'Hãy bấm nút Chấm ra để nhập giờ về.'
-                  : 'Đã qua 23:00 mà chưa chấm được giờ về. Hãy bấm nút Chấm ra để nhập giờ về, nếu không sang '
+                  : 'Đã qua $missedCheckOutHour:00 mà chưa chấm được giờ về. Hãy bấm nút Chấm ra để nhập giờ về, nếu không sang '
                         'ngày mai ngày này sẽ không được tính công.',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: red),
             ),
@@ -510,6 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
       label = 'Ghi chú';
     }
     return SizedBox(
+      key: _noteKey,
       width: double.infinity,
       child: OutlinedButton.icon(
         icon: Icon(hasNote ? Icons.edit_note : Icons.note_add_outlined),
@@ -522,6 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.active,

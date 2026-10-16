@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../notice/help_text.dart';
+import '../../onboarding/tour_controller.dart';
 import 'settings_card.dart';
 
 class HelpEntrySection extends StatelessWidget {
@@ -79,10 +80,24 @@ class HelpScreen extends StatelessWidget {
               : [for (final e in remote) _HelpItem(Icons.tips_and_updates_outlined, e.title, e.body)];
           return ListView.separated(
             padding: const EdgeInsets.all(16),
-            itemCount: items.length,
+            itemCount: items.length + 1,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, i) {
-              final item = items[i];
+              if (i == 0) {
+                // Làm thử trực tiếp trên màn chính: về màn chính rồi chuyến hướng dẫn tự bắt đầu.
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.play_circle_outline),
+                    label: const Text('Xem lại hướng dẫn làm thử'),
+                    onPressed: () {
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                      tourController.requestReplay();
+                    },
+                  ),
+                );
+              }
+              final item = items[i - 1];
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
