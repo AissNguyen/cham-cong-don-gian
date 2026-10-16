@@ -16,6 +16,7 @@ import '../../notice/notice.dart';
 import '../../theme/app_theme.dart';
 import 'android_download_section.dart';
 import 'backup_section.dart';
+import 'bell_section.dart';
 import 'config_share_section.dart';
 import 'feedback_section.dart';
 import 'help_screen.dart';
@@ -370,7 +371,7 @@ class _MoreSettingsCardState extends State<MoreSettingsCard> {
                   kIsWeb
                       ? 'Ngày lễ, tăng ca theo khung, sao lưu, sao chép cấu hình, chia sẻ app, góp ý, hướng dẫn '
                             'dùng, tải bản Android.'
-                      : 'Tắt chấm công GPS, ngày lễ, tăng ca theo khung, sao lưu, sao chép cấu hình, chia sẻ '
+                      : 'Tắt chấm công GPS, ngày lễ, tăng ca theo khung, còi báo giờ, sao lưu, sao chép cấu hình, chia sẻ '
                             'app, góp ý, hướng dẫn dùng.',
                   style: TextStyle(fontSize: 12.5, color: colors.ink2, height: 1.45),
                 ),
@@ -401,6 +402,14 @@ class _MoreSettingsCardState extends State<MoreSettingsCard> {
                       'GPS: tùy chọn thêm',
                       sub: 'Bán kính, khung giờ, địa điểm khác',
                       onTap: () => _push('GPS: tùy chọn thêm', (s) => GpsSection(store: s)),
+                    ),
+                  if (!kIsWeb)
+                    item(
+                      'Còi báo giờ',
+                      sub: settings.bells.isEmpty
+                          ? 'Hú còi vào giờ bạn cài, ví dụ giờ vào làm'
+                          : settings.bells.where((b) => b.enabled).map((b) => b.time.formatted).join(', '),
+                      onTap: () => _push('Còi báo giờ', (s) => BellSection(store: s)),
                     ),
                   item(
                     'Sao lưu dữ liệu',

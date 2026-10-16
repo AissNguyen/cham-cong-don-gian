@@ -443,7 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   : past
                   ? 'Ngày này đã chấm vào lúc ${fmtTime(record.checkIn!)} nhưng chưa có giờ về nên chưa được tính công. '
                         'Hãy bấm nút Chấm ra để nhập giờ về.'
-                  : 'Đã qua 23:00 mà chưa chấm được giờ về. Hãy bấm nút Chấm ra để nhập giờ về, nếu không sang '
+                  : 'Đã qua $missedCheckOutHour:00 mà chưa chấm được giờ về. Hãy bấm nút Chấm ra để nhập giờ về, nếu không sang '
                         'ngày mai ngày này sẽ không được tính công.',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: red),
             ),

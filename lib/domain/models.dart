@@ -358,6 +358,62 @@ class GpsPlace {
 /// Cài đặt chấm công tự động bằng GPS. Một danh sách khung giờ bật GPS duy nhất (không tách
 /// riêng vào/ra): lần chấm được xác nhận đầu tiên trong ngày là chấm vào, lần tiếp theo là chấm
 /// ra — máy tự phân biệt, không cần khai báo khung nào dùng để làm gì.
+/// Ba tiếng còi có sẵn (app tự tạo, không dùng âm thanh có bản quyền).
+enum BellSound {
+  siren('Còi nhà máy'),
+  bell('Chuông'),
+  beep('Tiếng bíp');
+
+  const BellSound(this.label);
+  final String label;
+}
+
+/// Một giờ hú còi. Mỗi giờ có số lần hú, độ to và tiếng còi riêng.
+class BellConfig {
+  const BellConfig({required this.time, this.repeats = 3, this.volume = 1.0, this.sound = BellSound.siren, this.enabled = true});
+
+  final Clock time;
+
+  /// Số lần hú (1–10).
+  final int repeats;
+
+  /// Độ to so với âm lượng báo thức của máy (0,1–1).
+  final double volume;
+  final BellSound sound;
+  final bool enabled;
+
+  BellConfig copyWith({Clock? time, int? repeats, double? volume, BellSound? sound, bool? enabled}) => BellConfig(
+    time: time ?? this.time,
+    repeats: repeats ?? this.repeats,
+    volume: volume ?? this.volume,
+    sound: sound ?? this.sound,
+    enabled: enabled ?? this.enabled,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'time': time.toJson(),
+    'n': repeats,
+    'vol': volume,
+    'sound': sound.name,
+    'on': enabled,
+  };
+
+  static BellConfig fromJson(Map<String, dynamic> j) => BellConfig(
+    time: clockOr(j['time'], const Clock(7, 0)),
+    repeats: (j['n'] as num?)?.toInt() ?? 3,
+    volume: (j['vol'] as num?)?.toDouble() ?? 1.0,
+    sound: BellSound.values.firstWhere((s) => s.name == j['sound'], orElse: () => BellSound.siren),
+    enabled: j['on'] as bool? ?? true,
+  );
+}
+
+/// Khoảng giờ tự chấm vào và giờ cuối cùng dò giờ về, cài sẵn cho mọi máy.
+const defaultGpsArriveFrom = Clock(7, 0);
+const defaultGpsArriveTo = Clock(14, 0);
+const defaultGpsDepartUntil = Clock(2, 30);
+
+Clock clockOr(Object? json, Clock fallback) => json is Map ? Clock.fromJson(json.cast<String, dynamic>()) : fallback;
+
 class GpsConfig {
   /// Không truyền [activeWindows] thì dùng các khung cài sẵn ([defaultGpsWindows] và
   /// [defaultGpsRules]); đã truyền khung riêng thì mặc định không có khung lặp nào.
@@ -372,6 +428,9 @@ class GpsConfig {
     this.frequencyMinutes = 2,
     this.soundEnabled = true,
     this.extraPlaces = const [],
+    this.arriveFrom = defaultGpsArriveFrom,
+    this.arriveTo = defaultGpsArriveTo,
+    this.departUntil = defaultGpsDepartUntil,
   }) : repeatRules = repeatRules ?? (activeWindows == null ? defaultGpsRules : const []),
        activeWindows = activeWindows ?? [...defaultGpsWindows];
 
@@ -405,6 +464,14 @@ class GpsConfig {
   /// Các địa điểm khác (nhà trọ, xưởng xa...), chỉ ảnh hưởng tới việc chấm ra.
   final List<GpsPlace> extraPlaces;
 
+  /// Khoảng giờ tự chấm vào: dò chính ở phút 00 và 30, dò trước ở phút 45 và 15, từ [arriveFrom] tới
+  /// [arriveTo]. Xem `domain/gps_engine.dart`.
+  final Clock arriveFrom;
+  final Clock arriveTo;
+
+  /// Sau khi chấm vào, dò giờ về ở phút 15 và 45 tới giờ này (có thể sang sáng hôm sau, mặc định 2:30).
+  final Clock departUntil;
+
   GpsConfig copyWith({
     bool? enabled,
     double? latitude,
@@ -416,6 +483,9 @@ class GpsConfig {
     int? frequencyMinutes,
     bool? soundEnabled,
     List<GpsPlace>? extraPlaces,
+    Clock? arriveFrom,
+    Clock? arriveTo,
+    Clock? departUntil,
   }) => GpsConfig(
     enabled: enabled ?? this.enabled,
     latitude: latitude ?? this.latitude,
@@ -427,6 +497,9 @@ class GpsConfig {
     frequencyMinutes: frequencyMinutes ?? this.frequencyMinutes,
     soundEnabled: soundEnabled ?? this.soundEnabled,
     extraPlaces: extraPlaces ?? this.extraPlaces,
+    arriveFrom: arriveFrom ?? this.arriveFrom,
+    arriveTo: arriveTo ?? this.arriveTo,
+    departUntil: departUntil ?? this.departUntil,
   );
 
   Map<String, dynamic> toJson() => {
@@ -441,6 +514,9 @@ class GpsConfig {
     'freq': frequencyMinutes,
     'sound': soundEnabled,
     'extraPlaces': extraPlaces.map((p) => p.toJson()).toList(),
+    'arriveFrom': arriveFrom.toJson(),
+    'arriveTo': arriveTo.toJson(),
+    'departUntil': departUntil.toJson(),
   };
 
   factory GpsConfig.fromJson(Map<String, dynamic> json) {
@@ -474,6 +550,9 @@ class GpsConfig {
       extraPlaces: [
         ...?(json['extraPlaces'] as List?)?.map((p) => GpsPlace.fromJson(p as Map<String, dynamic>)),
       ],
+      arriveFrom: clockOr(json['arriveFrom'], defaultGpsArriveFrom),
+      arriveTo: clockOr(json['arriveTo'], defaultGpsArriveTo),
+      departUntil: clockOr(json['departUntil'], defaultGpsDepartUntil),
     );
   }
 }
@@ -692,6 +771,7 @@ class AppSettings {
     this.showNotice = true,
     this.showGps = true,
     List<PayVersion>? payVersions,
+    this.bells = const [],
   }) : payVersions = payVersions ?? [],
        wageTable = wageTable ?? WageTable(),
        fixedBreakRules = fixedBreakRules ?? [],
@@ -735,6 +815,7 @@ class AppSettings {
       holidays: keep?.holidays,
       showNotice: keep?.showNotice ?? true,
       showGps: keep?.showGps ?? true,
+      bells: keep?.bells ?? const [],
     );
   }
 
@@ -783,6 +864,9 @@ class AppSettings {
   /// Phần lương theo từng kỳ, xếp theo [PayVersion.from] tăng dần. Kỳ nào bắt đầu trước bản ghi đầu
   /// tiên thì dùng [baseSalary], [dailyWage], [incomeItems] ở trên.
   final List<PayVersion> payVersions;
+
+  /// Còi báo giờ (giờ vào làm...): tới giờ thì điện thoại hú, trừ ngày đã đánh dấu nghỉ.
+  final List<BellConfig> bells;
 
   /// Cài đặt dùng để tính phiếu lương của kỳ bắt đầu ngày [periodStart]: phần lương lấy theo bản
   /// ghi gần nhất có hiệu lực từ trước hoặc đúng ngày đó.
@@ -853,8 +937,10 @@ class AppSettings {
     bool? showNotice,
     bool? showGps,
     List<PayVersion>? payVersions,
+    List<BellConfig>? bells,
   }) => AppSettings(
     payVersions: payVersions ?? this.payVersions,
+    bells: bells ?? this.bells,
     workStart: workStart ?? this.workStart,
     workEnd: workEnd ?? this.workEnd,
     wageTable: wageTable ?? this.wageTable,
@@ -895,6 +981,7 @@ class AppSettings {
     'showNotice': showNotice,
     'showGps': showGps,
     'payVersions': payVersions.map((v) => v.toJson()).toList(),
+    'bells': bells.map((b) => b.toJson()).toList(),
   };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -929,6 +1016,7 @@ class AppSettings {
       standardDays: (json['standardDays'] as Map?)?.map((k, v) => MapEntry('$k', (v as num).toDouble())),
       showNotice: json['showNotice'] as bool? ?? true,
       showGps: json['showGps'] as bool? ?? true,
+      bells: [for (final b in (json['bells'] as List?) ?? const []) BellConfig.fromJson((b as Map).cast<String, dynamic>())],
       payVersions: (json['payVersions'] as List?)
           ?.map((e) => PayVersion.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -970,6 +1058,8 @@ class DayRecord {
     this.gpsLastSeenNearby,
     this.gpsLeftUnknown = false,
     this.checkOutByGps = false,
+    this.gpsLastFixAt,
+    this.gpsDoneMarks = const [],
   });
 
   /// Ngày (đã bỏ giờ phút), dùng làm khóa.
@@ -998,6 +1088,13 @@ class DayRecord {
   /// thấy người dùng quay lại chỗ làm.
   final bool checkOutByGps;
 
+  /// Lần gần nhất trong ngày GPS dò ra được vị trí (ở đâu cũng được), để biết điện thoại vẫn bắt được
+  /// GPS khi lần dò chính chấm vào bị mất sóng.
+  final DateTime? gpsLastFixAt;
+
+  /// Các mốc dò GPS gần đây đã làm xong (hoặc đã bỏ vì trễ), để báo thức dự phòng không dò lại.
+  final List<DateTime> gpsDoneMarks;
+
   bool get hasAttendance => checkIn != null;
   bool get isOpenShift => checkIn != null && checkOut == null;
 
@@ -1015,6 +1112,8 @@ class DayRecord {
     bool clearGpsLastSeenNearby = false,
     bool? gpsLeftUnknown,
     bool? checkOutByGps,
+    DateTime? gpsLastFixAt,
+    List<DateTime>? gpsDoneMarks,
   }) => DayRecord(
     date: date,
     checkIn: clearCheckIn ? null : (checkIn ?? this.checkIn),
@@ -1032,6 +1131,8 @@ class DayRecord {
     checkOutByGps: clearCheckOut || clearCheckIn
         ? false
         : (checkOutByGps ?? (checkOut != null ? false : this.checkOutByGps)),
+    gpsLastFixAt: gpsLastFixAt ?? this.gpsLastFixAt,
+    gpsDoneMarks: gpsDoneMarks ?? this.gpsDoneMarks,
   );
 
   Map<String, dynamic> toJson() => {
@@ -1046,6 +1147,8 @@ class DayRecord {
     'gpsLastSeenNearby': gpsLastSeenNearby?.toIso8601String(),
     if (gpsLeftUnknown) 'gpsLeftUnknown': true,
     if (checkOutByGps) 'checkOutByGps': true,
+    if (gpsLastFixAt != null) 'gpsLastFixAt': gpsLastFixAt!.toIso8601String(),
+    if (gpsDoneMarks.isNotEmpty) 'gpsDone': gpsDoneMarks.map((m) => m.toIso8601String()).toList(),
   };
 
   factory DayRecord.fromJson(Map<String, dynamic> json) => DayRecord(
@@ -1060,6 +1163,8 @@ class DayRecord {
     gpsLastSeenNearby: json['gpsLastSeenNearby'] != null ? DateTime.parse(json['gpsLastSeenNearby'] as String) : null,
     gpsLeftUnknown: json['gpsLeftUnknown'] as bool? ?? false,
     checkOutByGps: json['checkOutByGps'] as bool? ?? false,
+    gpsLastFixAt: json['gpsLastFixAt'] != null ? DateTime.parse(json['gpsLastFixAt'] as String) : null,
+    gpsDoneMarks: [for (final m in (json['gpsDone'] as List?) ?? const []) ?DateTime.tryParse(m as String)],
   );
 }
 

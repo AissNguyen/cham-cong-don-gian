@@ -1,6 +1,6 @@
-/// Đặt báo thức đánh thức máy đúng lúc mỗi khung giờ kiểm tra GPS bắt đầu, rồi khởi động dịch vụ
-/// chạy nền (có thông báo) để kiểm tra vị trí. Dịch vụ tự tắt khi khung đó xong việc hoặc hết khung;
-/// khung kế tiếp báo thức bật lại.
+/// Đặt báo thức đánh thức máy đúng từng mốc dò GPS (phút 00/15/30/45 lúc chờ chấm vào, phút 15/45
+/// sau khi đã vào), rồi khởi động dịch vụ chạy nền (có thông báo) để dò vị trí. Dịch vụ dò xong mốc đó
+/// thì tự tắt; mốc kế tiếp báo thức bật lại.
 library;
 
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
@@ -13,28 +13,32 @@ import '../share/background_unlock.dart';
 import '../share/share_state_file.dart';
 import 'gps_task_handler.dart';
 
-// Các khung cài sẵn (khung lặp mỗi giờ) đã là hơn 30 khung một ngày.
-const _maxWindows = 64;
 const _serviceId = 300;
 
-// Mốc kiểm tra giờ về (phút 05 và 35): nhiều nhất 48 mốc một ngày.
-const _maxMarks = 48;
+/// Mỗi mốc dò có một báo thức chính đúng giờ và một báo thức dự phòng ngần này phút sau (nếu báo thức
+/// chính bị máy hoãn hay bỏ thì báo thức dự phòng dò thay; mốc đã dò xong thì nó bỏ qua).
+const _backupAfterMinutes = 4;
 
-/// Kiểm tra giờ về mà chưa xác định được thì thử lại cách nhau ngần này phút.
-const _markRetryMinutes = 2;
+// Tối đa 200 báo thức (mỗi mốc 2 cái).
+const _maxAlarms = 200;
+int _alarmId(int index) => 5200 + index;
 
-int _windowAlarmId(int index) => 5000 + index;
-int _markAlarmId(int index) => 5100 + index;
+// Các dãy số báo thức của những bản trước (khung giờ 5000+, mốc 05/35 5100+), hủy khi đặt lại.
+final _oldAlarmIds = [for (var i = 5000; i < 5200; i++) i];
 
-Future<void> _dailyAlarm(int id, Clock at) => AndroidAlarmManager.periodic(
-  const Duration(days: 1),
+/// Báo thức loại "đồng hồ báo thức": máy không được hoãn để tiết kiệm pin (đổi lại, nhiều máy hiện
+/// biểu tượng đồng hồ báo thức trên thanh trạng thái). Mỗi báo thức chỉ reo một lần; khi reo, nó tự
+/// đặt lại cho hôm sau (xem [gpsAlarmCallback]).
+Future<void> _alarmAt(int id, Clock at) => AndroidAlarmManager.oneShotAt(
+  _nextOccurrence(at),
   id,
   gpsAlarmCallback,
-  startAt: _nextOccurrence(at),
+  alarmClock: true,
   exact: true,
   wakeup: true,
-  rescheduleOnReboot: true,
   allowWhileIdle: true,
+  rescheduleOnReboot: true,
+  params: {'h': at.hour, 'm': at.minute},
 );
 
 DateTime _nextOccurrence(Clock time) {
@@ -44,46 +48,59 @@ DateTime _nextOccurrence(Clock time) {
   return next;
 }
 
-Future<void> cancelAllGpsAlarms() async {
-  for (var i = 0; i < _maxWindows; i++) {
-    await AndroidAlarmManager.cancel(_windowAlarmId(i));
+/// Giờ của tất cả báo thức: mỗi mốc dò một báo thức chính và một báo thức dự phòng.
+List<Clock> _alarmTimes(GpsConfig gps) {
+  final set = <int>{};
+  for (final c in gpsProbeTimes(gps)) {
+    set.add(c.totalMinutes);
+    set.add((c.totalMinutes + _backupAfterMinutes) % (24 * 60));
   }
-  for (var i = 0; i < _maxMarks; i++) {
-    await AndroidAlarmManager.cancel(_markAlarmId(i));
+  final list = set.toList()..sort();
+  return [for (final t in list) Clock(t ~/ 60, t % 60)];
+}
+
+Future<void> cancelAllGpsAlarms() async {
+  for (final id in _oldAlarmIds) {
+    await AndroidAlarmManager.cancel(id);
+  }
+  for (var i = 0; i < _maxAlarms; i++) {
+    await AndroidAlarmManager.cancel(_alarmId(i));
   }
 }
 
-/// Gọi lại mỗi khi cài đặt GPS đổi (bật/tắt, thêm/sửa/xóa khung giờ, đổi vị trí) để báo thức khớp
-/// với cấu hình mới nhất.
+/// Gọi lại mỗi khi cài đặt GPS đổi (bật/tắt, đổi giờ, đổi vị trí) để báo thức khớp với cấu hình mới
+/// nhất. App cũng gọi mỗi lần mở.
 Future<void> rescheduleGpsAlarms(GpsConfig gps) async {
   await cancelAllGpsAlarms();
   if (!gps.enabled || gps.latitude == null) return;
-
-  // Đầu mỗi khung giờ: dò chấm vào. Phút 05 và 35: kiểm tra giờ về.
-  final windows = gps.allWindows;
-  for (var i = 0; i < windows.length && i < _maxWindows; i++) {
-    await _dailyAlarm(_windowAlarmId(i), windows[i].from);
-  }
-  final marks = gpsMarkTimes(gps);
-  for (var i = 0; i < marks.length && i < _maxMarks; i++) {
-    await _dailyAlarm(_markAlarmId(i), marks[i]);
+  final times = _alarmTimes(gps);
+  for (var i = 0; i < times.length && i < _maxAlarms; i++) {
+    await _alarmAt(_alarmId(i), times[i]);
   }
 }
 
-/// Chạy trong tiến trình nền riêng khi báo thức reo — khởi động dịch vụ kiểm tra vị trí.
-/// Phải là hàm cấp cao nhất.
+/// Chạy trong tiến trình nền riêng khi báo thức reo: đặt lại chính báo thức này cho hôm sau, rồi
+/// khởi động dịch vụ dò vị trí nếu có mốc cần dò (hoặc mốc bị bỏ cần ghi nhật ký). Phải là hàm cấp cao
+/// nhất.
 @pragma('vm:entry-point')
-Future<void> gpsAlarmCallback() async {
+Future<void> gpsAlarmCallback(int id, Map<String, dynamic> params) async {
+  final h = params['h'];
+  final m = params['m'];
+  if (h is int && m is int) await _alarmAt(id, Clock(h, m));
+
   final json = await readDataJson();
   final settings = settingsFromJson(json);
   if (!settings.effectiveGps.enabled) return;
-  // Lúc này không có việc gì (ngày nghỉ, chưa tới mốc kiểm tra, giờ ra bấm tay...) thì không bật dịch vụ.
   final now = DateTime.now();
-  final task = gpsTaskAt(settings: settings, todayRecord: recordFromJson(json, now), now: now);
-  if (task == GpsTask.none) return;
-  final repeatMinutes = task == GpsTask.arrival ? settings.gps.frequencyMinutes : _markRetryMinutes;
+  final plans = gpsPendingPlans(
+    settings: settings,
+    today: recordFromJson(json, now),
+    yesterday: recordFromJson(json, now.subtract(const Duration(days: 1))),
+    now: now,
+  );
+  if (plans.isEmpty) return;
   // Hết ngày dùng thử mà chưa mở khóa: hỏi máy chủ xem đã có ai nhập mã của máy này chưa; chưa
-  // thì không khởi động dịch vụ kiểm tra vị trí.
+  // thì không khởi động dịch vụ dò vị trí.
   if (!await autoFeatureAllowed() && !await tryUnlockInBackground()) return;
 
   FlutterForegroundTask.init(
@@ -97,7 +114,8 @@ Future<void> gpsAlarmCallback() async {
     ),
     iosNotificationOptions: const IOSNotificationOptions(showNotification: false),
     foregroundTaskOptions: ForegroundTaskOptions(
-      eventAction: ForegroundTaskEventAction.repeat(repeatMinutes * 60 * 1000),
+      // Không dò ra vị trí thì thử lại sau 3 phút (lượt "tick" kế tiếp).
+      eventAction: ForegroundTaskEventAction.repeat(gpsRetryMinutes * 60 * 1000),
       autoRunOnBoot: false,
       allowWakeLock: true,
       allowWifiLock: false,

@@ -6,13 +6,13 @@ void main() {
   final day = DateTime(2026, 10, 12);
   final open = DayRecord(date: day, checkIn: DateTime(2026, 10, 12, 7, 0));
 
-  test('ca hôm nay đang mở, chưa tới 23:00 -> chưa coi là quên chấm về', () {
+  test('ca hôm nay đang mở, chưa tới 22:00 -> chưa coi là quên chấm về', () {
     expect(isMissedCheckOut(open, DateTime(2026, 10, 12, 16, 30)), isFalse);
-    expect(isMissedCheckOut(open, DateTime(2026, 10, 12, 22, 59)), isFalse);
+    expect(isMissedCheckOut(open, DateTime(2026, 10, 12, 21, 59)), isFalse);
   });
 
-  test('ca hôm nay vẫn mở khi đã qua 23:00 -> quên chấm về', () {
-    expect(isMissedCheckOut(open, DateTime(2026, 10, 12, 23, 0)), isTrue);
+  test('ca hôm nay vẫn mở khi đã qua 22:00 -> quên chấm về', () {
+    expect(isMissedCheckOut(open, DateTime(2026, 10, 12, 22, 0)), isTrue);
     expect(isMissedCheckOut(open, DateTime(2026, 10, 12, 23, 45)), isTrue);
   });
 

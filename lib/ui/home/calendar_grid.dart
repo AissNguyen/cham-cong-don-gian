@@ -155,7 +155,7 @@ class _DayCell extends StatelessWidget {
       onFill = colors.warn;
       bottomLabel = date.isBefore(today) ? 'Chưa' : null;
     } else if (record.isOpenShift) {
-      // Đã chấm vào mà qua 23:00 (hoặc đã sang ngày khác) vẫn chưa có giờ về: báo đỏ để chấm lại.
+      // Đã chấm vào mà qua 22:00 (hoặc đã sang ngày khác) vẫn chưa có giờ về: báo đỏ để chấm lại.
       final missed = isMissedCheckOut(record, DateTime.now());
       fill = missed ? colors.lateMark : colors.openShiftMark;
       onFill = Colors.white;

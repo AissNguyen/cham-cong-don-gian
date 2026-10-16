@@ -4,6 +4,7 @@ library;
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../bell/bell_service.dart' show bellNotificationAction;
 import '../ui/format.dart';
 
 final _plugin = FlutterLocalNotificationsPlugin();
@@ -12,7 +13,11 @@ var _initialized = false;
 Future<void> _ensureInitialized() async {
   if (_initialized) return;
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-  await _plugin.initialize(const InitializationSettings(android: androidInit));
+  // Đăng ký cả xử lý nút "Tắt còi" để lần khởi tạo này không làm mất nó (cùng một plugin thông báo).
+  await _plugin.initialize(
+    const InitializationSettings(android: androidInit),
+    onDidReceiveBackgroundNotificationResponse: bellNotificationAction,
+  );
   _initialized = true;
 }
 

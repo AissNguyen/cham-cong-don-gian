@@ -1,21 +1,25 @@
 /// Quyết định máy có nên tự chấm công theo GPS ngay lúc này không — tách riêng khỏi các plugin
 /// vị trí/thông báo để kiểm tra được bằng test thuần Dart.
 ///
-/// Cách chấm (chốt ngày 2026-10-10):
-/// - **Chấm vào**: trong khung giờ bật GPS, thấy trong [GpsConfig.radiusMeters] là chấm vào.
-/// - **Chấm ra**: sau khi chấm vào, mỗi nửa tiếng kiểm tra đúng một lần ở phút 05 và phút 35. Còn
-///   trong [GpsConfig.departRadiusMeters] (hoặc mất GPS nhưng thấy Wi-Fi quen của chỗ làm) thì ghi
-///   **giờ về tạm**; lần kiểm tra sau thấy đã ra ngoài thì giờ về tạm đó thành giờ chấm ra.
-/// - **Mở lại ca**: giờ ra do GPS chốt thì cứ 2 tiếng kiểm tra lại một lần; thấy vẫn ở chỗ làm thì bỏ
-///   giờ ra, theo dõi lại từ đầu (đi ăn trưa rồi quay lại...).
-/// - Không xác định được (không GPS, không Wi-Fi quen) sau vài lần thử: báo đỏ để người dùng tự xem.
+/// Cách chấm (người dùng chốt ngày 2026-10-14). Mỗi lần dò: lấy GPS; không lấy được thì thử lại 2
+/// lần, mỗi lần cách 3 phút; trong lúc mất GPS thì xem Wi-Fi quen.
+/// - **Chấm vào**, từ [GpsConfig.arriveFrom] (7:00) tới [GpsConfig.arriveTo] (14:00):
+///   - Dò trước ở phút 45 và 15 (có cả 6:45): chỉ để biết điện thoại còn dò ra vị trí, ở đâu cũng được.
+///   - Dò chính ở phút 00 và 30: trong [GpsConfig.departRadiusMeters] (200 m) thì chấm vào, giờ vào là
+///     đúng mốc đó; ngoài 200 m thì chờ mốc sau. Không dò ra vị trí (và không có Wi-Fi quen nào cho
+///     biết) thì xem lần dò trước: lần đó dò ra được vị trí thì chấm vào, không thì chưa vào.
+/// - **Chấm ra**: sau khi chấm vào, dò ở phút 15 và 45 tới [GpsConfig.departUntil] (2:30 sáng hôm
+///   sau). Trong 200 m: vẫn đang làm. Ngoài 200 m: chấm ra, giờ ra là x:00 (dò phút 15) hoặc x:30
+///   (dò phút 45). Không dò ra vị trí: coi như vẫn đang làm.
+/// - **Mở lại ca**: giờ ra do GPS chốt thì dò thêm 3 lần, cách nhau 1 tiếng. Trong 200 m, hoặc không
+///   dò ra vị trí: bỏ giờ ra, chấm lại từ đầu.
+/// - **Wi-Fi quen**: app tự học Wi-Fi thấy khi GPS báo trong 200 m (chỗ làm) và ngoài 200 m (nhà...).
+///   Mất GPS mà chỉ thấy Wi-Fi chỗ làm thì coi như ở chỗ làm; chỉ thấy Wi-Fi ngoài thì coi như đã đi.
 library;
 
 import 'dart:math' as math;
 
 import 'models.dart';
-
-bool _inWindow(Clock now, List<TimeWindow> windows) => windows.any((w) => now >= w.from && now <= w.to);
 
 /// Khoảng cách giữa 2 tọa độ (mét), công thức Haversine.
 double distanceMeters(double lat1, double lon1, double lat2, double lon2) {
@@ -29,7 +33,8 @@ double distanceMeters(double lat1, double lon1, double lat2, double lon2) {
   return r * c;
 }
 
-/// Làm tròn về mốc 30 phút gần nhất (không công ty nào nhận giờ lẻ) — ví dụ 6:50 -> 7:00, 7:20 -> 7:30.
+/// Làm tròn về mốc 30 phút gần nhất — ví dụ 6:50 -> 7:00, 7:20 -> 7:30. (Dùng cho dữ liệu cũ; cách
+/// chấm GPS mới lấy thẳng mốc giờ, không làm tròn.)
 DateTime roundToHalfHour(DateTime t) {
   final total = t.hour * 60 + t.minute;
   final rounded = ((total + 15) ~/ 30) * 30;
@@ -53,141 +58,207 @@ GpsPlace? _extraPlaceAt(GpsConfig gps, double lat, double lng) {
   return best;
 }
 
-// ---- Lịch kiểm tra ----
+// ---- Lịch dò ----
 
-/// Phút trong mỗi nửa tiếng mà app kiểm tra giờ về: phút 05 và phút 35.
-const gpsMarkMinute = 5;
+/// Không dò ra vị trí thì thử lại ngần này lần, mỗi lần cách [gpsRetryMinutes] phút.
+const gpsRetries = 2;
+const gpsRetryMinutes = 3;
 
-/// Mỗi mốc kiểm tra kéo dài tối đa ngần này phút (để còn thử lại khi chưa xác định được).
-const gpsMarkSpanMinutes = 10;
+/// Giờ ra do GPS chốt thì dò lại ngần này lần, mỗi lần cách [gpsReopenEveryMinutes] phút.
+const gpsReopenChecks = 3;
+const gpsReopenEveryMinutes = 60;
 
-/// Chưa chấm vào thì chỉ các khung trước giờ này mới dò lặp lại để bắt lúc tới nơi; sau giờ này mỗi
-/// khung dò một lần.
-const gpsArrivalPollUntil = Clock(13, 0);
+int _minutes(Clock c) => c.totalMinutes;
 
-/// Giờ về tạm cũ hơn ngần này so với lúc thấy đã ra ngoài thì không dùng được (lần kiểm tra liền
-/// trước đã không xác định được còn ở chỗ làm).
-const gpsTentativeMaxAge = Duration(minutes: 45);
+/// Giờ cuối dò giờ về có sang ngày hôm sau không (ví dụ 2:30 sáng).
+bool _departOvernight(GpsConfig gps) => _minutes(gps.departUntil) < _minutes(gps.arriveFrom);
 
-/// Giờ ra do GPS chốt thì cứ ngần này phút kiểm tra lại một lần xem có quay lại chỗ làm không.
-const gpsReopenEveryMinutes = 120;
+/// Các giờ trong ngày cần đặt báo thức: phút 00/15/30/45 trong khoảng chấm vào (kể cả 15 phút trước
+/// giờ bắt đầu), và phút 15/45 từ sau giờ bắt đầu tới giờ cuối dò giờ về (có thể sang sáng hôm sau).
+List<Clock> gpsProbeTimes(GpsConfig gps) {
+  final set = <int>{};
+  final from = _minutes(gps.arriveFrom);
+  final to = _minutes(gps.arriveTo);
+  for (var t = from - 15; t <= to; t += 15) {
+    set.add((t + 24 * 60) % (24 * 60));
+  }
+  final until = _minutes(gps.departUntil) + (_departOvernight(gps) ? 24 * 60 : 0);
+  for (var t = from + 15; t <= until; t += 30) {
+    set.add(t % (24 * 60));
+  }
+  final list = set.toList()..sort();
+  return [for (final t in list) Clock(t ~/ 60, t % 60)];
+}
 
-/// Không xác định được vị trí thì thử lại thêm ngần này lần (mỗi lần cách nhau theo tần suất đã cài).
-const gpsUnknownRetries = 3;
+/// Báo thức trễ so với mốc quá ngần này phút thì bỏ mốc đó (mốc kế tiếp vẫn dò bình thường): lúc chờ
+/// chấm vào (mốc cách nhau 15 phút) cho trễ 5 phút; dò giờ về và dò lại (mốc phút 15/45) cho trễ tới
+/// phút 35 hoặc 05, tức 20 phút.
+int gpsLateLimitMinutes(GpsTask task) =>
+    task == GpsTask.arrival || task == GpsTask.arrivalCheck ? 5 : 20;
 
-/// Việc dịch vụ nền cần làm lúc này.
+/// Mỗi lần chạy, xem lại các mốc trong ngần này phút gần nhất để ghi nhật ký những mốc bị bỏ.
+const gpsLookBackMinutes = 60;
+
+/// Việc của một lần dò.
 enum GpsTask {
-  none,
+  /// Dò trước ở phút 45/15 trong khoảng chấm vào: chỉ để biết điện thoại còn dò ra vị trí.
+  arrivalCheck,
 
-  /// Chưa chấm vào, đang trong khung giờ: dò xem đã tới nơi chưa.
+  /// Dò chính ở phút 00/30 trong khoảng chấm vào.
   arrival,
 
-  /// Đã chấm vào, đang ở mốc phút 05/35: kiểm tra còn ở chỗ làm không.
+  /// Đã chấm vào, dò ở phút 15/45 xem đã về chưa.
   departure,
 
-  /// Giờ ra do GPS chốt, tới lượt kiểm tra lại sau 2 tiếng.
+  /// Giờ ra do GPS chốt, dò lại xem có quay lại chỗ làm không.
   reopen,
 }
 
-/// Lúc [now] có nằm trong khung giờ bật GPS nào không.
-bool inGpsWindow(AppSettings settings, DateTime now) => _inWindow(Clock(now.hour, now.minute), settings.gps.allWindows);
+/// Một lần dò: làm việc gì, ở mốc nào, cho ngày chấm công nào (ca qua nửa đêm thuộc về hôm trước), và
+/// lúc chạy trễ mốc bao nhiêu phút.
+class GpsPlan {
+  const GpsPlan(this.task, this.mark, this.day, {this.lateMinutes = 0});
 
-/// [now] có nằm trong một mốc kiểm tra giờ về (phút 05–14 hoặc 35–44) không.
-bool isGpsMark(DateTime now) {
-  final m = now.minute % 30;
-  return m >= gpsMarkMinute && m < gpsMarkMinute + gpsMarkSpanMinutes;
+  final GpsTask task;
+  final DateTime mark;
+  final DateTime day;
+  final int lateMinutes;
+
+  /// Trễ quá giới hạn: bỏ mốc này.
+  bool get tooLate => lateMinutes > gpsLateLimitMinutes(task);
+
+  String get label => switch (task) {
+    GpsTask.arrivalCheck => 'Vào (dò trước)',
+    GpsTask.arrival => 'Vào',
+    GpsTask.departure => 'Ra',
+    GpsTask.reopen => 'Mở lại ca',
+  };
 }
 
-/// Các giờ trong ngày cần đặt báo thức kiểm tra giờ về: phút 05 và 35, từ lúc khung giờ đầu tiên bắt
-/// đầu tới một tiếng sau khi hết khung giờ cuối cùng (để còn kịp chốt giờ ra của người về muộn nhất).
-/// Không có khung giờ nào thì không có mốc nào.
-List<Clock> gpsMarkTimes(GpsConfig gps) {
-  final windows = gps.allWindows;
-  if (windows.isEmpty) return const [];
-  final first = windows.map((w) => w.from.totalMinutes).reduce(math.min);
-  final last = windows.map((w) => w.to.totalMinutes).reduce(math.max) + 60;
-  return [
-    for (var t = gpsMarkMinute; t < 24 * 60; t += 30)
-      if (t >= first && t <= last) Clock(t ~/ 60, t % 60),
-  ];
-}
+DateTime _quarterFloor(DateTime t) => DateTime(t.year, t.month, t.day, t.hour, t.minute - t.minute % 15);
 
-bool _inMarkSpan(GpsConfig gps, DateTime now) {
-  if (!isGpsMark(now)) return false;
-  final mark = now.hour * 60 + now.minute - (now.minute % 30) + gpsMarkMinute;
-  return gpsMarkTimes(gps).any((c) => c.totalMinutes == mark);
-}
-
-/// Việc cần làm lúc [now] với dữ liệu chấm công của hôm nay.
-GpsTask gpsTaskAt({required AppSettings settings, required DayRecord todayRecord, required DateTime now}) {
+/// Việc ở đúng mốc [mark] (phút 00/15/30/45), hoặc null nếu mốc đó không có việc hay đã làm xong.
+/// [recordOf] trả về dữ liệu chấm công của một ngày (null nếu không có trong tay).
+GpsPlan? gpsPlanForMark({
+  required AppSettings settings,
+  required DayRecord? Function(DateTime day) recordOf,
+  required DateTime mark,
+  required DateTime now,
+}) {
   final gps = settings.gps;
-  if (!gps.enabled || gps.latitude == null || gps.longitude == null) return GpsTask.none;
-  if (todayRecord.isDayOff) return GpsTask.none;
+  if (!gps.enabled || gps.latitude == null || gps.longitude == null) return null;
+  final t = mark.hour * 60 + mark.minute;
+  final quarterOff = mark.minute % 30 == 15; // phút 15 hoặc 45
+  final late = now.difference(mark).inMinutes;
+  GpsPlan? done(GpsPlan? p, DayRecord r) => p == null || r.gpsDoneMarks.contains(mark)
+      ? null
+      : GpsPlan(p.task, p.mark, p.day, lateMinutes: late);
 
-  if (todayRecord.checkIn == null) return inGpsWindow(settings, now) ? GpsTask.arrival : GpsTask.none;
-  if (!_inMarkSpan(gps, now)) return GpsTask.none;
-  if (todayRecord.checkOut == null) return GpsTask.departure;
+  // Sau nửa đêm, trước giờ cuối dò giờ về: làm cho ca của hôm trước.
+  if (_departOvernight(gps) && t <= _minutes(gps.departUntil)) {
+    final prev = recordOf(dateOnly(mark).subtract(const Duration(days: 1)));
+    if (prev == null || prev.isDayOff || prev.checkIn == null) return null;
+    return done(_afterCheckIn(prev, mark, quarterOff), prev);
+  }
 
-  // Giờ ra bấm tay thì không đụng tới; giờ ra do GPS chốt thì 2 tiếng kiểm tra lại một lần.
-  if (!todayRecord.checkOutByGps) return GpsTask.none;
-  final slots = now.difference(todayRecord.checkOut!).inMinutes ~/ 30;
-  final every = gpsReopenEveryMinutes ~/ 30;
-  return slots >= every && slots % every == 0 ? GpsTask.reopen : GpsTask.none;
+  final record = recordOf(dateOnly(mark));
+  if (record == null || record.isDayOff) return null;
+  if (record.checkIn == null) {
+    final from = _minutes(gps.arriveFrom);
+    if (t < from - 15 || t > _minutes(gps.arriveTo)) return null;
+    final task = quarterOff ? GpsTask.arrivalCheck : GpsTask.arrival;
+    return done(GpsPlan(task, mark, dateOnly(record.date)), record);
+  }
+  if (_departOvernight(gps) || t <= _minutes(gps.departUntil)) {
+    return done(_afterCheckIn(record, mark, quarterOff), record);
+  }
+  return null;
 }
 
-/// Hôm nay còn lần kiểm tra nào ở phía trước không (để biết có cần bật dịch vụ nữa không).
-bool gpsHasWorkLeftToday({required AppSettings settings, required DayRecord todayRecord, required DateTime now}) {
-  final gps = settings.gps;
-  if (!gps.enabled || gps.latitude == null || gps.longitude == null || todayRecord.isDayOff) return false;
-  if (todayRecord.checkOut != null && !todayRecord.checkOutByGps) return false;
-  final clock = Clock(now.hour, now.minute);
-  return gps.allWindows.any((w) => clock <= w.to);
+/// Các mốc trong [gpsLookBackMinutes] phút gần nhất (tính cả mốc đang chạy) có việc mà chưa làm, cũ
+/// trước. Mốc nào [GpsPlan.tooLate] là mốc bị bỏ (báo thức trễ quá hoặc không reo).
+List<GpsPlan> gpsPendingPlans({
+  required AppSettings settings,
+  required DayRecord today,
+  required DayRecord yesterday,
+  required DateTime now,
+}) {
+  DayRecord? recordOf(DateTime day) {
+    if (day == dateOnly(today.date)) return today;
+    if (day == dateOnly(yesterday.date)) return yesterday;
+    return null;
+  }
+
+  final latest = _quarterFloor(now);
+  final plans = <GpsPlan>[];
+  for (var k = gpsLookBackMinutes ~/ 15; k >= 0; k--) {
+    final mark = latest.subtract(Duration(minutes: 15 * k));
+    final p = gpsPlanForMark(settings: settings, recordOf: recordOf, mark: mark, now: now);
+    if (p != null) plans.add(p);
+  }
+  return plans;
+}
+
+/// Việc cần làm ngay lúc [now] (mốc gần nhất chưa làm, còn trong giới hạn trễ), hoặc null.
+GpsPlan? gpsPlanAt({
+  required AppSettings settings,
+  required DayRecord today,
+  required DayRecord yesterday,
+  required DateTime now,
+}) {
+  final plans = gpsPendingPlans(settings: settings, today: today, yesterday: yesterday, now: now);
+  if (plans.isEmpty || plans.last.tooLate) return null;
+  return plans.last;
+}
+
+GpsPlan? _afterCheckIn(DayRecord record, DateTime mark, bool quarterOff) {
+  if (!quarterOff) return null;
+  final day = dateOnly(record.date);
+  if (record.checkOut == null) {
+    return mark.isAfter(record.checkIn!) ? GpsPlan(GpsTask.departure, mark, day) : null;
+  }
+  // Giờ ra bấm tay thì không đụng tới. Giờ ra do GPS chốt là mốc dò trừ 15 phút, nên lần dò lại thứ
+  // n rơi vào giờ ra + 15 phút + n tiếng.
+  if (!record.checkOutByGps) return null;
+  final since = mark.difference(record.checkOut!).inMinutes - 15;
+  for (var n = 1; n <= gpsReopenChecks; n++) {
+    if (since == n * gpsReopenEveryMinutes) return GpsPlan(GpsTask.reopen, mark, day);
+  }
+  return null;
 }
 
 // ---- Quyết định ----
 
-/// Một lần xác định vị trí cho biết gì.
+/// Một lần dò cho biết gì.
 enum GpsSight {
-  /// Còn ở chỗ làm: GPS thấy trong [GpsConfig.departRadiusMeters], hoặc đang ở một địa điểm khác
-  /// loại "không chấm về", hoặc mất GPS nhưng thấy Wi-Fi quen.
+  /// Ở chỗ làm: GPS thấy trong 200 m (hoặc ở địa điểm khác loại "không chấm về"), hoặc mất GPS mà
+  /// chỉ thấy Wi-Fi chỗ làm.
   near,
 
-  /// GPS thấy đã ra ngoài [GpsConfig.departRadiusMeters].
+  /// Đã đi: GPS thấy ngoài 200 m, hoặc mất GPS mà chỉ thấy Wi-Fi quen ở ngoài 200 m.
   away,
 
-  /// GPS thấy đang ở một địa điểm khác loại "chấm về" (nhà trọ...).
+  /// GPS thấy đang ở địa điểm khác loại "chấm về" (nhà trọ...).
   atCheckOutPlace,
 
-  /// Không có GPS và cũng không thấy Wi-Fi quen.
+  /// Không dò ra vị trí và không có Wi-Fi quen nào cho biết.
   unknown,
 }
 
-/// Phân loại một tọa độ GPS lấy được.
+/// Phân loại một tọa độ GPS lấy được; [distance] trả về để ghi nhật ký.
 GpsSight classifyGpsFix(GpsConfig gps, double lat, double lng) {
   final place = _extraPlaceAt(gps, lat, lng);
   if (place != null) return place.checkOut ? GpsSight.atCheckOutPlace : GpsSight.near;
-  final dist = distanceMeters(lat, lng, gps.latitude!, gps.longitude!);
-  return dist <= gps.departRadiusMeters ? GpsSight.near : GpsSight.away;
+  return distanceToWork(gps, lat, lng) <= gps.departRadiusMeters ? GpsSight.near : GpsSight.away;
 }
 
-/// Chưa chấm vào: đứng ở [lat]/[lng] có trong bán kính chấm không.
-bool isInsideCheckInRadius(GpsConfig gps, double lat, double lng) =>
-    distanceMeters(lat, lng, gps.latitude!, gps.longitude!) <= gps.radiusMeters;
-
-/// Chưa chấm vào và lần dò này chưa thấy tới nơi: có dò lại trong khung này không. Khung trước
-/// [gpsArrivalPollUntil] thì dò lại, sau đó mỗi khung một lần.
-bool arrivalShouldPollAgain(DateTime now) => Clock(now.hour, now.minute) < gpsArrivalPollUntil;
+double distanceToWork(GpsConfig gps, double lat, double lng) =>
+    distanceMeters(lat, lng, gps.latitude!, gps.longitude!);
 
 enum GpsAction {
   none,
   checkIn,
   checkOut,
-
-  /// Ghi giờ về tạm (mốc ngầm, chưa phải chấm ra).
-  tentative,
-
-  /// Không xác định được: báo đỏ, người dùng tự xem lại giờ về.
-  flagUnknown,
 
   /// Bỏ giờ ra do GPS chốt, theo dõi lại từ đầu.
   reopen,
@@ -198,49 +269,79 @@ class GpsDecision {
 
   final GpsAction action;
 
-  /// Giờ chấm (đã làm tròn) của [GpsAction.checkIn] / [GpsAction.checkOut].
+  /// Giờ chấm của [GpsAction.checkIn] / [GpsAction.checkOut].
   final DateTime? time;
 }
 
-/// Đã chấm vào, tới mốc kiểm tra, lần xác định vị trí cho ra [sight] thì làm gì.
-GpsDecision decideDeparture({required DayRecord todayRecord, required DateTime now, required GpsSight sight}) {
-  final tentative = todayRecord.gpsLastSeenNearby;
+/// Lần dò chính chấm vào (phút 00/30). [previousCheckGotFix]: lần dò trước đó (phút 45/15) có dò ra
+/// được vị trí không, ở đâu cũng được.
+GpsDecision decideArrival({required DateTime mark, required GpsSight sight, required bool previousCheckGotFix}) {
   switch (sight) {
     case GpsSight.near:
-      return const GpsDecision(GpsAction.tentative);
-    case GpsSight.unknown:
-      return const GpsDecision(GpsAction.flagUnknown);
-    case GpsSight.atCheckOutPlace:
-      // Về tới nhà trọ là chắc chắn đã về: có giờ về tạm thì lấy, không thì lấy giờ lúc này.
-      return GpsDecision(GpsAction.checkOut, time: roundToHalfHour(tentative ?? now));
+      return GpsDecision(GpsAction.checkIn, time: mark);
     case GpsSight.away:
-      // Lần kiểm tra liền trước không xác nhận được còn ở chỗ làm thì không biết về lúc nào.
-      if (tentative == null || now.difference(tentative) > gpsTentativeMaxAge) {
-        return const GpsDecision(GpsAction.flagUnknown);
-      }
-      return GpsDecision(GpsAction.checkOut, time: roundToHalfHour(tentative));
+    case GpsSight.atCheckOutPlace:
+      return const GpsDecision(GpsAction.none);
+    case GpsSight.unknown:
+      return previousCheckGotFix ? GpsDecision(GpsAction.checkIn, time: mark) : const GpsDecision(GpsAction.none);
   }
 }
 
-/// Giờ ra do GPS chốt, tới lượt kiểm tra lại: chỉ mở lại ca khi chắc chắn vẫn ở chỗ làm.
-GpsDecision decideReopen(GpsSight sight) =>
-    GpsDecision(sight == GpsSight.near ? GpsAction.reopen : GpsAction.none);
+/// Lần dò trước ở phút 45/15 có dò ra vị trí không: dựa vào giờ dò ra vị trí gần nhất của ngày.
+bool previousCheckGotFix(DayRecord record, DateTime mark) {
+  final fix = record.gpsLastFixAt;
+  if (fix == null) return false;
+  final previous = mark.subtract(const Duration(minutes: 15));
+  return !fix.isBefore(previous) && fix.isBefore(mark);
+}
 
-/// Áp một quyết định vào dữ liệu của ngày. [fixTime] là lúc lấy được vị trí.
-DayRecord applyGpsDecision(DayRecord record, GpsDecision decision, DateTime fixTime) {
+/// Dò giờ về (phút 15/45): đã đi thì giờ ra là mốc trừ 15 phút (x:00 hoặc x:30).
+GpsDecision decideDeparture({required DateTime mark, required GpsSight sight}) {
+  switch (sight) {
+    case GpsSight.near:
+    case GpsSight.unknown:
+      return const GpsDecision(GpsAction.none);
+    case GpsSight.away:
+    case GpsSight.atCheckOutPlace:
+      return GpsDecision(GpsAction.checkOut, time: mark.subtract(const Duration(minutes: 15)));
+  }
+}
+
+/// Dò lại sau khi GPS đã chốt giờ ra: còn ở chỗ làm, hoặc không dò ra vị trí, thì mở lại ca.
+GpsDecision decideReopen(GpsSight sight) => GpsDecision(
+  sight == GpsSight.near || sight == GpsSight.unknown ? GpsAction.reopen : GpsAction.none,
+);
+
+/// Áp một quyết định vào dữ liệu của ngày.
+DayRecord applyGpsDecision(DayRecord record, GpsDecision decision) {
   switch (decision.action) {
     case GpsAction.none:
       return record;
     case GpsAction.checkIn:
-      // Lúc chấm vào cũng là lần đầu thấy ở chỗ làm.
-      return record.copyWith(checkIn: decision.time, isDayOff: false, gpsLastSeenNearby: fixTime);
-    case GpsAction.tentative:
-      return record.copyWith(gpsLastSeenNearby: fixTime, gpsLeftUnknown: false);
+      return record.copyWith(checkIn: decision.time, isDayOff: false);
     case GpsAction.checkOut:
-      return record.copyWith(checkOut: decision.time, checkOutByGps: true, clearGpsLastSeenNearby: true);
-    case GpsAction.flagUnknown:
-      return record.copyWith(gpsLeftUnknown: true);
+      return record.copyWith(checkOut: decision.time, checkOutByGps: true);
     case GpsAction.reopen:
-      return record.copyWith(clearCheckOut: true, gpsLastSeenNearby: fixTime);
+      return record.copyWith(clearCheckOut: true);
+  }
+}
+
+/// Chữ ngắn của một quyết định, để ghi nhật ký.
+String describeDecision(GpsTask task, GpsDecision d, GpsSight sight) {
+  String hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  switch (d.action) {
+    case GpsAction.checkIn:
+      return 'Chấm vào ${hm(d.time!)}';
+    case GpsAction.checkOut:
+      return 'Chấm ra ${hm(d.time!)}';
+    case GpsAction.reopen:
+      return 'Mở lại ca';
+    case GpsAction.none:
+      return switch (task) {
+        GpsTask.arrivalCheck => sight == GpsSight.unknown ? 'Không dò ra vị trí' : 'Dò ra vị trí',
+        GpsTask.arrival => 'Chưa vào',
+        GpsTask.departure => 'Vẫn đang làm',
+        GpsTask.reopen => 'Giữ giờ ra',
+      };
   }
 }
