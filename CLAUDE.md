@@ -26,6 +26,11 @@ Ghi chú cho Claude Code (trên PC, IDE hay trên cloud) để nắm ngữ cản
 - Nhánh chính là `master`. Trên PC, người dùng nhờ Claude commit và push thẳng lên `master`.
 - Claude trên cloud (dùng từ điện thoại): sửa code trên một nhánh mới, mở pull request; người dùng bấm merge trên GitHub; sau đó trên PC chạy `git pull`.
 - Trước khi nhờ Claude trên cloud sửa, PC phải commit và push hết để tránh xung đột. Trước khi sửa trên PC, `git pull` trước.
+- **Câu lệnh chuyển sang PC.** Khi người dùng trên cloud nói kiểu "đưa lên GitHub, mình muốn chuyển sang PC làm việc", Claude trên cloud tự làm hết, không bắt người dùng bấm:
+  1. Commit, push lên một nhánh mới, mở pull request.
+  2. Tự merge pull request đó vào `master` (người dùng đã cho phép sẵn, chỉ áp dụng cho câu lệnh này).
+  3. Tìm phiên Claude Code đang chạy trên PC (dùng `ListAgents`). Nếu có, nhắn cho phiên đó: chạy `git pull` ở thư mục dự án rồi đọc file vừa đồng bộ (ví dụ `Y-TUONG-MOI.md`) và tóm tắt lại cho người dùng. Nếu không thấy phiên nào trên PC, báo người dùng mở Claude Desktop hoặc chạy `claude remote-control` trong thư mục dự án trên PC, rồi đưa sẵn một câu để dán vào Claude trên PC.
+  - Claude trên PC khi nhận tin nhắn này: `git pull` (nếu còn thay đổi chưa commit thì báo người dùng trước, không tự xóa), đọc file được nhắc tới và tiếp tục trao đổi với người dùng.
 - Trên cloud thường không có điện thoại nối vào và có thể không có Flutter: nếu không chạy được `flutter analyze` / `flutter test` thì nói rõ là chưa chạy. Cài APK lên điện thoại, deploy web và deploy luật Firestore làm ở PC (đã đăng nhập Firebase và có adb).
 - Repo này công khai. Không commit khóa ký (`*.jks`, `key.properties`) hay bất kỳ mật khẩu nào. `google-services.json` và `lib/firebase_options.dart` là cấu hình phía máy khách của Firebase (vốn có sẵn trong app phát hành), được commit để build được ở nơi khác.
 
