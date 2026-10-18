@@ -1,30 +1,38 @@
-# HANDOFF — 2026-10-18 12:53 UTC — cloud
+# HANDOFF — 2026-10-19 — cloud
 
-Branch: claude/handoff-2026-10-18-chieu   Repo: aissnguyen/cham-cong-don-gian
+Branch: claude/handoff-2026-10-18-chieu   Repo: AissNguyen/cham-cong-don-gian
 
 ## Mục tiêu của phiên
-Chưa có việc cụ thể. Người dùng chỉ chào hỏi rồi gọi `/handoff` để chuyển phiên.
+Người dùng muốn tạo một app mới, đơn giản: "pc bỏ túi" (Claude hiểu là **máy tính bỏ túi**, tức app làm phép tính, chưa được xác nhận). Người dùng dặn: "hãy thảo luận trước làm nhé".
 
 ## Diễn biến (theo thứ tự)
-1. Người dùng: "xin chao bạn nhé, bạn khoẻ k"
-   Claude: chào lại, nhắc việc gần nhất (16/10: khung giới thiệu lần đầu mở app và hướng dẫn làm thử trên màn chính, `lib/onboarding/`, đang chờ merge PR và thử trên điện thoại), hỏi hôm nay muốn làm gì.
-2. Người dùng: gọi `/handoff`.
-   Claude: repo đang ở trạng thái detached HEAD tại `9ffe493` (Merge PR #10, thêm skill /handoff và /resume-work), nên tạo nhánh `claude/handoff-2026-10-18-chieu` (tên `claude/handoff-2026-10-18` đã được một phiên cloud khác dùng lúc 07:50 UTC cùng ngày, cũng là handoff chưa có việc mới), viết file này, commit và push.
+1. Người dùng: "hãy tạo một ứng dụng mới, đơn giản, là một pc bỏ túi' hãy thảo luận trước làm nhé"
+   Claude: chưa viết code, chỉ đưa đề xuất:
+   - Hiểu "pc bỏ túi" = máy tính bỏ túi (calculator); nếu ý khác (ví dụ điều khiển PC từ điện thoại) thì người dùng nói lại.
+   - Làm app riêng, không gộp vào app Chấm Công: thư mục mới `may-tinh-bo-tui` cạnh thư mục chấm công, repo GitHub riêng.
+   - Viết bằng Flutter, như app Chấm Công (PC đã có Flutter, build, cài, deploy như cũ).
+   - Bản đầu: số 0–9, dấu phẩy, + − × ÷, %, nút C và ⌫, hiện cả phép tính đang gõ lẫn kết quả, số có dấu chấm ngăn hàng nghìn (1.250.000), lịch sử vài phép tính gần nhất lưu trên máy.
+   - Chưa làm: hàm khoa học (sin, cos, căn, lũy thừa), quảng cáo, đăng nhập, Firebase.
+   - Ước lượng: Claude làm khoảng 30–45 phút; người dùng cắm điện thoại để cài thử và đồng ý trước khi tạo repo hay bản web (khoảng 5 phút).
+   - Hỏi 4 câu (xem mục "Câu hỏi còn mở").
+2. Người dùng gọi /handoff, rồi hỏi "sao lâu thế"; Claude viết file này và push ngay.
 
 ## Quyết định đã chốt
-- Không có quyết định mới trong phiên này.
+- Chưa chốt gì. Người dùng chưa trả lời 4 câu hỏi.
 
 ## Thay đổi code
-- Không sửa code. Chỉ thêm/ghi đè `HANDOFF.md`.
+- Không có. Chỉ ghi đè `HANDOFF.md`.
 
 ## Lệnh đã chạy / cài đặt / cấu hình quan trọng
-- `git checkout -b claude/handoff-2026-10-18-chieu`
-- Không chạy `flutter analyze` / `flutter test` (không cần, không sửa code).
+- Không có.
 
 ## Còn dở / bước tiếp theo
-- [ ] Kiểm tra PR của nhánh `claude/huong-dan-tung-buoc` (hướng dẫn lần đầu mở app, 16/10) đã merge chưa; nếu chưa thì người dùng xem và merge.
-- [ ] Trên PC: `git pull`, build APK, cài lên điện thoại thử phần giới thiệu và hướng dẫn làm thử.
-- [ ] Ba mặc định đang chờ người dùng chốt (xem `TIEN-DO.md`, mục "Mặc định Claude tự chọn, chờ người dùng xác nhận").
+- [ ] Chờ người dùng trả lời 4 câu hỏi bên dưới.
+- [ ] Khi đã chốt: tạo dự án Flutter mới (ví dụ `flutter create may_tinh_bo_tui` trong thư mục `may-tinh-bo-tui`, đặt cạnh `cham-cong-don-gian`), viết bộ tính biểu thức thuần Dart kèm test, làm giao diện bàn phím.
+- [ ] Hỏi người dùng trước khi tạo repo GitHub mới hoặc deploy web.
 
 ## Ý tưởng chưa làm, câu hỏi còn mở
-- Người dùng chưa nêu việc mới cho phiên này.
+1. Có đúng là máy tính bỏ túi không?
+2. Chỉ phép tính cơ bản, hay thêm phần khoa học (căn, lũy thừa...)?
+3. Chỉ app Android (APK), hay cả bản web như app Chấm Công?
+4. Tên app? (tạm gọi "Máy Tính Bỏ Túi")
