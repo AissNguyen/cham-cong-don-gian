@@ -71,29 +71,39 @@ class GpsTaskHandler extends TaskHandler {
       var json = await readDataJson();
       final settings = settingsFromJson(json);
       final started = DateTime.now();
-      GpsPlan plan;
-      if (_plan == null) {
-        // Lượt đầu của dịch vụ: ghi nhật ký các mốc bị bỏ (báo thức trễ quá hoặc không reo), rồi lấy
-        // mốc đang chạy nếu còn trong giới hạn trễ.
-        final plans = gpsPendingPlans(
-          settings: settings,
-          today: recordFromJson(json, started),
-          yesterday: recordFromJson(json, started.subtract(const Duration(days: 1))),
-          now: started,
+      // Mỗi lượt xem lại các mốc còn dở: ghi nhật ký mốc bị bỏ (báo thức trễ quá hạn hoặc không reo, hoặc
+      // mốc đang thử lại mà đã quá hạn trễ), rồi lấy mốc mới nhất còn trong giới hạn trễ.
+      final plans = gpsPendingPlans(
+        settings: settings,
+        today: recordFromJson(json, started),
+        yesterday: recordFromJson(json, started.subtract(const Duration(days: 1))),
+        now: started,
+      );
+      for (final p in plans.where((p) => p.tooLate)) {
+        final retrying = p.mark == _plan?.mark;
+        if (!retrying) _attempts = 1;
+        await _log(
+          p,
+          started,
+          '',
+          '',
+          retrying
+              ? 'Bỏ mốc: thử lại chưa xong mà đã quá hạn trễ (${p.lateMinutes} phút)'
+              : 'Bỏ mốc: tới ${_hm(started)} máy mới chạy, trễ ${p.lateMinutes} phút',
         );
-        for (final p in plans.where((p) => p.tooLate)) {
-          _attempts = 1;
-          await _log(p, started, '', '', 'Bỏ mốc: tới ${_hm(started)} máy mới chạy, trễ ${p.lateMinutes} phút');
-          await _markDone(p);
-        }
-        if (plans.isEmpty || plans.last.tooLate) {
-          await _stop();
-          return;
-        }
-        plan = plans.last;
+        await _markDone(p);
+      }
+      final live = plans.where((p) => !p.tooLate).toList();
+      if (live.isEmpty) {
+        await _stop();
+        return;
+      }
+      json = await readDataJson();
+      final plan = live.last;
+      if (_plan?.mark != plan.mark) {
+        // Sang mốc mới (kể cả khi báo thức của mốc này bị bỏ qua vì dịch vụ đang chạy): đếm lại từ đầu.
         _plan = plan;
         _attempts = 0;
-        json = await readDataJson();
         if (!await autoFeatureAllowed()) {
           _attempts = 1;
           await _log(plan, started, '', '', 'Bỏ qua: chấm công tự động đang bị khóa (hết dùng thử)');
@@ -101,8 +111,6 @@ class GpsTaskHandler extends TaskHandler {
           await _stop();
           return;
         }
-      } else {
-        plan = _plan!;
       }
       _attempts++;
       final today = recordFromJson(json, started);
@@ -196,7 +204,7 @@ class GpsTaskHandler extends TaskHandler {
 
   /// Các mạng quét được, sóng mạnh trước: "Xuong (-55), NhaTro (-80) · 6 mạng".
   String _seenText(List<WiFiAccessPoint>? found) {
-    if (found == null) return 'không quét được Wi-Fi';
+    if (found == null) return 'không quét được Wi-Fi${lastWifiScanNote.isEmpty ? '' : ' ($lastWifiScanNote)'}';
     if (found.isEmpty) return 'không thấy mạng nào';
     final best = <String, int>{};
     for (final ap in found) {

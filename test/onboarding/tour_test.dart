@@ -27,7 +27,7 @@ class _MemoryStore extends AppStore {
   Future<void> punchOut(DateTime date, DateTime time) async => _put(recordFor(date).copyWith(checkOut: time));
 
   @override
-  Future<void> setDayOff(DateTime date, bool value, {bool paid = false}) async =>
+  Future<void> setDayOff(DateTime date, bool value, {bool paid = false, bool company = false}) async =>
       _put(recordFor(date).copyWith(isDayOff: value, paidLeave: value && paid, clearCheckIn: value, clearCheckOut: value));
 
   @override

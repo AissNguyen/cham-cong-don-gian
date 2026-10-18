@@ -66,6 +66,17 @@ void main() {
       expect(plan(done, at(18, 49)), isNull);
     });
 
+    test('mốc cũ hơn mốc đã làm gần nhất không bị tính là "mốc bị bỏ" (ví dụ sau khi mở lại ca)', () {
+      // Hôm nay: vào 07:00, dò 11:15 thấy đã đi (chấm ra 11:00), dò 12:15 thấy quay lại nên mở lại ca.
+      // Lúc đó mốc 11:45 không có việc (đã chấm ra rồi); giờ ca đã mở lại thì không được coi là bỏ lỡ.
+      final reopened = checkedIn().copyWith(gpsDoneMarks: [at(12, 15), at(11, 15)]);
+      expect(gpsPendingPlans(settings: settings, today: reopened, yesterday: empty(-1), now: at(12, 19)), isEmpty);
+      // Còn mốc thật sự bị lỡ (sau mốc đã làm gần nhất) thì vẫn được liệt kê.
+      final missed = checkedIn().copyWith(gpsDoneMarks: [at(11, 15)]);
+      final pending = gpsPendingPlans(settings: settings, today: missed, yesterday: empty(-1), now: at(12, 19));
+      expect(pending.map((p) => (p.mark, p.tooLate)), [(at(11, 45), true), (at(12, 15), false)]);
+    });
+
     test('lưu rồi đọc lại giữ các mốc đã làm', () {
       final r = checkedIn().copyWith(gpsDoneMarks: [at(18, 15)]);
       expect(DayRecord.fromJson(r.toJson()).gpsDoneMarks, [at(18, 15)]);

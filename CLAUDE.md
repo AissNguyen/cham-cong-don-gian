@@ -35,6 +35,8 @@ Chưa đổi gì, chờ người dùng quyết định. Danh sách nằm ở `TI
 
 ## Cập nhật lần cuối
 
+2026-10-18 (PC): làm tính năng lấy tăng ca bù giờ thiếu cho công nhân theo `Y-TUONG-MOI.md` (ba mức bù ở Cài đặt tính công, tự nghỉ / công ty cho nghỉ, ngày phép mỗi kỳ, sửa tay giờ từng ngày và số của kỳ, dòng "Giờ tăng ca bị trừ" ở màn chính và thống kê theo kỳ). 240 test qua, analyze sạch; đã build APK, cài lên điện thoại và mở được app, chưa thử tính năng trên máy. Chưa commit, chưa deploy web.
+
 2026-10-16 (cloud, nhánh `claude/huong-dan-tung-buoc`, PR vào `master`): viết khung giới thiệu lần đầu mở app và chuyến hướng dẫn làm thử trên màn chính (`lib/onboarding/`), dữ liệu tập tự trả về như cũ. 219 test qua, analyze sạch; chưa thử trên điện thoại thật, chưa build APK, chưa deploy.
 
 2026-10-10 (PC, sau bản 1.1.0): phiếu lương ở Cài đặt chỉ tính khi hết kỳ (kỳ đang chạy hiện "Chưa chốt"), người chưa có kỳ nào chốt thì thấy phiếu lương mẫu, bảo hiểm không trừ khi nghỉ không lương từ 14 ngày. Phần này đã commit lên `master`, cài lên điện thoại và deploy web; chưa đưa APK mới lên Releases. Cùng ngày: chấm công GPS kiểu mới ít tốn pin (kiểm tra giờ về ở phút 05/35, nhận chỗ làm bằng Wi-Fi quen, mở lại ca, báo đỏ khi không xác định được) và sửa số đếm ngày lễ; đã commit, cài lên điện thoại và deploy web, chưa đưa lên Releases, chưa thử đi làm thật. Người dùng nói tạm dừng sửa app.

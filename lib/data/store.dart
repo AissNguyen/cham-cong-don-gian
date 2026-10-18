@@ -115,16 +115,29 @@ class AppStore extends ChangeNotifier {
   }
 
   /// [paid]: nghỉ có lương (tính một ngày lương cơ bản) hay không lương; chỉ có nghĩa khi [value].
-  Future<void> setDayOff(DateTime date, bool value, {bool paid = false}) async {
+  /// [company]: công ty cho nghỉ (bù tăng ca); không có lương mà không phải công ty thì là tự nghỉ.
+  Future<void> setDayOff(DateTime date, bool value, {bool paid = false, bool company = false}) async {
     final r = recordFor(date);
     await _putRecord(
       r.copyWith(
         isDayOff: value,
         paidLeave: value && paid,
+        companyOff: value && !paid && company,
+        clearManualHours: value,
         clearCheckIn: value,
         clearCheckOut: value,
         isLate: value ? false : r.isLate,
       ),
+    );
+  }
+
+  /// Giờ công / giờ tăng ca sửa tay của một ngày (phút); cả hai null là trả về số app tự tính.
+  Future<void> setManualHours(DateTime date, {int? normalMinutes, int? overtimeMinutes}) async {
+    final r = recordFor(date);
+    await _putRecord(
+      r.copyWith(
+        clearManualHours: true,
+      ).copyWith(manualNormalMinutes: normalMinutes, manualOvertimeMinutes: overtimeMinutes),
     );
   }
 

@@ -42,6 +42,13 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
         return s.copyWith(wageTable: WageTable(rates: rates));
       });
 
+  /// Đổi mức bù tăng ca. Lần đầu bật thì cho 1 ngày phép, tính từ đầu kỳ đang chạy.
+  Future<void> _setOffsetMode(OvertimeOffsetMode mode) => store.updateSettings((s) {
+    if (mode == OvertimeOffsetMode.off || s.leaveAnchors.isNotEmpty) return s.copyWith(offsetMode: mode);
+    final start = periodContaining(DateTime.now(), s.payPeriod).start;
+    return s.copyWith(offsetMode: mode, leaveAnchors: [LeaveAnchor(date: start, days: 1)]);
+  });
+
   Future<void> _pickTime(bool start) async {
     final c = start ? settings.workStart : settings.workEnd;
     final picked = await showTimePicker(context: context, initialTime: TimeOfDay(hour: c.hour, minute: c.minute));
@@ -227,6 +234,47 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
       ),
     );
 
+    // --- Bù tăng ca (chỉ công nhân) ---
+    final mode = settings.offsetMode;
+    final offsetLine = Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.line))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Lấy tăng ca bù vào ngày nghỉ, ngày đi muộn', style: TextStyle(fontSize: 14, color: colors.ink2)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final (m, label) in const [
+                (OvertimeOffsetMode.off, 'Tắt'),
+                (OvertimeOffsetMode.company, 'Chỉ ngày do công ty'),
+                (OvertimeOffsetMode.all, 'Cả ngày tự nghỉ'),
+              ])
+                ChoiceChip(
+                  key: ValueKey('offset-mode-${m.name}'),
+                  label: Text(label),
+                  selected: mode == m,
+                  onSelected: (_) => _setOffsetMode(m),
+                ),
+            ],
+          ),
+          if (mode != OvertimeOffsetMode.off) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Mỗi ngày đủ 8 tiếng (thứ 7: 7:00–11:30) mới tính tăng ca. Ngày công ty cho nghỉ, ngày vào muộn '
+              'hoặc về sớm theo yêu cầu được lấy tăng ca trong kỳ bù vào. '
+              '${mode == OvertimeOffsetMode.all ? 'Ngày tự nghỉ (đã hết phép) và ngày tự đi muộn cũng được bù, không trừ đi muộn.' : 'Ngày tự nghỉ (đã hết phép) mất công; tự đi muộn thì trừ theo luật đi muộn.'} '
+              'Mỗi kỳ lương được 1 ngày phép, tự nghỉ thì trừ phép trước.',
+              style: TextStyle(fontSize: 11.5, color: colors.ink3, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+
     // --- Đi muộn ---
     final late = settings.lateRule;
     final lateMinutes = late.unit == LateUnit.minutes;
@@ -271,7 +319,10 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
           : Row(
               children: [
                 Expanded(child: Text('Đi muộn', style: TextStyle(fontSize: 14, color: colors.ink2))),
-                Text(lateMinutes ? 'trừ ${fmtN(late.amount)} phút' : 'trừ ${fmtMoney(late.amount)}', style: valueStyle),
+                if (settings.usesOvertimeOffset && mode == OvertimeOffsetMode.all)
+                  Text('không trừ, đã bù bằng tăng ca', style: unitStyle)
+                else
+                  Text(lateMinutes ? 'trừ ${fmtN(late.amount)} phút' : 'trừ ${fmtMoney(late.amount)}', style: valueStyle),
               ],
             ),
     );
@@ -281,7 +332,7 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
       trailing: EditToggleButton(editing: _editing, onPressed: () => setState(() => _editing = !_editing)),
       child: Padding(
         padding: const EdgeInsets.only(top: 10),
-        child: Column(children: [periodLine, hoursLine, wageBlock, lateLine]),
+        child: Column(children: [periodLine, hoursLine, wageBlock, if (worker) offsetLine, lateLine]),
       ),
     );
   }

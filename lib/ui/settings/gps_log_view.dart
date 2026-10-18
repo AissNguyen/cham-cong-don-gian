@@ -116,6 +116,15 @@ class _GpsLogViewState extends State<GpsLogView> {
           : 'Chỉ $wifiTopNetworks mạng xuất hiện nhiều nhất (từ $wifiMinSightings lần trở lên) được dùng làm mốc.',
       children: [
         if (list.isEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('Chưa có', style: muted)),
+        // Cho thấy app vẫn đang đếm, kẻo tưởng danh sách trống là mất dữ liệu.
+        if (all.length > shown.length)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'Đang đếm ngầm thêm ${all.length - shown.length} mạng chưa đủ $wifiMinSightings lần (chưa hiện).',
+              style: muted,
+            ),
+          ),
         for (final g in named) group(g, g.name),
         if (nameless.isNotEmpty) group(WifiGroup('', nameless), '(chưa biết tên)'),
       ],

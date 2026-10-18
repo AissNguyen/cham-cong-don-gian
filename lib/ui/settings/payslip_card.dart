@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../data/store.dart';
+import '../../domain/leave.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
 import '../../domain/payslip.dart';
@@ -201,6 +202,30 @@ class _PayslipCardState extends State<PayslipCard> {
       standardDays: value > 0 ? {...s.standardDays, period.key: value} : ({...s.standardDays}..remove(period.key)),
     ),
   );
+
+  /// Sửa tay số của kỳ theo số công ty chốt; [value] null là trả về số app tự tính.
+  Future<void> _setPeriodOverride(PayPeriod period, {required bool overtime, double? value}) =>
+      store.updateSettings((s) {
+        final map = {...(overtime ? s.overtimeHoursOverride : s.workDaysOverride)};
+        if (value == null || value < 0) {
+          map.remove(period.key);
+        } else {
+          map[period.key] = value;
+        }
+        return overtime ? s.copyWith(overtimeHoursOverride: map) : s.copyWith(workDaysOverride: map);
+      });
+
+  /// Sửa số ngày phép hiện có: thêm mốc "tính tới hôm nay có [days] ngày phép".
+  Future<void> _setLeave(double days) => store.updateSettings((s) {
+    final today = dateOnly(DateTime.now());
+    return s.copyWith(
+      leaveAnchors: [
+        for (final a in s.leaveAnchors)
+          if (dateOnly(a.date) != today) a,
+        LeaveAnchor(date: today, days: days < 0 ? 0 : days),
+      ],
+    );
+  });
 
   Future<void> _addItem(PayslipSection section) async {
     final item = await showNewPayItemDialog(context, section: section);
@@ -424,6 +449,14 @@ class _PayslipCardState extends State<PayslipCard> {
                       b(fmtHours(slip.normalMinutes)),
                       const TextSpan(text: ' · tăng ca '),
                       b(fmtHours(slip.overtimeMinutes)),
+                      if (slip.workDaysOverridden || slip.overtimeOverridden) const TextSpan(text: ' (sửa tay)'),
+                    ],
+                    if (slip.overtimeOffset) ...[
+                      const TextSpan(text: '\nNgày phép: dùng '),
+                      b('${slip.leaveUsedDays}'),
+                      const TextSpan(text: ' · còn '),
+                      b(fmtN(slip.leaveBalance)),
+                      const TextSpan(text: ' ngày'),
                     ],
                   ]
                 : [
@@ -467,18 +500,48 @@ class _PayslipCardState extends State<PayslipCard> {
             onDelete: slip.standardOverridden ? () => _askClearStandard(period, slip.autoStandardDays) : null,
           ),
           _addButton('Thêm khoản căn cứ', PayslipSection.basis),
+          // Ngày công, giờ tăng ca app tự tính từ chấm công; sửa được theo số công ty chốt.
+          _editRow(
+            name: 'Ngày công thực tế',
+            how: 'ngày · app tự tính ${fmtN(slip.autoWorkDays)}',
+            field: InlineNumberField(
+              key: ValueKey('workdays-${period.key}'),
+              value: slip.workDays,
+              percent: true,
+              width: 70,
+              onChanged: (v) => _setPeriodOverride(period, overtime: false, value: v),
+            ),
+            onDelete: slip.workDaysOverridden ? () => _setPeriodOverride(period, overtime: false) : null,
+          ),
+          _editRow(
+            name: 'Giờ tăng ca',
+            how: 'giờ · app tự tính ${fmtHours(slip.autoOvertimeSeconds ~/ 60)}',
+            field: InlineNumberField(
+              key: ValueKey('overtime-${period.key}'),
+              value: double.parse((slip.overtimeSeconds / 3600).toStringAsFixed(2)),
+              percent: true,
+              width: 70,
+              onChanged: (v) => _setPeriodOverride(period, overtime: true, value: v),
+            ),
+            onDelete: slip.overtimeOverridden ? () => _setPeriodOverride(period, overtime: true) : null,
+          ),
+          if (settings.usesOvertimeOffset)
+            _editRow(
+              name: 'Ngày phép hiện có',
+              how: 'ngày · mỗi kỳ tự cộng 1',
+              field: InlineNumberField(
+                key: const ValueKey('leave-balance'),
+                value: leaveBalanceFor(settings, store.recordFor, DateTime.now()),
+                percent: true,
+                width: 70,
+                onChanged: _setLeave,
+              ),
+            ),
           const SizedBox(height: 8),
           Text.rich(
             TextSpan(
               style: bodyStyle.copyWith(fontSize: 12.5, height: 1.6),
-              children: [
-                const TextSpan(text: 'Tự tính từ chấm công, không sửa ở đây:\nthực tế '),
-                b(fmtN(slip.workDays)),
-                const TextSpan(text: ' ngày · giờ công '),
-                b(fmtHours(slip.normalMinutes)),
-                const TextSpan(text: ' · tăng ca '),
-                b(fmtHours(slip.overtimeMinutes)),
-              ],
+              children: [const TextSpan(text: 'Giờ công '), b(fmtHours(slip.normalMinutes))],
             ),
           ),
         ] else ...[

@@ -230,20 +230,36 @@ Future<void> clearKnownWifi() async {
   } catch (_) {}
 }
 
+/// Lý do của lần quét gần nhất không thành (để ghi vào nhật ký GPS); rỗng nếu quét được.
+String lastWifiScanNote = '';
+
 /// Quét các mạng Wi-Fi đang thấy. Trả về null nếu không quét được (tắt Wi-Fi, thiếu quyền, máy không
-/// cho quét lúc này).
+/// cho quét lúc này); lý do nằm ở [lastWifiScanNote].
 Future<List<WiFiAccessPoint>?> scanWifi() async {
-  if (kIsWeb) return null;
+  lastWifiScanNote = '';
+  if (kIsWeb) {
+    lastWifiScanNote = 'bản web không quét Wi-Fi';
+    return null;
+  }
   try {
     final wifi = WiFiScan.instance;
-    if (await wifi.canStartScan(askPermissions: false) != CanStartScan.yes) return null;
+    final can = await wifi.canStartScan(askPermissions: false);
+    if (can != CanStartScan.yes) {
+      lastWifiScanNote = 'máy chặn quét: ${can.name}';
+      return null;
+    }
     final done = wifi.onScannedResultsAvailable.first.timeout(const Duration(seconds: 10));
     if (!await wifi.startScan()) {
       done.ignore();
+      lastWifiScanNote = 'máy từ chối quét (thường do giới hạn số lần quét khi chạy nền)';
       return null;
     }
     return await done;
-  } catch (_) {
+  } on TimeoutException {
+    lastWifiScanNote = 'đã quét nhưng sau 10 giây không nhận được kết quả';
+    return null;
+  } catch (e) {
+    lastWifiScanNote = 'lỗi khi quét: $e';
     return null;
   }
 }

@@ -6,6 +6,7 @@
 library;
 
 import 'calc.dart';
+import 'leave.dart';
 import 'models.dart';
 import 'pay_period.dart';
 
@@ -42,6 +43,35 @@ class PayslipLine {
   double get signed => type == IncomeItemType.income ? amount : -amount;
 }
 
+/// Cách tính bù tăng ca: một ngày thiếu giờ (hoặc nghỉ không lương) và số giờ tăng ca đã lấy bù.
+class OvertimeOffsetDay {
+  const OvertimeOffsetDay({
+    required this.date,
+    required this.dayOff,
+    this.companyOff = false,
+    this.late = false,
+    required this.shortSeconds,
+    required this.coveredSeconds,
+  });
+
+  final DateTime date;
+
+  /// Ngày nghỉ không lương (thiếu trọn mốc của ngày); false là ngày có đi làm nhưng thiếu giờ.
+  final bool dayOff;
+
+  /// Ngày nghỉ do công ty cho nghỉ (chỉ có nghĩa khi [dayOff]); false là tự nghỉ đã hết phép.
+  final bool companyOff;
+
+  /// Ngày thiếu giờ vì tự đi muộn (đã bấm "Đi muộn").
+  final bool late;
+
+  /// Số giây thiếu so với mốc đủ công của ngày.
+  final int shortSeconds;
+
+  /// Số giây tăng ca đã lấy bù (không quá [shortSeconds]; tăng ca của kỳ hết thì nhỏ hơn).
+  final int coveredSeconds;
+}
+
 class Payslip {
   const Payslip({
     required this.period,
@@ -61,6 +91,15 @@ class Payslip {
     required this.incomes,
     required this.deductions,
     required this.dayAmounts,
+    this.overtimeOffset = false,
+    this.offsetDays = const [],
+    this.autoWorkDays = 0,
+    this.autoOvertimeSeconds = 0,
+    this.workDaysOverridden = false,
+    this.overtimeOverridden = false,
+    this.leaveUsedDays = 0,
+    this.leaveBalance = 0,
+    this.leaveDates = const {},
   });
 
   final PayPeriod period;
@@ -103,6 +142,42 @@ class Payslip {
   /// Phần đóng góp của từng ngày vào Thực nhận (khóa là ngày, 00:00). Tổng các ngày bằng Thực nhận,
   /// trừ khoản cố định của công nhật (không chia theo ngày).
   final Map<DateTime, double> dayAmounts;
+
+  /// Kỳ này tính theo cách bù tăng ca (công nhân bật công tắc ở Cài đặt).
+  final bool overtimeOffset;
+
+  /// Các ngày thiếu giờ được lấy tăng ca bù, theo thứ tự ngày.
+  final List<OvertimeOffsetDay> offsetDays;
+
+  /// Ngày công thực tế và giờ tăng ca app tự tính (trước khi người dùng sửa tay số của kỳ).
+  final double autoWorkDays;
+  final int autoOvertimeSeconds;
+  final bool workDaysOverridden;
+  final bool overtimeOverridden;
+
+  /// Số ngày tự nghỉ trong kỳ được tính là nghỉ phép (nằm trong [paidLeaveDays]).
+  final int leaveUsedDays;
+
+  /// Số ngày phép còn lại sau kỳ này (bật bù tăng ca).
+  final double leaveBalance;
+
+  /// Các ngày tự nghỉ trong kỳ được tính là nghỉ phép.
+  final Set<DateTime> leaveDates;
+
+  /// Ngày [date] có thiếu giờ được tính bù không (null là không).
+  OvertimeOffsetDay? offsetOn(DateTime date) {
+    final d = dateOnly(date);
+    for (final o in offsetDays) {
+      if (o.date == d) return o;
+    }
+    return null;
+  }
+
+  /// Tổng giờ tăng ca bị trừ để bù (giây). [overtimeSeconds] là số còn lại sau khi trừ.
+  int get offsetTakenSeconds => offsetDays.fold(0, (s, d) => s + d.coveredSeconds);
+
+  /// Giờ còn thiếu vì tăng ca của kỳ không đủ bù (giây).
+  int get offsetUncoveredSeconds => offsetDays.fold(0, (s, d) => s + d.shortSeconds - d.coveredSeconds);
 
   double get totalIncome => incomes.fold(0.0, (s, l) => s + l.amount);
   double get totalDeduction => deductions.fold(0.0, (s, l) => s + l.amount);
@@ -169,6 +244,16 @@ Payslip computePayslip({
   final overtimeGroups = <(String, double), int>{};
   final salaryGroups = <double, int>{};
 
+  // Bù tăng ca: các ngày thiếu giờ (ngày, nghỉ không lương?, giây thiếu) và các phần giờ tăng ca có
+  // thể lấy ra bù (ngày, giây, giá một giờ, nhóm của dòng giải thích).
+  final offset = settings.usesOvertimeOffset;
+  final offsetAll = offset && settings.offsetMode == OvertimeOffsetMode.all;
+  // Ngày tự nghỉ được trừ vào phép (tính như nghỉ có lương).
+  final leave = offset ? leaveState(settings, recordOf, period.end) : null;
+  var leaveUsedDays = 0;
+  final shortages = <({DateTime date, bool dayOff, bool companyOff, bool late, int seconds})>[];
+  final pool = <({DateTime date, int seconds, double rate, String group, bool regular})>[];
+
   var normalSeconds = 0;
   var allNormalSeconds = 0;
   var overtimeSeconds = 0;
@@ -185,11 +270,20 @@ Payslip computePayslip({
     final record = recordOf(d);
     if (record.isDayOff) {
       daysOff++;
-      if (record.paidLeave) paidLeaveDays.add(d);
+      final onLeave = leave?.used.contains(d) ?? false;
+      if (onLeave) leaveUsedDays++;
+      if (record.paidLeave || onLeave) paidLeaveDays.add(d);
+      // Nghỉ không lương: công ty cho nghỉ thì luôn bù; tự nghỉ (đã hết phép) chỉ bù ở mức "bù cả ngày
+      // tự nghỉ". Bù đủ mốc của ngày; chủ nhật, lễ thì không.
+      final full = offsetFullDaySeconds(dayTypeOf(d, settings.holidays));
+      final eligible = !record.paidLeave && !onLeave && (record.companyOff || offsetAll);
+      if (offset && eligible && full > 0) {
+        shortages.add((date: d, dayOff: true, companyOff: record.companyOff, late: false, seconds: full));
+      }
       continue;
     }
     if (record.isLate) daysLate++;
-    final closed = record.checkIn != null && record.checkOut != null;
+    final closed = (record.checkIn != null && record.checkOut != null) || record.hasManualHours;
     final openToday = record.isOpenShift && dateOnly(record.date) == today;
     if (!closed && !openToday) continue;
     daysWorked++;
@@ -215,6 +309,22 @@ Payslip computePayslip({
       DayType.holiday => 'lễ',
       _ => 'Tăng ca',
     };
+
+    if (offset) {
+      // Ca đang mở của hôm nay chưa tính là thiếu giờ; giờ tăng ca đã làm thì vẫn lấy bù được.
+      // Thiếu giờ do công ty (vào muộn, về sớm theo yêu cầu) thì luôn bù; tự đi muộn (đã bấm "Đi muộn")
+      // chỉ bù ở mức "bù cả ngày tự nghỉ", còn không thì trừ theo luật đi muộn.
+      final short = offsetFullDaySeconds(type) - nSec;
+      if (closed && regularDay && short > 0 && (!record.isLate || offsetAll)) {
+        shortages.add((date: d, dayOff: false, companyOff: false, late: record.isLate, seconds: short));
+      }
+      if (regularDay) {
+        if (oSec > 0) pool.add((date: d, seconds: oSec, rate: overtimeRate, group: groupName, regular: true));
+      } else {
+        if (nSec > 0) pool.add((date: d, seconds: nSec, rate: normalRate, group: groupName, regular: false));
+        if (oSec > 0) pool.add((date: d, seconds: oSec, rate: overtimeRate, group: groupName, regular: false));
+      }
+    }
 
     if (worker) {
       if (regularDay) {
@@ -254,12 +364,86 @@ Payslip computePayslip({
     }
   }
 
+  // --- Bù tăng ca: lấy giờ tăng ca trong kỳ bù vào các ngày thiếu giờ, theo thứ tự ngày. Lấy giờ
+  // tăng ca T2–T7 trước, rồi mới tới chủ nhật, ngày lễ (cùng nhóm thì giờ rẻ trước, rồi theo ngày);
+  // 1 giờ tăng ca bù 1 giờ thường.
+  // Giờ đã lấy chuyển thành ngày công của ngày thiếu và bớt khỏi tiền tăng ca của ngày làm thêm.
+  final offsetDays = <OvertimeOffsetDay>[];
+  if (offset) {
+    final order = [for (var i = 0; i < pool.length; i++) i]
+      ..sort((a, b) {
+        if (pool[a].regular != pool[b].regular) return pool[a].regular ? -1 : 1;
+        final byRate = pool[a].rate.compareTo(pool[b].rate);
+        return byRate != 0 ? byRate : a.compareTo(b);
+      });
+    final left = [for (final c in pool) c.seconds];
+    var next = 0;
+    for (final sh in shortages) {
+      final day = sh.date;
+      final short = sh.seconds;
+      var need = short;
+      while (need > 0 && next < order.length) {
+        final i = order[next];
+        final chunk = pool[i];
+        final take = need < left[i] ? need : left[i];
+        left[i] -= take;
+        need -= take;
+        if (left[i] == 0) next++;
+        dayWork[day] = (dayWork[day] ?? 0) + take / 3600 / 8;
+        dayOvertime[chunk.date] = (dayOvertime[chunk.date] ?? 0) - take / 3600 * chunk.rate;
+        final key = (chunk.group, chunk.rate);
+        final rest = (overtimeGroups[key] ?? 0) - take;
+        if (rest > 0) {
+          overtimeGroups[key] = rest;
+        } else {
+          overtimeGroups.remove(key);
+        }
+        normalSeconds += take;
+        overtimeSeconds -= take;
+      }
+      offsetDays.add(
+        OvertimeOffsetDay(
+          date: day,
+          dayOff: sh.dayOff,
+          companyOff: sh.companyOff,
+          late: sh.late,
+          shortSeconds: short,
+          coveredSeconds: short - need,
+        ),
+      );
+    }
+  }
+  final offsetTaken = offsetDays.fold(0, (s, d) => s + d.coveredSeconds);
+
+  // --- Số người dùng sửa tay cho kỳ (theo số công ty chốt): ngày công thực tế và giờ tăng ca. Tiền
+  // của từng ngày được co giãn theo tỷ lệ để tổng vẫn khớp.
+  final autoWorkDays = dayWork.values.fold(0.0, (s, v) => s + v);
+  final autoOvertimeSeconds = overtimeSeconds;
+  final workDaysOverride = worker ? settings.workDaysOverride[period.key] : null;
+  if (workDaysOverride != null && autoWorkDays > 0) {
+    final f = workDaysOverride / autoWorkDays;
+    dayWork.updateAll((d, w) => w * f);
+  }
+  final overtimeOverride = worker ? settings.overtimeHoursOverride[period.key] : null;
+  var extraOvertimeMoney = 0.0;
+  if (overtimeOverride != null) {
+    final target = (overtimeOverride * 3600).round();
+    if (autoOvertimeSeconds > 0) {
+      final f = target / autoOvertimeSeconds;
+      dayOvertime.updateAll((d, v) => v * f);
+    } else {
+      // Chưa có giờ tăng ca nào để chia: tính theo giá tăng ca T2–T7, không chia cho ngày nào.
+      extraOvertimeMoney = overtimeOverride * tableRate(settings, DayType.weekday, overtime: true);
+    }
+    overtimeSeconds = target;
+  }
+
   // --- Lượt 2: lập các dòng của phiếu. ---
   final ended = today.isAfter(period.end);
   final autoStd = autoStandardDaysOf(period);
   final overriddenStd = settings.standardDays[period.key];
   final std = worker ? (overriddenStd ?? autoStd.toDouble()) : 0.0;
-  final workDays = dayWork.values.fold(0.0, (s, v) => s + v);
+  final workDays = workDaysOverride ?? dayWork.values.fold<double>(0.0, (s, v) => s + v);
   final monthFraction = monthFractionOf(settings.payPeriod);
   final base = settings.baseSalary * monthFraction;
   final baseText = monthFraction == 1 ? _money(settings.baseSalary) : '${_money(base)} (nửa tháng)';
@@ -316,10 +500,13 @@ Payslip computePayslip({
           }
         }
       case IncomeCalcMethod.overtime:
-        amount = dayOvertime.values.fold(0.0, (s, v) => s + v);
-        how = overtimeGroups.isEmpty
+        amount = dayOvertime.values.fold(0.0, (s, v) => s + v) + extraOvertimeMoney;
+        how = overtimeOverride != null
+            ? 'Sửa tay ${_num(overtimeOverride)}h (app tự tính ${_hours(autoOvertimeSeconds)})'
+            : overtimeGroups.isEmpty
             ? 'Chưa có giờ tăng ca, chủ nhật hay ngày lễ'
             : overtimeGroups.entries.map((e) => '${e.key.$1} ${_hours(e.value)} × ${_money(e.key.$2)}').join(' + ');
+        if (offsetTaken > 0 && overtimeOverride == null) how = '$how (đã lấy ${_hours(offsetTaken)} bù giờ thiếu)';
         dayOvertime.forEach((d, v) => addDay(d, sign * v));
       case IncomeCalcMethod.perWorkDay:
         final days = dayItemCounts[item.id]!;
@@ -408,6 +595,15 @@ Payslip computePayslip({
     incomes: incomes,
     deductions: deductions,
     dayAmounts: dayAmounts,
+    overtimeOffset: offset,
+    offsetDays: offsetDays,
+    autoWorkDays: autoWorkDays,
+    autoOvertimeSeconds: autoOvertimeSeconds,
+    workDaysOverridden: workDaysOverride != null,
+    overtimeOverridden: overtimeOverride != null,
+    leaveUsedDays: leaveUsedDays,
+    leaveBalance: leave?.balance ?? 0,
+    leaveDates: {...?leave?.used.where((d) => !d.isBefore(period.start) && !d.isAfter(period.end))},
   );
 }
 

@@ -81,6 +81,7 @@ bool recordHasData(DayRecord r) =>
     r.checkOut != null ||
     r.isDayOff ||
     r.isLate ||
+    r.hasManualHours ||
     (r.note?.isNotEmpty ?? false) ||
     r.tags.isNotEmpty;
 

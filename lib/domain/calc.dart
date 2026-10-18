@@ -100,7 +100,48 @@ int _lunchBreakMinutes(DateTime checkIn, DateTime checkOut, DateTime windowStart
   return _overlapMinutes(from, to, breakStart, breakEnd);
 }
 
+/// Cách tính bù tăng ca: số giây đủ công của một ngày. T2–T6 đủ 8 tiếng; thứ 7 chỉ làm buổi sáng
+/// 7:00–11:30 (4,5 tiếng). Chủ nhật và ngày lễ không có mốc (không phải bù).
+int offsetFullDaySeconds(DayType type) => switch (type) {
+  DayType.weekday => 8 * 3600,
+  DayType.saturday => 4 * 3600 + 30 * 60,
+  _ => 0,
+};
+
+/// Cách tính bù tăng ca: gộp giờ thường và tăng ca của một ngày T2–T7 rồi chia lại: trong mốc đủ
+/// công ([offsetFullDaySeconds]) là giờ thường, phần vượt mốc mới là tăng ca. Ví dụ vào 9:00 về
+/// 18:00 (trừ nghỉ trưa) được 8 tiếng thường, không có tăng ca. [unit] là 60 nếu đếm theo phút.
+(int, int) _offsetSplit(DayType type, int normal, int overtime, {int unit = 1}) {
+  final full = offsetFullDaySeconds(type) ~/ unit;
+  if (full == 0) return (normal, overtime);
+  final total = normal + overtime;
+  final n = total < full ? total : full;
+  return (n, total - n);
+}
+
+/// Luật đi muộn (trừ phút / trừ tiền) có áp cho ngày này không. Bù tăng ca mức "bù cả ngày tự nghỉ"
+/// thì không: giờ thiếu đã được lấy tăng ca bù, không trừ hai lần.
+bool lateRuleApplies(DayRecord record, AppSettings settings) =>
+    record.isLate && !(settings.usesOvertimeOffset && settings.offsetMode == OvertimeOffsetMode.all);
+
+/// Giờ của một ngày. Ngày có giờ sửa tay thì lấy số sửa tay (ô nào để trống thì lấy số tự tính), không
+/// trừ đi muộn nữa.
 DayCalcResult computeDay(DayRecord record, AppSettings settings) {
+  if (record.isDayOff || !record.hasManualHours) return _computeDayAuto(record, settings);
+  final auto = _computeDayAuto(record, settings);
+  final normal = record.manualNormalMinutes ?? auto.normalMinutes;
+  final overtime = record.manualOvertimeMinutes ?? auto.overtimeMinutes;
+  final wage = settings.wageTable.of(auto.dayType);
+  return DayCalcResult(
+    dayType: auto.dayType,
+    normalMinutes: normal,
+    overtimeMinutes: overtime,
+    lateDeductionMoney: 0,
+    pay: (normal / 60) * wage.normalPerHour + (overtime / 60) * wage.overtimePerHour,
+  );
+}
+
+DayCalcResult _computeDayAuto(DayRecord record, AppSettings settings) {
   final dayType = dayTypeOf(record.date, settings.holidays);
   // Chưa chấm, nghỉ, hoặc mới chấm vào (chưa chấm ra — ca đang mở) thì chưa tính giờ/tiền.
   if (record.isDayOff || record.checkIn == null || record.checkOut == null) {
@@ -115,14 +156,6 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
 
   normalMinutes -= _lunchBreakMinutes(checkIn, checkOut, windowStart, windowEnd);
 
-  var lateDeductionMoney = 0.0;
-  if (record.isLate) {
-    if (settings.lateRule.unit == LateUnit.minutes) {
-      normalMinutes -= settings.lateRule.amount.round();
-    } else {
-      lateDeductionMoney = settings.lateRule.amount;
-    }
-  }
   if (normalMinutes < 0) normalMinutes = 0;
 
   // Tăng ca chỉ tính phần thật sự đã làm sau giờ ra: nếu chấm vào đã muộn hơn giờ ra
@@ -149,6 +182,20 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
     overtimeMinutes = 0;
   }
   if (overtimeMinutes < 0) overtimeMinutes = 0;
+  if (settings.usesOvertimeOffset) {
+    (normalMinutes, overtimeMinutes) = _offsetSplit(dayType, normalMinutes, overtimeMinutes, unit: 60);
+  }
+
+  // Đi muộn trừ sau khi đã chia giờ, để phút bị trừ không được tăng ca bù lại.
+  var lateDeductionMoney = 0.0;
+  if (lateRuleApplies(record, settings)) {
+    if (settings.lateRule.unit == LateUnit.minutes) {
+      normalMinutes -= settings.lateRule.amount.round();
+      if (normalMinutes < 0) normalMinutes = 0;
+    } else {
+      lateDeductionMoney = settings.lateRule.amount;
+    }
+  }
 
   final wage = settings.wageTable.of(dayType);
   var pay = (normalMinutes / 60) * wage.normalPerHour + (overtimeMinutes / 60) * wage.overtimePerHour;
@@ -165,7 +212,8 @@ DayCalcResult computeDay(DayRecord record, AppSettings settings) {
 }
 
 /// Số giây giờ thường / tăng ca của một ca **đang mở** tính tới [now], chính xác theo giây — để số
-/// trên màn chính chạy mượt. Áp dụng giờ nghỉ trưa, đi muộn và tăng ca theo khung như [computeDay];
+/// trên màn chính chạy mượt. Áp dụng giờ nghỉ trưa, đi muộn, tăng ca theo khung và cách chia của bù
+/// tăng ca như [computeDay];
 /// lúc chấm ra, số giây khớp với số phút của [computeDay] (trừ phần lẻ giây).
 class LiveDayHours {
   const LiveDayHours({required this.normalSeconds, required this.overtimeSeconds, required this.lateDeductionMoney});
@@ -179,8 +227,8 @@ class LiveDayHours {
 
 /// Đã chấm ra thì lấy đúng số của [computeDay]; ca đang mở thì đếm tới [now].
 LiveDayHours liveDayHours(DayRecord record, AppSettings settings, DateTime now) {
-  if (record.isDayOff || record.checkIn == null) return LiveDayHours.zero;
-  if (record.checkOut != null) {
+  if (record.isDayOff) return LiveDayHours.zero;
+  if (record.hasManualHours || (record.checkIn != null && record.checkOut != null)) {
     final r = computeDay(record, settings);
     return LiveDayHours(
       normalSeconds: r.normalMinutes * 60,
@@ -188,6 +236,7 @@ LiveDayHours liveDayHours(DayRecord record, AppSettings settings, DateTime now) 
       lateDeductionMoney: r.lateDeductionMoney,
     );
   }
+  if (record.checkIn == null) return LiveDayHours.zero;
 
   final (windowStart, windowEnd) = _span(settings.workStart, settings.workEnd, dateOnly(record.date));
   final checkIn = record.checkIn!;
@@ -201,14 +250,6 @@ LiveDayHours liveDayHours(DayRecord record, AppSettings settings, DateTime now) 
   final (breakStart, breakEnd) = _span(lunchBreakFrom, lunchBreakTo, dateOnly(windowStart));
   normalSeconds -= _overlapSeconds(normalStart, normalEnd, breakStart, breakEnd);
 
-  var lateDeductionMoney = 0.0;
-  if (record.isLate) {
-    if (settings.lateRule.unit == LateUnit.minutes) {
-      normalSeconds -= (settings.lateRule.amount * 60).round();
-    } else {
-      lateDeductionMoney = settings.lateRule.amount;
-    }
-  }
   if (normalSeconds < 0) normalSeconds = 0;
 
   final overtimeStart = checkIn.isAfter(windowEnd) ? checkIn : windowEnd;
@@ -233,6 +274,20 @@ LiveDayHours liveDayHours(DayRecord record, AppSettings settings, DateTime now) 
     overtimeSeconds = 0;
   }
   if (overtimeSeconds < 0) overtimeSeconds = 0;
+  if (settings.usesOvertimeOffset) {
+    (normalSeconds, overtimeSeconds) =
+        _offsetSplit(dayTypeOf(record.date, settings.holidays), normalSeconds, overtimeSeconds);
+  }
+
+  var lateDeductionMoney = 0.0;
+  if (lateRuleApplies(record, settings)) {
+    if (settings.lateRule.unit == LateUnit.minutes) {
+      normalSeconds -= (settings.lateRule.amount * 60).round();
+      if (normalSeconds < 0) normalSeconds = 0;
+    } else {
+      lateDeductionMoney = settings.lateRule.amount;
+    }
+  }
 
   return LiveDayHours(normalSeconds: normalSeconds, overtimeSeconds: overtimeSeconds, lateDeductionMoney: lateDeductionMoney);
 }

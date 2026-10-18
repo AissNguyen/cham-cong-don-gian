@@ -1,8 +1,8 @@
 /// Sao chép / dán cấu hình giữa các máy (thuần Dart).
 ///
 /// Chuỗi kiểu mới viết gọn một dòng, chỉ gồm các con số của phần lương và cài đặt tính công: loại
-/// người dùng, lương cơ bản / lương ngày, kỳ lương, giờ làm, bảng lương/giờ, đi muộn, khung tăng ca và
-/// các khoản của phiếu lương. Không kèm ngày lễ, GPS và các danh sách cũ; máy nhận giữ nguyên những
+/// người dùng, lương cơ bản / lương ngày, kỳ lương, giờ làm, bảng lương/giờ, đi muộn, khung tăng ca,
+/// công tắc bù tăng ca và các khoản của phiếu lương. Không kèm ngày lễ, GPS và các danh sách cũ; máy nhận giữ nguyên những
 /// thứ đó của mình. Vẫn đọc được chuỗi kiểu cũ (toàn bộ cài đặt dạng JSON).
 library;
 
@@ -52,6 +52,7 @@ String encodeSettings(AppSettings s) {
           if (i.inBasis) 1,
         ],
     ],
+    if (s.offsetMode != OvertimeOffsetMode.off) 'ob': s.offsetMode == OvertimeOffsetMode.all ? 2 : 1,
   };
   return '$configSharePrefix${jsonEncode(data)}';
 }
@@ -85,6 +86,7 @@ AppSettings? decodeSettings(String text, {required AppSettings current}) {
       wageTable: incoming.wageTable,
       lateRule: incoming.lateRule,
       incomeItems: incoming.incomeItems,
+      offsetMode: incoming.offsetMode,
     );
   } catch (_) {
     return null;
@@ -100,6 +102,11 @@ AppSettings _decodeCompact(Map<String, dynamic> d) {
   final codes = {for (final e in _calcCodes.entries) e.value: e.key};
   return AppSettings(
     workerKind: d['k'] == 'd' ? WorkerKind.daily : WorkerKind.worker,
+    offsetMode: switch (d['ob']) {
+      1 => OvertimeOffsetMode.company,
+      2 => OvertimeOffsetMode.all,
+      _ => OvertimeOffsetMode.off,
+    },
     baseSalary: n(d['b']),
     dailyWage: n(d['dw']),
     payPeriod: PayPeriodConfig(

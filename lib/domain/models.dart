@@ -749,6 +749,33 @@ class PayVersion {
   );
 }
 
+/// Cách tính bù tăng ca của công nhân: lấy giờ tăng ca trong kỳ bù vào ngày nghỉ, ngày thiếu giờ.
+enum OvertimeOffsetMode {
+  /// Không bù (tính như trước).
+  off,
+
+  /// Chỉ bù ngày thiếu do công ty: công ty cho nghỉ, công ty cho vào muộn / về sớm (ngày không bấm
+  /// "Đi muộn"). Ngày tự nghỉ mất công; ngày tự đi muộn trừ theo luật đi muộn.
+  company,
+
+  /// Bù cả ngày tự nghỉ và ngày tự đi muộn.
+  all,
+}
+
+/// Số ngày phép người dùng có tính tới ngày [date] (trước khi dùng phép của chính ngày đó). Từ đó
+/// về sau, mỗi kỳ lương mới được cộng 1 ngày phép.
+class LeaveAnchor {
+  const LeaveAnchor({required this.date, required this.days});
+
+  final DateTime date;
+  final double days;
+
+  Map<String, dynamic> toJson() => {'date': dateKey(date), 'days': days};
+
+  factory LeaveAnchor.fromJson(Map<String, dynamic> json) =>
+      LeaveAnchor(date: DateTime.parse(json['date'] as String), days: (json['days'] as num).toDouble());
+}
+
 /// Toàn bộ cài đặt của app.
 class AppSettings {
   AppSettings({
@@ -772,7 +799,14 @@ class AppSettings {
     this.showGps = true,
     List<PayVersion>? payVersions,
     this.bells = const [],
-  }) : payVersions = payVersions ?? [],
+    this.offsetMode = OvertimeOffsetMode.off,
+    Map<String, double>? workDaysOverride,
+    Map<String, double>? overtimeHoursOverride,
+    List<LeaveAnchor>? leaveAnchors,
+  }) : leaveAnchors = leaveAnchors ?? const [],
+       workDaysOverride = workDaysOverride ?? {},
+       overtimeHoursOverride = overtimeHoursOverride ?? {},
+       payVersions = payVersions ?? [],
        wageTable = wageTable ?? WageTable(),
        fixedBreakRules = fixedBreakRules ?? [],
        breakSegments = breakSegments ?? [],
@@ -816,6 +850,8 @@ class AppSettings {
       showNotice: keep?.showNotice ?? true,
       showGps: keep?.showGps ?? true,
       bells: keep?.bells ?? const [],
+      offsetMode: keep?.offsetMode ?? OvertimeOffsetMode.off,
+      leaveAnchors: keep?.leaveAnchors,
     );
   }
 
@@ -867,6 +903,24 @@ class AppSettings {
 
   /// Còi báo giờ (giờ vào làm...): tới giờ thì điện thoại hú, trừ ngày đã đánh dấu nghỉ.
   final List<BellConfig> bells;
+
+  /// Công nhân: lấy giờ tăng ca bù vào ngày nghỉ và ngày làm thiếu giờ, như cách công ty tính.
+  /// Xem `Y-TUONG-MOI.md` và [computePayslip].
+  final OvertimeOffsetMode offsetMode;
+
+  /// Đang dùng cách tính bù tăng ca: chỉ có nghĩa với công nhân.
+  bool get usesOvertimeOffset => offsetMode != OvertimeOffsetMode.off && workerKind == WorkerKind.worker;
+
+  /// Ngày công thực tế người dùng tự sửa cho từng kỳ (theo số công ty chốt), khóa là [PayPeriod.key].
+  final Map<String, double> workDaysOverride;
+
+  /// Số giờ tăng ca người dùng tự sửa cho từng kỳ, khóa là [PayPeriod.key].
+  final Map<String, double> overtimeHoursOverride;
+
+  /// Ngày phép (khi bật bù tăng ca): các mốc "có bao nhiêu ngày phép tính tới ngày này", xếp theo
+  /// ngày. Mốc đầu được tạo khi bật bù (1 ngày, từ đầu kỳ đang chạy); người dùng sửa số phép thì thêm
+  /// mốc mới. Rỗng là chưa có ngày phép. Xem `leave.dart`.
+  final List<LeaveAnchor> leaveAnchors;
 
   /// Cài đặt dùng để tính phiếu lương của kỳ bắt đầu ngày [periodStart]: phần lương lấy theo bản
   /// ghi gần nhất có hiệu lực từ trước hoặc đúng ngày đó.
@@ -938,6 +992,10 @@ class AppSettings {
     bool? showGps,
     List<PayVersion>? payVersions,
     List<BellConfig>? bells,
+    OvertimeOffsetMode? offsetMode,
+    Map<String, double>? workDaysOverride,
+    Map<String, double>? overtimeHoursOverride,
+    List<LeaveAnchor>? leaveAnchors,
   }) => AppSettings(
     payVersions: payVersions ?? this.payVersions,
     bells: bells ?? this.bells,
@@ -959,6 +1017,10 @@ class AppSettings {
     standardDays: standardDays ?? this.standardDays,
     showNotice: showNotice ?? this.showNotice,
     showGps: showGps ?? this.showGps,
+    offsetMode: offsetMode ?? this.offsetMode,
+    workDaysOverride: workDaysOverride ?? this.workDaysOverride,
+    overtimeHoursOverride: overtimeHoursOverride ?? this.overtimeHoursOverride,
+    leaveAnchors: leaveAnchors ?? this.leaveAnchors,
   );
 
   Map<String, dynamic> toJson() => {
@@ -982,6 +1044,10 @@ class AppSettings {
     'showGps': showGps,
     'payVersions': payVersions.map((v) => v.toJson()).toList(),
     'bells': bells.map((b) => b.toJson()).toList(),
+    'offsetMode': offsetMode.name,
+    'workDaysOverride': workDaysOverride,
+    'overtimeHoursOverride': overtimeHoursOverride,
+    'leaveAnchors': leaveAnchors.map((a) => a.toJson()).toList(),
   };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -1016,6 +1082,16 @@ class AppSettings {
       standardDays: (json['standardDays'] as Map?)?.map((k, v) => MapEntry('$k', (v as num).toDouble())),
       showNotice: json['showNotice'] as bool? ?? true,
       showGps: json['showGps'] as bool? ?? true,
+      // Bản thử đầu (2026-10-18) lưu công tắc bật/tắt; bật thì bù mọi ngày.
+      offsetMode: json['offsetMode'] != null
+          ? OvertimeOffsetMode.values.asNameMap()[json['offsetMode']] ?? OvertimeOffsetMode.off
+          : (json['overtimeOffset'] == true ? OvertimeOffsetMode.all : OvertimeOffsetMode.off),
+      workDaysOverride: _doubleMap(json['workDaysOverride']),
+      overtimeHoursOverride: _doubleMap(json['overtimeHoursOverride']),
+      leaveAnchors: [
+        for (final a in (json['leaveAnchors'] as List?) ?? const [])
+          LeaveAnchor.fromJson((a as Map).cast<String, dynamic>()),
+      ],
       bells: [for (final b in (json['bells'] as List?) ?? const []) BellConfig.fromJson((b as Map).cast<String, dynamic>())],
       payVersions: (json['payVersions'] as List?)
           ?.map((e) => PayVersion.fromJson(e as Map<String, dynamic>))
@@ -1023,6 +1099,9 @@ class AppSettings {
     );
     return json['workerKind'] == null ? _migrateLegacy(parsed) : parsed;
   }
+
+  static Map<String, double>? _doubleMap(Object? json) =>
+      (json as Map?)?.map((k, v) => MapEntry('$k', (v as num).toDouble()));
 
   /// Dữ liệu của bản trước khi có phiếu lương (tính tiền thẳng theo bảng lương/giờ): chuyển thành
   /// Công nhân sao cho số tiền gần như không đổi. Lương cơ bản chưa có thì suy ra từ lương giờ
@@ -1052,7 +1131,10 @@ class DayRecord {
     this.checkOut,
     this.isDayOff = false,
     this.paidLeave = false,
+    this.companyOff = false,
     this.isLate = false,
+    this.manualNormalMinutes,
+    this.manualOvertimeMinutes,
     this.note,
     this.tags = const [],
     this.gpsLastSeenNearby,
@@ -1070,7 +1152,17 @@ class DayRecord {
 
   /// Chỉ có nghĩa khi [isDayOff]: ngày nghỉ có lương (tính một ngày lương cơ bản) hay không lương.
   final bool paidLeave;
+
+  /// Chỉ có nghĩa khi [isDayOff] và không có lương: công ty cho nghỉ (được lấy tăng ca bù) hay tự nghỉ.
+  final bool companyOff;
   final bool isLate;
+
+  /// Giờ công / giờ tăng ca người dùng tự sửa cho ngày này (phút). Có số thì dùng thay cho số app
+  /// tự tính từ giờ vào/ra; null là để app tự tính.
+  final int? manualNormalMinutes;
+  final int? manualOvertimeMinutes;
+
+  bool get hasManualHours => manualNormalMinutes != null || manualOvertimeMinutes != null;
   final String? note;
   final List<String> tags;
 
@@ -1105,7 +1197,11 @@ class DayRecord {
     bool clearCheckOut = false,
     bool? isDayOff,
     bool? paidLeave,
+    bool? companyOff,
     bool? isLate,
+    int? manualNormalMinutes,
+    int? manualOvertimeMinutes,
+    bool clearManualHours = false,
     String? note,
     List<String>? tags,
     DateTime? gpsLastSeenNearby,
@@ -1121,7 +1217,11 @@ class DayRecord {
     isDayOff: isDayOff ?? this.isDayOff,
     // Hết là ngày nghỉ thì cũng hết là nghỉ có lương.
     paidLeave: (isDayOff ?? this.isDayOff) && (paidLeave ?? this.paidLeave),
+    companyOff:
+        (isDayOff ?? this.isDayOff) && !(paidLeave ?? this.paidLeave) && (companyOff ?? this.companyOff),
     isLate: isLate ?? this.isLate,
+    manualNormalMinutes: clearManualHours ? null : (manualNormalMinutes ?? this.manualNormalMinutes),
+    manualOvertimeMinutes: clearManualHours ? null : (manualOvertimeMinutes ?? this.manualOvertimeMinutes),
     note: note ?? this.note,
     tags: tags ?? this.tags,
     gpsLastSeenNearby: clearGpsLastSeenNearby ? null : (gpsLastSeenNearby ?? this.gpsLastSeenNearby),
@@ -1141,7 +1241,10 @@ class DayRecord {
     'checkOut': checkOut?.toIso8601String(),
     'dayOff': isDayOff,
     'paidLeave': paidLeave,
+    if (companyOff) 'companyOff': true,
     'late': isLate,
+    if (manualNormalMinutes != null) 'manualNormal': manualNormalMinutes,
+    if (manualOvertimeMinutes != null) 'manualOvertime': manualOvertimeMinutes,
     'note': note,
     'tags': tags,
     'gpsLastSeenNearby': gpsLastSeenNearby?.toIso8601String(),
@@ -1157,7 +1260,10 @@ class DayRecord {
     checkOut: json['checkOut'] != null ? DateTime.parse(json['checkOut'] as String) : null,
     isDayOff: json['dayOff'] as bool? ?? false,
     paidLeave: (json['dayOff'] as bool? ?? false) && (json['paidLeave'] as bool? ?? false),
+    companyOff: (json['dayOff'] as bool? ?? false) && (json['companyOff'] as bool? ?? false),
     isLate: json['late'] as bool? ?? false,
+    manualNormalMinutes: (json['manualNormal'] as num?)?.toInt(),
+    manualOvertimeMinutes: (json['manualOvertime'] as num?)?.toInt(),
     note: json['note'] as String?,
     tags: (json['tags'] as List?)?.map((e) => e as String).toList() ?? const [],
     gpsLastSeenNearby: json['gpsLastSeenNearby'] != null ? DateTime.parse(json['gpsLastSeenNearby'] as String) : null,

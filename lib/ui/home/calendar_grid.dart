@@ -4,6 +4,7 @@ import '../../data/store.dart';
 import '../../domain/calc.dart';
 import '../../domain/lunar.dart' as lunar;
 import '../../domain/models.dart';
+import '../../domain/payslip.dart';
 import '../format.dart';
 import '../../theme/app_theme.dart';
 
@@ -19,6 +20,8 @@ class CalendarGrid extends StatelessWidget {
     required this.moneyOf,
     required this.onSelect,
     this.keyFor,
+    this.offsetOf,
+    this.onLeaveOf,
   });
 
   final DateTime month;
@@ -31,6 +34,12 @@ class CalendarGrid extends StatelessWidget {
   /// Tiền của một ngày, lấy từ phiếu lương của kỳ chứa ngày đó.
   final double Function(DateTime date) moneyOf;
   final ValueChanged<DateTime> onSelect;
+
+  /// Bù tăng ca: giờ thiếu được tính bù của một ngày (null là không thiếu).
+  final OvertimeOffsetDay? Function(DateTime date)? offsetOf;
+
+  /// Bù tăng ca: ngày tự nghỉ này được tính là nghỉ phép.
+  final bool Function(DateTime date)? onLeaveOf;
 
   /// Khóa cho ô của một ngày (null = không cần); chuyến hướng dẫn dùng để khoét sáng đúng một ô.
   final GlobalKey? Function(DateTime date)? keyFor;
@@ -87,6 +96,8 @@ class CalendarGrid extends StatelessWidget {
                             showMoneyPerDay: showMoneyPerDay,
                             showCheckTimes: showCheckTimes,
                             money: showMoneyPerDay ? moneyOf(date) : 0,
+                            offset: offsetOf?.call(date),
+                            onLeave: onLeaveOf?.call(date) ?? false,
                             onTap: () => onSelect(date),
                           );
                         },
@@ -113,6 +124,8 @@ class _DayCell extends StatelessWidget {
     required this.showCheckTimes,
     required this.money,
     required this.onTap,
+    this.offset,
+    this.onLeave = false,
   });
 
   final DateTime date;
@@ -126,6 +139,8 @@ class _DayCell extends StatelessWidget {
   /// Tiền của ngày theo phiếu lương (chỉ dùng khi bật "Lương mỗi ngày").
   final double money;
   final VoidCallback onTap;
+  final OvertimeOffsetDay? offset;
+  final bool onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -147,13 +162,15 @@ class _DayCell extends StatelessWidget {
     String? bottomLabel3;
 
     if (record.isDayOff) {
-      // Nghỉ có lương tô đậm; nghỉ không lương tô nhạt, chữ sẫm.
-      final paid = record.paidLeave;
+      // Nghỉ có lương (hoặc nghỉ phép) tô đậm; nghỉ không lương tô nhạt, chữ sẫm.
+      final paid = record.paidLeave || onLeave;
       fill = paid ? colors.dayOffMark : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.surface, 0.6)!;
       onFill = paid ? Colors.white : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.onSurface, 0.45)!;
       borderColor = fill;
       // Nghỉ có lương có tiền của ngày: bật "Lương mỗi ngày" thì hiện số tiền đó.
-      bottomLabel = !paid ? 'Nghỉ' : (showMoneyPerDay ? _shortMoney(money) : 'Nghỉ ₫');
+      bottomLabel = !paid
+          ? (record.companyOff ? 'Cty nghỉ' : 'Nghỉ')
+          : (showMoneyPerDay ? _shortMoney(money) : (onLeave ? 'Phép' : 'Nghỉ ₫'));
     } else if (isFuture) {
       bottomLabel = null;
     } else if (!record.hasAttendance) {
@@ -181,7 +198,10 @@ class _DayCell extends StatelessWidget {
         bottomLabel2 = Clock(record.checkOut!.hour, record.checkOut!.minute).formatted;
         bottomLabel3 = fmtHours(result.normalMinutes + result.overtimeMinutes);
       } else {
-        bottomLabel = showMoneyPerDay ? _shortMoney(money) : fmtHours(result.normalMinutes);
+        // Bù tăng ca: ngày nào cũng gần đủ công nên bỏ số giờ, giờ thiếu đã hiện ở huy hiệu "−".
+        bottomLabel = showMoneyPerDay
+            ? _shortMoney(money)
+            : (store.settings.usesOvertimeOffset ? null : fmtHours(result.normalMinutes));
       }
     }
 
@@ -263,7 +283,7 @@ class _DayCell extends StatelessWidget {
               ),
             ),
             // Huy hiệu tăng ca, nổi ở góc phải trên (đè ra ngoài viền như thẻ thông báo).
-            if (result.overtimeMinutes > 0)
+            if (offset != null || result.overtimeMinutes > 0)
               Positioned(
                 top: -7,
                 right: -5,
@@ -275,7 +295,7 @@ class _DayCell extends StatelessWidget {
                     boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 1))],
                   ),
                   child: Text(
-                    fmtHours(result.overtimeMinutes),
+                    offset != null ? '−${fmtHours(offset!.shortSeconds ~/ 60)}' : fmtHours(result.overtimeMinutes),
                     style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Colors.white),
                   ),
                 ),

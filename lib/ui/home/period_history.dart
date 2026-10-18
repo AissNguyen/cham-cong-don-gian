@@ -5,6 +5,7 @@ import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
 import '../../domain/payslip.dart';
 import '../format.dart';
+import 'overtime_offset_sheet.dart';
 import '../settings/number_inputs.dart';
 import '../../theme/app_theme.dart';
 
@@ -133,6 +134,17 @@ class _PeriodRowState extends State<_PeriodRow> {
                   'Nghỉ ${widget.stats.daysOff} ngày · Muộn ${widget.stats.daysLate} ngày',
                   style: TextStyle(fontSize: 12, color: colors.ink2),
                 ),
+                if (widget.stats.overtimeOffset && widget.stats.offsetDays.isNotEmpty)
+                  InkWell(
+                    onTap: () => showOvertimeOffsetSheet(context, widget.stats),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        'Tăng ca bị trừ ${fmtHours(widget.stats.offsetTakenSeconds ~/ 60)} ›',
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

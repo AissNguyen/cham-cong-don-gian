@@ -190,9 +190,18 @@ List<GpsPlan> gpsPendingPlans({
   }
 
   final latest = _quarterFloor(now);
+  // Mốc cũ hơn (hoặc bằng) mốc đã làm gần nhất là chuyện đã qua: lúc đó nó không có việc (ví dụ đã chấm
+  // ra rồi) dù giờ dữ liệu đã đổi (ví dụ vừa mở lại ca), nên không tính là "mốc bị bỏ".
+  DateTime? lastDone;
+  for (final r in [today, yesterday]) {
+    for (final m in r.gpsDoneMarks) {
+      if (lastDone == null || m.isAfter(lastDone)) lastDone = m;
+    }
+  }
   final plans = <GpsPlan>[];
   for (var k = gpsLookBackMinutes ~/ 15; k >= 0; k--) {
     final mark = latest.subtract(Duration(minutes: 15 * k));
+    if (lastDone != null && !mark.isAfter(lastDone)) continue;
     final p = gpsPlanForMark(settings: settings, recordOf: recordOf, mark: mark, now: now);
     if (p != null) plans.add(p);
   }
