@@ -1,4 +1,4 @@
-# HANDOFF — 2026-10-19 — cloud
+# HANDOFF — 2026-10-19 — PC
 
 Branch: claude/handoff-2026-10-18-chieu   Repo: AissNguyen/cham-cong-don-gian
 
