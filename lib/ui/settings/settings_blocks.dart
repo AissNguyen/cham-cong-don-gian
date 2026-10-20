@@ -198,12 +198,34 @@ class WorkerKindToggle extends StatelessWidget {
   }
 }
 
+/// Tọa độ dán từ Google Maps thành (vĩ độ, kinh độ); sai thì null. Nhận cả kiểu tiếng Việt (dấu phẩy
+/// là dấu thập phân, hai số cách nhau bằng ", ": "11,7598094, 108,4397679") lẫn kiểu tiếng Anh
+/// ("11.759805, 108.439777", "11.759805,108.439777").
+(double, double)? parseLatLng(String text) {
+  final t = text.trim();
+  const number = r'(-?\d+(?:[.,]\d+)?)';
+  // Hai số cách nhau bằng dấu chấm phẩy, dấu phẩy có khoảng trắng sau, hoặc chỉ khoảng trắng.
+  var m = RegExp('^$number\\s*(?:;|,\\s+|\\s+)\\s*$number\$').firstMatch(t);
+  // Dấu chấm thập phân, hai số cách nhau bằng dấu phẩy liền: "11.759805,108.439777".
+  m ??= RegExp(r'^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$').firstMatch(t);
+  // Dấu phẩy thập phân viết liền không khoảng trắng: "11,7598094,108,4397679".
+  m ??= RegExp(r'^(-?\d+,\d+),(-?\d+,\d+)$').firstMatch(t);
+  if (m == null) return null;
+  final lat = double.tryParse(m.group(1)!.replaceAll(',', '.'));
+  final lng = double.tryParse(m.group(2)!.replaceAll(',', '.'));
+  if (lat == null || lng == null || lat.abs() > 90 || lng.abs() > 180) return null;
+  return (lat, lng);
+}
+
 /// Thẻ Chấm công GPS rút gọn: nút "Lấy tọa độ" (lấy xong là bật GPS luôn), nút "Cấp quyền chấm công"
 /// và một dòng trạng thái. Các tùy chọn khác nằm ở Nâng cao › GPS: tùy chọn thêm.
 class GpsQuickCard extends StatefulWidget {
-  const GpsQuickCard({super.key, required this.store});
+  const GpsQuickCard({super.key, required this.store, this.tourHint = false});
 
   final AppStore store;
+
+  /// Mở từ cuối chuyến hướng dẫn: hiện bước 9, 10 ngay trong thẻ.
+  final bool tourHint;
 
   @override
   State<GpsQuickCard> createState() => _GpsQuickCardState();
@@ -239,6 +261,66 @@ class _GpsQuickCardState extends State<GpsQuickCard> {
     setState(() => _permission = _check());
   }
 
+  /// Nhập tọa độ bằng tay (dán từ Google Maps, kiểu "11.759805, 108.439777").
+  Future<void> _enterLocation() async {
+    final gps = widget.store.settings.gps;
+    final controller = TextEditingController(
+      // Hiện theo kiểu Google Maps tiếng Việt (dấu phẩy thập phân).
+      text: gps.latitude != null
+          ? '${gps.latitude.toString().replaceAll('.', ',')}, ${gps.longitude.toString().replaceAll('.', ',')}'
+          : '',
+    );
+    String? error;
+    final picked = await showDialog<(double, double)>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Nhập tọa độ chỗ làm'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Dán tọa độ từ Google Maps (giữ ngón tay lên chỗ làm trên bản đồ để thấy), ví dụ 11,7598094, 108,4397679.',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                key: const ValueKey('gps-manual-input'),
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                decoration: InputDecoration(border: const OutlineInputBorder(), errorText: error),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+            FilledButton(
+              key: const ValueKey('gps-manual-save'),
+              onPressed: () {
+                final value = parseLatLng(controller.text);
+                if (value == null) {
+                  setDialogState(() => error = 'Chưa đúng. Dán đúng dãy số trên Google Maps, ví dụ 11,7598094, 108,4397679');
+                } else {
+                  Navigator.pop(context, value);
+                }
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    final store = widget.store;
+    await store.updateSettings(
+      (s) => s.copyWith(gps: s.gps.copyWith(latitude: picked.$1, longitude: picked.$2, enabled: true)),
+    );
+    await clearKnownWifi();
+    await rescheduleGpsAlarms(store.settings.effectiveGps);
+    if (mounted) setState(() => _permission = _check());
+  }
+
   Future<void> _grant() async {
     await requestGpsPermissions(context);
     setState(() => _permission = _check());
@@ -262,6 +344,28 @@ class _GpsQuickCardState extends State<GpsQuickCard> {
             ),
           ),
           const AutoLockNotice(),
+          if (widget.tourHint) ...[
+            const SizedBox(height: 10),
+            Container(
+              key: const ValueKey('gps-tour-hint'),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.accentSoft,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Theme.of(context).colorScheme.primary, width: 1.5),
+              ),
+              child: Text(
+                'Bước 9/10: cài chỗ chấm công, chọn một trong hai cách.\n'
+                '• Dễ nhất: tới chỗ bạn hay chấm công rồi bấm "Lấy tọa độ".\n'
+                '• Đang ở nhà: mở Google Maps, giữ ngón tay lên chỗ làm trên bản đồ, dãy số hiện ở ô tìm kiếm phía '
+                'trên là tọa độ. Chép dãy số đó, quay lại đây bấm "Nhập tọa độ" rồi dán vào.\n'
+                'Thấy khó thì cứ đợi lúc tới chỗ làm rồi dùng cách thứ nhất. Màn chính sẽ nhắc bạn cho tới khi cài xong.\n\n'
+                'Bước 10/10: bấm "Cấp quyền chấm công" và đồng ý hết: vị trí "Luôn cho phép", thông báo, báo thức, '
+                'cho app chạy nền. Thiếu quyền thì app không tự chấm được khi đang đóng.',
+                style: TextStyle(fontSize: 12.5, height: 1.45, color: Theme.of(context).colorScheme.onSurface),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -272,6 +376,13 @@ class _GpsQuickCardState extends State<GpsQuickCard> {
                 icon: const Icon(Icons.my_location, size: 18),
                 label: const Text('Lấy tọa độ'),
                 onPressed: _takeLocation,
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('gps-manual'),
+                style: buttonStyle,
+                icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
+                label: const Text('Nhập tọa độ'),
+                onPressed: _enterLocation,
               ),
               OutlinedButton(style: buttonStyle, onPressed: _grant, child: const Text('Cấp quyền chấm công')),
             ],

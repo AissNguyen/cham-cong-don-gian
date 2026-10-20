@@ -51,7 +51,13 @@ class _OvertimeOffsetSheet extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 12),
-            if (days.isEmpty)
+            if (!slip.overtimeOffset)
+              Text(
+                'Chưa bật lấy tăng ca bù. Bật ở Cài đặt › Cài đặt tính công, mục "Lấy tăng ca bù vào ngày nghỉ, '
+                'ngày đi muộn".',
+                style: small,
+              )
+            else if (days.isEmpty)
               Text('Kỳ này chưa có ngày nào thiếu giờ.', style: small)
             else
               for (final d in days)

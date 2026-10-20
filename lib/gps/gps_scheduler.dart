@@ -11,6 +11,7 @@ import '../domain/gps_engine.dart';
 import '../domain/models.dart';
 import '../share/background_unlock.dart';
 import '../share/share_state_file.dart';
+import 'gps_log.dart';
 import 'gps_task_handler.dart';
 
 const _serviceId = 300;
@@ -99,9 +100,18 @@ Future<void> gpsAlarmCallback(int id, Map<String, dynamic> params) async {
     now: now,
   );
   if (plans.isEmpty) return;
+  // Những lần báo thức reo mà không bật được việc dò thì ghi vào nhật ký GPS, để biết vì sao một mốc
+  // không có lần dò nào (trước đây các trường hợp này dừng im lặng).
+  final plan = plans.last;
+  Future<void> note(String result) => addGpsLog(
+    GpsLogEntry(mark: plan.mark, at: DateTime.now(), task: plan.label, gps: '', wifi: '', result: result),
+  );
   // Hết ngày dùng thử mà chưa mở khóa: hỏi máy chủ xem đã có ai nhập mã của máy này chưa; chưa
   // thì không khởi động dịch vụ dò vị trí.
-  if (!await autoFeatureAllowed() && !await tryUnlockInBackground()) return;
+  if (!await autoFeatureAllowed() && !await tryUnlockInBackground()) {
+    await note('Báo thức reo nhưng chấm công tự động đang bị khóa (hết dùng thử), không dò');
+    return;
+  }
 
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
@@ -122,12 +132,19 @@ Future<void> gpsAlarmCallback(int id, Map<String, dynamic> params) async {
     ),
   );
 
-  if (await FlutterForegroundTask.isRunningService) return;
+  if (await FlutterForegroundTask.isRunningService) {
+    // Dịch vụ lần trước còn chạy (thường là đang chờ thử lại 3 phút): nó tự lo mốc này.
+    await note('Báo thức reo khi lần dò trước còn đang chạy, không bật thêm');
+    return;
+  }
 
-  await FlutterForegroundTask.startService(
+  final result = await FlutterForegroundTask.startService(
     serviceId: _serviceId,
     notificationTitle: 'Chấm công GPS',
     notificationText: 'Đang kiểm tra vị trí chấm công...',
     callback: gpsStartCallback,
   );
+  if (result is ServiceRequestFailure) {
+    await note('Báo thức reo nhưng máy không cho bật việc dò (${result.error}). Xem quyền chạy nền của app');
+  }
 }

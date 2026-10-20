@@ -3,6 +3,7 @@ import 'package:cham_cong_don_gian/domain/models.dart';
 import 'package:cham_cong_don_gian/domain/pay_period.dart';
 import 'package:cham_cong_don_gian/domain/payslip.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../sample_settings.dart';
 
 /// Tạo dữ liệu chấm công giả: mỗi ngày một ca, giờ vào/ra theo [shift].
 Map<String, DayRecord> _records(Iterable<DayRecord> list) => {for (final r in list) dateKey(r.date): r};
@@ -30,12 +31,12 @@ Iterable<DateTime> _workdays(DateTime from, DateTime to) sync* {
 
 void main() {
   // Các test dưới tính trên bộ số gốc: không có khung tăng ca (không trừ phút nghỉ), trợ cấp 0.
-  final workerDefaults = AppSettings.defaultsFor(WorkerKind.worker);
+  final workerDefaults = sampleDefaults(WorkerKind.worker);
   final worker = workerDefaults.copyWith(
     overtimeBrackets: const [],
     incomeItems: [for (final i in workerDefaults.incomeItems) i.id == payItemAllowance ? i.copyWith(amount: 0) : i],
   );
-  final daily = AppSettings.defaultsFor(WorkerKind.daily).copyWith(overtimeBrackets: const []);
+  final daily = sampleDefaults(WorkerKind.daily).copyWith(overtimeBrackets: const []);
 
   test('máy mới cài: trợ cấp 800.000 và 4 khung tăng ca cài sẵn', () {
     expect(workerDefaults.incomeItems.firstWhere((i) => i.id == payItemAllowance).amount, 800000);
@@ -47,7 +48,7 @@ void main() {
     ]);
     // Đổi Công nhân <-> Công nhật giữ khung tăng ca người dùng đã sửa.
     final mine = workerDefaults.copyWith(overtimeBrackets: const []);
-    expect(AppSettings.defaultsFor(WorkerKind.daily, keep: mine).overtimeBrackets, isEmpty);
+    expect(sampleDefaults(WorkerKind.daily, keep: mine).overtimeBrackets, isEmpty);
   });
 
   group('bảo hiểm khi nghỉ không lương nhiều', () {

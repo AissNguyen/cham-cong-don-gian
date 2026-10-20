@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../data/store.dart';
+import '../../domain/leave.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
 import '../../domain/payslip.dart';
@@ -14,16 +15,22 @@ import 'number_inputs.dart';
 import 'payslip_card.dart';
 
 class WorkConfigCard extends StatefulWidget {
-  const WorkConfigCard({super.key, required this.store});
+  const WorkConfigCard({super.key, required this.store, this.startEditing = false, this.wageKey});
 
   final AppStore store;
+
+  /// Mở sẵn chế độ sửa (hướng dẫn tính lương).
+  final bool startEditing;
+
+  /// Chỗ sáng "Giá tăng ca" của hướng dẫn tính lương.
+  final GlobalKey? wageKey;
 
   @override
   State<WorkConfigCard> createState() => _WorkConfigCardState();
 }
 
 class _WorkConfigCardState extends State<WorkConfigCard> {
-  bool _editing = false;
+  late bool _editing = widget.startEditing;
 
   AppStore get store => widget.store;
   AppSettings get settings => store.settings;
@@ -48,6 +55,26 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
     final start = periodContaining(DateTime.now(), s.payPeriod).start;
     return s.copyWith(offsetMode: mode, leaveAnchors: [LeaveAnchor(date: start, days: 1)]);
   });
+
+  /// Ô chọn hình tròn: chọn thì tô kín, không chọn thì chỉ có viền.
+  Widget _roundOption({Key? key, required String label, required bool selected, required VoidCallback onTap}) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return InkWell(
+      key: key,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(selected ? Icons.circle : Icons.radio_button_unchecked, size: 20, color: primary),
+            const SizedBox(width: 10),
+            Text(label, style: const TextStyle(fontSize: 14)),
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _pickTime(bool start) async {
     final c = start ? settings.workStart : settings.workEnd;
@@ -180,6 +207,7 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
     ];
     final headStyle = TextStyle(fontSize: 11.5, color: colors.ink3);
     final wageBlock = Container(
+      key: widget.wageKey,
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.line))),
       child: Column(
@@ -234,6 +262,28 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
       ),
     );
 
+    // --- Ngày phép (chỉ công nhân, không phụ thuộc bù tăng ca) ---
+    final leaveLine = Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.line))),
+      child: Row(
+              children: [
+                Expanded(child: Text('Ngày phép còn', style: TextStyle(fontSize: 14, color: colors.ink2))),
+                if (_editing)
+                  InlineNumberField(
+                    key: const ValueKey('settings-leave'),
+                    value: leaveBalanceFor(settings, store.recordFor, DateTime.now()),
+                    percent: true,
+                    width: 64,
+                    onChanged: (v) => store.updateSettings((s) => s.withLeaveBalance(v, DateTime.now())),
+                  )
+                else
+                  Text(fmtN(leaveBalanceFor(settings, store.recordFor, DateTime.now())), style: valueStyle),
+                Text('  ngày', style: unitStyle),
+              ],
+            ),
+    );
+
     // --- Bù tăng ca (chỉ công nhân) ---
     final mode = settings.offsetMode;
     final offsetLine = Container(
@@ -243,31 +293,27 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Lấy tăng ca bù vào ngày nghỉ, ngày đi muộn', style: TextStyle(fontSize: 14, color: colors.ink2)),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final (m, label) in const [
-                (OvertimeOffsetMode.off, 'Tắt'),
-                (OvertimeOffsetMode.company, 'Chỉ ngày do công ty'),
-                (OvertimeOffsetMode.all, 'Cả ngày tự nghỉ'),
-              ])
-                ChoiceChip(
-                  key: ValueKey('offset-mode-${m.name}'),
-                  label: Text(label),
-                  selected: mode == m,
-                  onSelected: (_) => _setOffsetMode(m),
-                ),
-            ],
+          // Chọn "Tự nghỉ" thì cũng bù ngày công ty cho nghỉ; bỏ chọn "Công ty cho nghỉ" là tắt hẳn.
+          const SizedBox(height: 4),
+          _roundOption(
+            key: const ValueKey('offset-company'),
+            label: 'Công ty cho nghỉ',
+            selected: mode != OvertimeOffsetMode.off,
+            onTap: () => _setOffsetMode(mode == OvertimeOffsetMode.off ? OvertimeOffsetMode.company : OvertimeOffsetMode.off),
           ),
-          if (mode != OvertimeOffsetMode.off) ...[
+          _roundOption(
+            key: const ValueKey('offset-self'),
+            label: 'Tự nghỉ',
+            selected: mode == OvertimeOffsetMode.all,
+            onTap: () => _setOffsetMode(mode == OvertimeOffsetMode.all ? OvertimeOffsetMode.company : OvertimeOffsetMode.all),
+          ),
+          if (mode != OvertimeOffsetMode.off && _editing) ...[
             const SizedBox(height: 6),
             Text(
               'Mỗi ngày đủ 8 tiếng (thứ 7: 7:00–11:30) mới tính tăng ca. Ngày công ty cho nghỉ, ngày vào muộn '
               'hoặc về sớm theo yêu cầu được lấy tăng ca trong kỳ bù vào. '
               '${mode == OvertimeOffsetMode.all ? 'Ngày tự nghỉ (đã hết phép) và ngày tự đi muộn cũng được bù, không trừ đi muộn.' : 'Ngày tự nghỉ (đã hết phép) mất công; tự đi muộn thì trừ theo luật đi muộn.'} '
-              'Mỗi kỳ lương được 1 ngày phép, tự nghỉ thì trừ phép trước.',
+              'Ngày tự nghỉ trừ phép trước.',
               style: TextStyle(fontSize: 11.5, color: colors.ink3, height: 1.4),
             ),
           ],
@@ -332,7 +378,7 @@ class _WorkConfigCardState extends State<WorkConfigCard> {
       trailing: EditToggleButton(editing: _editing, onPressed: () => setState(() => _editing = !_editing)),
       child: Padding(
         padding: const EdgeInsets.only(top: 10),
-        child: Column(children: [periodLine, hoursLine, wageBlock, if (worker) offsetLine, lateLine]),
+        child: Column(children: [periodLine, if (worker) leaveLine, hoursLine, wageBlock, if (worker) offsetLine, lateLine]),
       ),
     );
   }

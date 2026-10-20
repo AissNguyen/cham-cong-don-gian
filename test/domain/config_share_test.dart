@@ -3,15 +3,16 @@ import 'dart:convert';
 import 'package:cham_cong_don_gian/domain/config_share.dart';
 import 'package:cham_cong_don_gian/domain/models.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../sample_settings.dart';
 
 void main() {
-  final mine = AppSettings.defaultsFor(WorkerKind.worker).copyWith(
+  final mine = sampleDefaults(WorkerKind.worker).copyWith(
     holidays: [Holiday(date: DateTime(2026, 9, 2), name: 'Quốc khánh')],
     gps: AppSettings().gps.copyWith(enabled: true, latitude: 21, longitude: 105),
   );
 
   test('chuỗi kiểu mới gọn một dòng, không kèm ngày lễ và GPS', () {
-    final s = AppSettings.defaultsFor(WorkerKind.worker).copyWith(holidays: mine.holidays, gps: mine.gps);
+    final s = sampleDefaults(WorkerKind.worker).copyWith(holidays: mine.holidays, gps: mine.gps);
     final text = encodeSettings(s);
     expect(text.startsWith(configSharePrefix), isTrue);
     expect(text.contains('\n'), isFalse);
@@ -21,11 +22,11 @@ void main() {
   });
 
   test('dán chuỗi kiểu mới: lấy phần lương, giữ ngày lễ và GPS của máy nhận', () {
-    final sender = AppSettings.defaultsFor(WorkerKind.daily).copyWith(
+    final sender = sampleDefaults(WorkerKind.daily).copyWith(
       dailyWage: 400000,
       lateRule: const LateRule(after: Clock(7, 0), unit: LateUnit.money, amount: 20000),
       incomeItems: [
-        ...AppSettings.defaultsFor(WorkerKind.daily).incomeItems,
+        ...sampleDefaults(WorkerKind.daily).incomeItems,
         const IncomeItem(id: 'x', name: 'Xăng xe', amount: 1.5, calcMethod: IncomeCalcMethod.percentOfBaseSalary),
       ],
     );
@@ -43,7 +44,7 @@ void main() {
   });
 
   test('khoản căn cứ và bảng lương/giờ giữ đúng sau khi chép', () {
-    final sender = AppSettings.defaultsFor(WorkerKind.worker);
+    final sender = sampleDefaults(WorkerKind.worker);
     final got = decodeSettings(encodeSettings(sender), current: mine)!;
     expect(got.incomeItems.firstWhere((i) => i.id == payItemPerformance).inBasis, isTrue);
     expect(got.wageTable.of(DayType.holiday).normalPerHour, 63000);
@@ -56,14 +57,14 @@ void main() {
     const myBracket = OvertimeBracket(from: Clock(17, 0), to: Clock(22, 0), breakMinutes: 30);
     final receiver = mine.copyWith(overtimeBrackets: [myBracket]);
 
-    final sender = AppSettings.defaultsFor(WorkerKind.worker).copyWith(overtimeBrackets: [bracket]);
+    final sender = sampleDefaults(WorkerKind.worker).copyWith(overtimeBrackets: [bracket]);
     final got = decodeSettings(encodeSettings(sender), current: receiver)!;
     expect(got.overtimeBrackets.single.from, const Clock(16, 0));
     expect(got.overtimeBrackets.single.to, const Clock(18, 0));
     expect(got.overtimeBrackets.single.breakMinutes, 15);
 
     // Máy gửi không có khung nào thì máy nhận cũng không còn khung nào.
-    final empty = AppSettings.defaultsFor(WorkerKind.worker).copyWith(overtimeBrackets: const []);
+    final empty = sampleDefaults(WorkerKind.worker).copyWith(overtimeBrackets: const []);
     final none = decodeSettings(encodeSettings(empty), current: receiver)!;
     expect(none.overtimeBrackets, isEmpty);
 

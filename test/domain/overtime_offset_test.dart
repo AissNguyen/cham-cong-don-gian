@@ -5,6 +5,7 @@ import 'package:cham_cong_don_gian/domain/models.dart';
 import 'package:cham_cong_don_gian/domain/pay_period.dart';
 import 'package:cham_cong_don_gian/domain/payslip.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../sample_settings.dart';
 
 /// Cách tính bù tăng ca (`Y-TUONG-MOI.md`): công nhân bật công tắc thì lấy tăng ca bù giờ thiếu.
 DayRecord _shift(DateTime day, int inH, int inM, int outH, int outM, {bool late = false}) => DayRecord(
@@ -16,7 +17,7 @@ DayRecord _shift(DateTime day, int inH, int inM, int outH, int outM, {bool late 
 
 void main() {
   // Bộ số gốc: không có khung tăng ca (không trừ phút nghỉ), trợ cấp 0, đi muộn trừ 30 phút.
-  final defaults = AppSettings.defaultsFor(WorkerKind.worker);
+  final defaults = sampleDefaults(WorkerKind.worker);
   final off = defaults.copyWith(
     overtimeBrackets: const [],
     incomeItems: [for (final i in defaults.incomeItems) i.id == payItemAllowance ? i.copyWith(amount: 0) : i],
@@ -162,7 +163,7 @@ void main() {
     });
 
     test('công nhật bật công tắc cũng không đổi gì', () {
-      final daily = AppSettings.defaultsFor(
+      final daily = sampleDefaults(
         WorkerKind.daily,
       ).copyWith(overtimeBrackets: const [], offsetMode: OvertimeOffsetMode.all);
       final s = slip(daily, days);
@@ -236,9 +237,11 @@ void main() {
       expect(leaveBalanceFor(edited, recordOf, DateTime(2026, 7, 31)), 2);
     });
 
-    test('tắt bù thì không có ngày phép', () {
+    test('ngày phép không phụ thuộc bù tăng ca; công nhật không có phép', () {
       final offLeave = withLeave.copyWith(offsetMode: OvertimeOffsetMode.off);
-      expect(leaveState(offLeave, recordOf, DateTime(2026, 8, 30)).used, isEmpty);
+      expect(leaveState(offLeave, recordOf, DateTime(2026, 8, 30)).used, {DateTime(2026, 7, 23), DateTime(2026, 8, 24)});
+      final daily = withLeave.copyWith(workerKind: WorkerKind.daily);
+      expect(leaveState(daily, recordOf, DateTime(2026, 8, 30)).used, isEmpty);
     });
   });
 

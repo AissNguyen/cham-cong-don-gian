@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hướng dẫn nhập phiếu lương</title>
+<style>
+  /* Chuyến hướng dẫn mức 2 (phần tiền): dắt người dùng chép phiếu lương thật vào app, cùng kiểu với
+     huong-dan-tung-buoc.html (phủ mờ, sáng đúng một chỗ). Phần B là lần nhắc đối chiếu khi hết kỳ đầu.
+     Màn Cài đặt ở đây giản lược, chỉ để xem bố cục các bước có hợp không. */
+  :root {
+    --accent: #17695A;
+    --accent-soft: #DCEEE9;
+    --ink: #1B2420;
+    --ink2: #52615B;
+    --ink3: #86938E;
+    --line: #E0E6E3;
+    --bg: #F2F4F3;
+    --warn: #C25A00;
+    --red: #D9433C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 12px 40px;
+    background: #DDE2E0;
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { margin: 0 0 4px; font-size: 18px; text-align: center; }
+  h2 { max-width: 760px; margin: 30px auto 6px; font-size: 15px; text-align: center; }
+  .sub { margin: 0 auto 20px; max-width: 760px; text-align: center; font-size: 13px; color: var(--ink2); line-height: 1.5; }
+  .screens { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; align-items: flex-start; }
+  .wrap { width: 270px; }
+  .caption { margin: 0 0 6px 4px; font-size: 12.5px; font-weight: 600; color: var(--ink2); line-height: 1.35; }
+  .caption small { display: block; font-weight: 400; color: var(--ink3); }
+
+  .phone { position: relative; height: 560px; border-radius: 18px; overflow: hidden; background: var(--bg); }
+
+  /* Màn Cài đặt giản lược. `.scroller` dịch lên để giả lập việc tự cuộn tới chỗ sáng. */
+  .scroller { position: absolute; left: 0; right: 0; top: 0; padding: 10px 10px 20px; }
+  .bar { height: 30px; display: flex; align-items: center; font-size: 13px; font-weight: 700; }
+  .card { background: #fff; border-radius: 14px; border: 1px solid var(--line); padding: 10px 11px; margin-top: 8px; font-size: 10.5px; }
+  .card .hd { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; }
+  .card .hd .act { font-size: 10.5px; font-weight: 600; color: var(--accent); padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; margin-top: 8px; border-radius: 999px; background: #EEF2F0; padding: 2px; }
+  .seg span { text-align: center; padding: 5px 0; border-radius: 999px; font-size: 10.5px; color: var(--ink2); }
+  .seg span.on { background: var(--accent); color: #fff; font-weight: 600; }
+  .per { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: var(--ink2); }
+  .sec { margin-top: 9px; font-size: 9px; font-weight: 700; letter-spacing: .04em; color: var(--ink3); }
+  .r { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px dashed #EEF1EF; }
+  .r:last-child { border-bottom: 0; }
+  .r .v { font-weight: 600; }
+  .r.sum { font-weight: 700; border-bottom: 0; }
+  .r.net { margin-top: 6px; padding: 7px 8px; border-radius: 10px; background: var(--accent-soft); font-weight: 700; color: var(--accent); }
+  .add { padding: 4px 0; color: var(--accent); font-weight: 600; }
+  .inp { min-width: 92px; text-align: right; padding: 3px 6px; border-radius: 7px; border: 1.5px solid var(--accent); background: #fff; font-weight: 600; }
+  .muted { color: var(--ink3); font-weight: 400; }
+  .chk { display: flex; gap: 12px; padding: 3px 0 5px; }
+  .chk span::before { content: "☐ "; }
+  .chk span.on::before { content: "☑ "; color: var(--accent); }
+
+  /* Màn chính giản lược cho phần B. */
+  .home { position: absolute; inset: 0; padding: 10px 10px 0; }
+  .hero { margin-top: 8px; border-radius: 16px; padding: 10px 12px; color: #fff; background: linear-gradient(120deg, #1CAE8F, #2F7FE0); }
+  .hero .t { font-size: 10px; opacity: .9; }
+  .hero .money { margin-top: 6px; font-size: 20px; font-weight: 700; }
+  .hero .nums { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 8px; text-align: center; }
+  .hero .nums b { display: block; font-size: 13px; }
+  .hero .nums span { font-size: 9px; opacity: .9; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
+  .cell { height: 40px; border-radius: 8px; background: #E3F4EA; border: 1px solid #BFE3CE; }
+
+  /* Lớp hướng dẫn: giống mức 1. */
+  .spot { position: absolute; border-radius: 12px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .58); pointer-events: none; }
+  .ring { position: absolute; border-radius: 14px; border: 2px solid #fff; animation: pulse 1.4s ease-out infinite; pointer-events: none; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.7); } 100% { box-shadow: 0 0 0 12px rgba(255,255,255,0); } }
+  .hand { position: absolute; font-size: 26px; transform: rotate(-20deg); filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); pointer-events: none; }
+  .tip { position: absolute; left: 10px; right: 10px; background: #fff; border-radius: 16px; padding: 12px 14px 10px; font-size: 12px; line-height: 1.5; color: var(--ink); box-shadow: 0 6px 20px rgba(0,0,0,.25); z-index: 3; }
+  .tip .n { font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+  .tip .row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
+  .tip .skip { font-size: 10.5px; color: var(--ink3); }
+  .tip .next { padding: 6px 14px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
+  .tip .wait { font-size: 10.5px; color: var(--ink3); text-align: right; }
+
+  .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .58); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 4; }
+  .dlg { width: 100%; background: #fff; border-radius: 20px; padding: 20px 18px 14px; font-size: 13px; line-height: 1.55; }
+  .dlg h3 { margin: 0 0 8px; font-size: 15px; }
+  .dlg .actions { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+  .dlg .b { padding: 10px; border-radius: 999px; text-align: center; font-size: 13px; font-weight: 600; }
+  .dlg .b.fill { background: var(--accent); color: #fff; }
+  .dlg .b.line { border: 1px solid var(--line); color: var(--ink); }
+  .dlg .b.text { color: var(--ink2); font-weight: 500; }
+  .dlg .note { color: var(--ink2); font-size: 12px; }
+  .dlg .field { margin-top: 10px; padding: 9px 12px; border-radius: 12px; border: 1.5px solid var(--accent); font-weight: 600; }
+  .dlg .cmp { margin-top: 8px; font-size: 12px; }
+  .dlg .cmp .r { padding: 6px 0; }
+  .dlg .cmp .fix { color: var(--accent); font-weight: 600; font-size: 11.5px; }
+
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 18px 18px 0 0; padding: 14px 14px 16px; box-shadow: 0 -6px 20px rgba(0,0,0,.2); z-index: 2; font-size: 11.5px; }
+  .sheet h4 { margin: 0 0 8px; font-size: 12.5px; }
+  .sheet .f { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); margin-top: 6px; color: var(--ink3); }
+  .sheet .types { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .sheet .types span { padding: 5px 9px; border-radius: 999px; border: 1px solid var(--line); font-size: 10.5px; }
+  .sheet .types span.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .legend { max-width: 760px; margin: 26px auto 0; background: #fff; border-radius: 16px; padding: 14px 18px; font-size: 12.5px; line-height: 1.6; color: var(--ink2); }
+  .legend b { color: var(--ink); }
+  .legend ol { margin: 4px 0 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<h1>Hướng dẫn nhập phiếu lương</h1>
+<p class="sub">Người dùng cầm phiếu lương thật (giấy hoặc ảnh chụp) và chép từng dòng vào app. Cùng kiểu với hướng dẫn chấm công: phủ mờ, chỉ sáng đúng một chỗ, app tự cuộn tới chỗ đó. Bỏ qua được bất cứ lúc nào.</p>
+
+<h2>Phần A. Nhập phiếu lương lần đầu</h2>
+<div class="screens" id="partA"></div>
+
+<h2>Phần B. Đối chiếu khi hết kỳ lương đầu tiên</h2>
+<div class="screens" id="partB"></div>
+
+<div class="legend">
+  <b>Mở hướng dẫn từ đâu:</b> nút "Hướng dẫn nhập phiếu lương" trên thẻ Phiếu lương (khi lương cơ bản còn trống), màn Hướng dẫn sử dụng, và nối tiếp sau hướng dẫn chấm công nếu người dùng muốn.<br>
+  <b>Mình tạm chọn (bạn chưa trả lời, sửa được):</b>
+  <ol>
+    <li>Các bước đi theo thứ tự trên màn hình app: kỳ lương, Công nhân / Công nhật, lương cơ bản, phụ cấp, khấu trừ, tăng ca, bù. Nếu phiếu thật của công ty bạn có thứ tự khác nhiều thì đổi theo phiếu.</li>
+    <li>Cách "dán cấu hình của đồng nghiệp" là một nút phụ ở lời mở, không phải đường chính.</li>
+    <li>Có làm phần B (đối chiếu khi hết kỳ đầu). Chỉ nhắc một lần; bấm "Không cần" thì thôi hẳn.</li>
+  </ol>
+  <b>Bước 8 (bù tăng ca)</b> chỉ hiện khi chọn Công nhân, giống công tắc trong Cài đặt.<br>
+  <b>Số tiền trong mẫu</b> là số ví dụ.
+</div>
+
+<script>
+// Màn Cài đặt giản lược. opts: scroll (px cuộn lên), edit (đang sửa phiếu), worker ('cn' | 'cnh'),
+// allowance (đã thêm phụ cấp), off (ô tích bù).
+function settings(o) {
+  o = o || {};
+  const edit = !!o.edit;
+  const base = edit ? '<span class="inp" id="fBase">5.500.000</span>' : '<span class="v">5.500.000</span>';
+  const allowance = o.allowance ? '<div class="r"><span>Phụ cấp ăn trưa <span class="muted">· theo ngày đi làm</span></span><span class="v">800.000</span></div>' : '';
+  return '<div class="scroller" style="transform:translateY(-' + (o.scroll || 0) + 'px)">' +
+    '<div class="bar">Cài đặt</div>' +
+    '<div class="card" id="cPay"><div class="hd"><span>Phiếu lương</span><span class="act" id="bEdit">' + (edit ? 'Xong' : 'Sửa') + '</span></div>' +
+      '<div class="seg" id="seg"><span class="' + (o.worker !== 'cnh' ? 'on' : '') + '">Công nhân</span><span class="' + (o.worker === 'cnh' ? 'on' : '') + '">Công nhật</span></div>' +
+      '<div class="per"><span>‹ Kỳ trước</span><b>Kỳ 21/09 – 20/10</b><span>Kỳ sau ›</span></div>' +
+      '<div id="secIn"><div class="sec">THU NHẬP</div>' +
+        '<div class="r" id="rBase"><span>Lương cơ bản</span>' + base + '</div>' + allowance +
+        '<div class="r"><span>Tăng ca <span class="muted">· 32h</span></span><span class="v">1.523.000</span></div>' +
+        (edit ? '<div class="add" id="bAddIn">+ Thêm khoản thu nhập</div>' : '') +
+        '<div class="r sum"><span>Tổng thu nhập</span><span>7.823.000</span></div></div>' +
+      '<div id="secOut"><div class="sec">KHẤU TRỪ</div>' +
+        '<div class="r"><span>Bảo hiểm <span class="muted">· 10,5% lương cơ bản</span></span><span class="v">−577.500</span></div>' +
+        (edit ? '<div class="add">+ Thêm khoản khấu trừ</div>' : '') +
+        '<div class="r sum"><span>Tổng khấu trừ</span><span>−577.500</span></div></div>' +
+      '<div class="r net" id="rNet"><span>THỰC NHẬN</span><span>7.245.500 đ</span></div>' +
+    '</div>' +
+    '<div class="card" id="cWork"><div class="hd"><span>Cài đặt tính công</span></div>' +
+      '<div class="r" id="rPeriod"><span>Kỳ lương</span><span class="v">bắt đầu ngày 21</span></div>' +
+      '<div class="r"><span>Giờ làm</span><span class="v">07:00 – 16:00</span></div>' +
+      '<div id="rRate"><div class="r"><span>Bảng lương/giờ</span><span class="v">T2–T7 · CN · Lễ</span></div>' +
+        '<div class="r"><span class="muted">Giờ tăng ca</span><span class="v">150% · 200% · 300%</span></div></div>' +
+      (o.worker !== 'cnh' ? '<div id="rOff"><div class="r" style="border:0"><span>Lấy tăng ca bù vào ngày nghỉ, ngày đi muộn</span></div>' +
+        '<div class="chk"><span class="' + (o.off ? 'on' : '') + '">Công ty cho nghỉ</span><span>Tự nghỉ</span></div></div>' : '') +
+      '<div class="r"><span>Đi muộn</span><span class="v">trừ 30 phút</span></div>' +
+    '</div>' +
+  '</div>';
+}
+
+// Màn chính giản lược cho phần B: thẻ thống kê có số tiền.
+function home() {
+  let cells = '';
+  for (let i = 0; i < 21; i++) cells += '<div class="cell"></div>';
+  return '<div class="home"><div class="bar">21/10 – 20/11</div>' +
+    '<div class="hero" id="hero"><div class="t">Kỳ 21/09 – 20/10 · ước tính thực nhận</div><div class="money">7.245.500 đ</div>' +
+    '<div class="nums"><div><b>25</b><span>Ngày công</span></div><div><b>32h</b><span>Tăng ca</span></div><div><b>1</b><span>Ngày nghỉ</span></div><div><b>1</b><span>Phép còn</span></div></div></div>' +
+    '<div class="cal">' + cells + '</div></div>';
+}
+
+const partA = [
+  { cap: '0. Lời mở', small: 'Từ nút trên thẻ Phiếu lương hoặc màn Hướng dẫn sử dụng', dialog: {
+      title: 'Hướng dẫn nhập phiếu lương',
+      text: 'Bạn lấy phiếu lương tháng trước ra (giấy hoặc ảnh chụp) để nhập theo từng dòng nhé.<br><br><span class="note">Số tiền app tính chỉ là ước tính để tham khảo, bạn có thể bỏ qua phần này.</span>',
+      buttons: [['fill', 'Bắt đầu'], ['line', 'Đồng nghiệp đã cài sẵn? Dán cấu hình'], ['text', 'Để sau']] } },
+  { cap: '1. Kỳ lương', small: 'Tự cuộn xuống thẻ Cài đặt tính công', screen: { scroll: 140 }, target: 'rPeriod', pos: 'top', hand: true,
+      n: 'Bước 1/8', text: 'Phiếu lương ghi từ ngày nào đến ngày nào? Chọn ngày bắt đầu kỳ cho giống phiếu.', wait: 'Chạm vào dòng sáng', also: 'Tiếp' },
+  { cap: '2. Công nhân hay Công nhật', small: 'Cuộn lên lại thẻ Phiếu lương', target: 'seg', pos: 'bottom', hand: true,
+      n: 'Bước 2/8', text: '<b>Công nhân:</b> lương tháng, chia theo ngày công.<br><b>Công nhật:</b> lương trả theo từng ngày làm.<br>Bạn thuộc loại nào thì chọn loại đó.', wait: 'Chạm để chọn', also: 'Tiếp' },
+  { cap: '3. Bấm Sửa', small: 'Mở chế độ sửa phiếu', target: 'bEdit', pos: 'bottom', hand: true,
+      n: 'Bước 3/8', text: 'Bấm Sửa để điền các số trên phiếu lương của bạn.', wait: 'Chạm vào nút sáng' },
+  { cap: '4. Lương cơ bản', small: 'Chờ nhập số rồi bấm Tiếp', screen: { edit: true }, target: 'rBase', pos: 'bottom', hand: true,
+      n: 'Bước 4/8', text: 'Nhập lương cơ bản đúng như trên phiếu.', next: 'Tiếp' },
+  { cap: '5. Phụ cấp, khoản thu nhập khác', small: 'Thêm từng khoản; không có thì bấm Tiếp', screen: { edit: true, allowance: true }, target: 'bAddIn', pos: 'top', hand: true, sheet: true,
+      n: 'Bước 5/8', text: 'Phiếu có phụ cấp nào (ăn trưa, xăng xe, chuyên cần...) thì thêm từng khoản một, chọn cách tính cho đúng.', wait: 'Chạm để thêm', also: 'Tiếp' },
+  { cap: '6. Khấu trừ', small: 'Chỉ giải thích; khoản khác thì thêm như bước 5', screen: { edit: true, allowance: true, scroll: 60 }, target: 'secOut', pos: 'bottom',
+      n: 'Bước 6/8', text: 'Bảo hiểm app tự tính (BHXH 8 + BHYT 1,5 + BHTN 1 = 10,5% lương cơ bản). Phiếu có khoản trừ khác (công đoàn, tạm ứng...) thì bấm "Thêm khoản khấu trừ".', next: 'Tiếp' },
+  { cap: '7. Lương tăng ca', small: 'Tự bấm Xong rồi cuộn xuống', screen: { allowance: true, scroll: 270 }, target: 'rRate', pos: 'top',
+      n: 'Bước 7/8', text: 'Tăng ca ngày thường, Chủ nhật, ngày lễ được nhân bao nhiêu % (150%, 200%...)? Phiếu ghi khác thì sửa ở đây.', next: 'Tiếp' },
+  { cap: '8. Lấy tăng ca bù', small: 'Chỉ hiện khi là Công nhân', screen: { allowance: true, scroll: 270, off: true }, target: 'rOff', pos: 'top', hand: true,
+      n: 'Bước 8/8', text: 'Công ty có lấy giờ tăng ca để bù cho ngày nghỉ, ngày thiếu giờ không? Có thì tích ô cho đúng. Không thì bấm Tiếp.', wait: 'Tích ô', also: 'Tiếp' },
+  { cap: '9. Xong', small: 'Về màn chính', screen: { allowance: true }, dialog: {
+      title: 'Đã nhập xong phiếu lương',
+      text: 'Số tiền ước tính hiện ở khung thống kê trên màn chính.<br><br><span class="note">Hết kỳ này, app sẽ nhắc bạn so với phiếu lương thật để chỉnh cho khớp.</span>',
+      buttons: [['fill', 'Về màn chính']] } }
+];
+
+const partB = [
+  { cap: 'B1. Nhắc khi hết kỳ', small: 'Một lần, vài ngày sau khi hết kỳ đầu tiên', home: true, dialog: {
+      title: 'Phiếu lương thật về chưa?',
+      text: 'Kỳ 21/09 – 20/10 đã hết. App ước tính bạn thực nhận <b>7.245.500 đ</b>. So với phiếu thật xem có khớp không nhé.',
+      buttons: [['fill', 'So ngay'], ['line', 'Nhắc lại sau 3 ngày'], ['text', 'Không cần']] } },
+  { cap: 'B2. Nhập số trên phiếu thật', small: 'Chỉ cần số thực nhận', home: true, dialog: {
+      title: 'Phiếu thật ghi thực nhận bao nhiêu?',
+      text: '<div class="field">7.050.000 đ</div><div class="note" style="margin-top:8px">App tính 7.245.500 đ, lệch 195.500 đ.</div>',
+      buttons: [['fill', 'Xem chỗ lệch'], ['text', 'Đóng']] } },
+  { cap: 'B3. Những chỗ hay làm lệch', small: 'Bấm Sửa thì mở phiếu lương, sáng đúng dòng đó', home: true, dialog: {
+      title: 'Xem lại các dòng này',
+      text: '<div class="note">So từng dòng với phiếu thật:</div><div class="cmp">' +
+        '<div class="r"><span>Ngày công thực tế <b>25</b></span><span class="fix">Sửa</span></div>' +
+        '<div class="r"><span>Giờ tăng ca <b>32h</b></span><span class="fix">Sửa</span></div>' +
+        '<div class="r"><span>Ngày phép còn <b>1</b></span><span class="fix">Sửa</span></div>' +
+        '<div class="r"><span>Thiếu khoản thu nhập / khấu trừ?</span><span class="fix">Thêm</span></div></div>',
+      buttons: [['text', 'Xong']] } }
+];
+
+function render(list, rootId) {
+  const root = document.getElementById(rootId);
+  list.forEach(function (s) {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    wrap.innerHTML = '<p class="caption">' + s.cap + '<small>' + s.small + '</small></p><div class="phone">' +
+      (s.home ? home() : settings(s.screen)) + '</div>';
+    root.appendChild(wrap);
+    const phone = wrap.querySelector('.phone');
+
+    if (s.dialog) {
+      const d = s.dialog;
+      phone.insertAdjacentHTML('beforeend',
+        '<div class="scrim"><div class="dlg"><h3>' + d.title + '</h3><div>' + d.text + '</div><div class="actions">' +
+        d.buttons.map(function (b) { return '<div class="b ' + b[0] + '">' + b[1] + '</div>'; }).join('') + '</div></div></div>');
+      return;
+    }
+
+    const pr = phone.getBoundingClientRect();
+    const box = phone.querySelector('#' + s.target).getBoundingClientRect();
+    const pad = 4;
+    const x = box.left - pr.left - pad, y = box.top - pr.top - pad, w = box.width + pad * 2, h = box.height + pad * 2;
+    let html = '<div class="spot" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px"></div>';
+    html += '<div class="ring" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px"></div>';
+    // Hộp chỉ dẫn nằm dưới chỗ sáng thì đặt bàn tay ở mép phải để không đè lên hộp.
+    if (s.hand) html += s.pos === 'bottom'
+      ? '<div class="hand" style="left:' + (x + w - 30) + 'px;top:' + (y + h / 2 - 8) + 'px;z-index:4">👆</div>'
+      : '<div class="hand" style="left:' + (x + w / 2 - 6) + 'px;top:' + (y + h - 4) + 'px">👆</div>';
+    // Bước vừa chờ thao tác vừa cho bỏ qua (ví dụ không có phụ cấp) thì có cả chữ chờ và nút Tiếp.
+    let foot = '';
+    if (s.wait) foot += '<span class="wait">' + s.wait + '</span>';
+    if (s.next || s.also) foot += '<span class="next">' + (s.next || s.also) + '</span>';
+    const tipPos = s.pos === 'top' ? 'bottom:' + (560 - y + 14) + 'px' : 'top:' + (y + h + 14) + 'px';
+    html += '<div class="tip" style="' + tipPos + '"><div class="n">' + s.n + '</div>' + s.text +
+      '<div class="row"><span class="skip">Bỏ qua</span><span style="display:flex;gap:8px;align-items:center">' + foot + '</span></div></div>';
+    if (s.sheet) {
+      html += '<div class="sheet"><h4>Thêm khoản thu nhập</h4><div class="f">Tên khoản, ví dụ: Phụ cấp ăn trưa</div><div class="f">Số tiền</div>' +
+        '<div class="types"><span>Theo tháng</span><span class="on">Theo ngày đi làm</span><span>Theo kỳ</span></div></div>';
+    }
+    phone.insertAdjacentHTML('beforeend', html);
+  });
+}
+render(partA, 'partA');
+render(partB, 'partB');
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-/// Ngày phép của công nhân khi bật bù tăng ca (thuần Dart): mỗi kỳ lương được cộng 1 ngày phép, không
+/// Ngày phép của công nhân (thuần Dart, không phụ thuộc bù tăng ca): mỗi kỳ lương được cộng 1 ngày phép, không
 /// dùng thì dồn sang kỳ sau. Ngày tự nghỉ (T2–T7, không phải lễ) trừ vào phép trước — tính như nghỉ có
 /// lương; hết phép mới là nghỉ không lương. Ngày công ty cho nghỉ không trừ phép.
 library;
@@ -31,7 +31,7 @@ LeaveState leaveState(
   final anchors = [...settings.leaveAnchors]..sort((a, b) => a.date.compareTo(b.date));
   final end = dateOnly(until);
   final used = <DateTime>{};
-  if (!settings.usesOvertimeOffset || anchors.isEmpty || anchors.first.date.isAfter(end)) {
+  if (settings.workerKind != WorkerKind.worker || anchors.isEmpty || anchors.first.date.isAfter(end)) {
     return LeaveState(used: used, balance: 0);
   }
   var balance = 0.0;

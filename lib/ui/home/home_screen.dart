@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:provider/provider.dart';
@@ -22,9 +23,10 @@ import '../format.dart';
 import '../settings/settings_screen.dart';
 import '../settings/share_section.dart';
 import 'calendar_grid.dart';
-import 'day_hours_dialog.dart';
 import 'edit_dialogs.dart';
 import 'notes_summary.dart';
+import '../../onboarding/pay_guide.dart';
+import '../../onboarding/setup_dialog.dart';
 import 'overtime_offset_sheet.dart';
 import 'period_day_chart.dart';
 import 'period_history.dart';
@@ -47,8 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
   late DateTime _viewedMonth;
   late DateTime _selectedDate;
   bool _showLunar = false;
-  bool _showMoneyPerDay = false;
-  bool _showCheckTimes = false;
   final _scrollController = ScrollController();
 
   // Các chỗ sáng của chuyến hướng dẫn (xem `onboarding/tour_overlay.dart`).
@@ -139,6 +139,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (!mounted) return;
     if (start) {
+      await showSetupDialog(context, context.read<AppStore>());
+      if (!mounted) return;
       await _startTour();
     } else {
       _onShareChanged();
@@ -210,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     double moneyOf(DateTime date) => slipOf(date).amountOn(date);
     final offsetOn = store.settings.usesOvertimeOffset;
+    final isWorker = store.settings.workerKind == WorkerKind.worker;
 
     final selectedRecord = store.recordFor(_selectedDate);
     final todayPay = slip.amountOn(today);
@@ -242,6 +245,12 @@ class _HomeScreenState extends State<HomeScreen> {
             const NoticeBanner(),
             const SizedBox(height: 12),
             _buildIncomeCard(context, period, slip, todayPay),
+            if (!kIsWeb &&
+                !touring &&
+                store.settings.showGps &&
+                store.settings.gps.latitude == null &&
+                !store.settings.gpsReminderOff)
+              _gpsReminder(context, store),
             const SizedBox(height: 16),
             CalendarGrid(
               key: _calendarKey,
@@ -250,11 +259,9 @@ class _HomeScreenState extends State<HomeScreen> {
               selectedDate: _selectedDate,
               store: store,
               showLunar: _showLunar,
-              showMoneyPerDay: _showMoneyPerDay,
-              showCheckTimes: _showCheckTimes,
               moneyOf: moneyOf,
               offsetOf: offsetOn ? (d) => slipOf(d).offsetOn(d) : null,
-              onLeaveOf: offsetOn ? (d) => slipOf(d).leaveDates.contains(dateOnly(d)) : null,
+              onLeaveOf: isWorker ? (d) => slipOf(d).leaveDates.contains(dateOnly(d)) : null,
               onSelect: (d) => setState(() => _selectedDate = d),
             ),
             const SizedBox(height: 16),
@@ -350,30 +357,15 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() => _viewedMonth = DateTime(now.year, now.month));
             },
           ),
-        // Hai nút Âm lịch và Giờ vào/ra gom trong một Row để chuyến hướng dẫn khoét sáng cả hai.
-        Row(
+        // Lịch luôn hiện giờ vào/ra và tiền của ngày, nên chỉ còn nút Âm lịch.
+        KeyedSubtree(
           key: _topButtonsKey,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _headerIcon(
-              icon: Icons.brightness_2_outlined,
-              tooltip: 'Âm lịch',
-              color: _showLunar ? primary : null,
-              onPressed: () => setState(() => _showLunar = !_showLunar),
-            ),
-            _headerIcon(
-              icon: Icons.access_time_outlined,
-              tooltip: 'Giờ vào/ra',
-              color: _showCheckTimes ? primary : null,
-              onPressed: () => setState(() => _showCheckTimes = !_showCheckTimes),
-            ),
-          ],
-        ),
-        _headerIcon(
-          icon: Icons.payments_outlined,
-          tooltip: 'Lương mỗi ngày',
-          color: _showMoneyPerDay ? primary : null,
-          onPressed: () => setState(() => _showMoneyPerDay = !_showMoneyPerDay),
+          child: _headerIcon(
+            icon: Icons.brightness_2_outlined,
+            tooltip: 'Âm lịch',
+            color: _showLunar ? primary : null,
+            onPressed: () => setState(() => _showLunar = !_showLunar),
+          ),
         ),
       ],
     );
@@ -383,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// (phiếu lương nằm trên cùng).
   Widget _buildIncomeCard(BuildContext context, PayPeriod period, Payslip slip, double todayPay) {
     final colors = context.appColors;
+    final hasPay = context.read<AppStore>().settings.hasPayConfigured;
     final showIntro = _showTodayIntro;
     const animDuration = Duration(milliseconds: 500);
     const bigSize = 27.0;
@@ -415,24 +408,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    AnimatedDefaultTextStyle(
-                      duration: animDuration,
-                      curve: Curves.easeInOut,
-                      style: TextStyle(
-                        fontSize: showIntro ? smallSize : bigSize,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                    if (!hasPay)
+                      _payGuideButton(context)
+                    else
+                      AnimatedDefaultTextStyle(
+                        duration: animDuration,
+                        curve: Curves.easeInOut,
+                        style: TextStyle(
+                          fontSize: showIntro ? smallSize : bigSize,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                        child: Text(
+                          fmtMoney(slip.net),
+                          key: const ValueKey('home-net'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      child: Text(
-                        fmtMoney(slip.net),
-                        key: const ValueKey('home-net'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
                   ],
                 ),
               ),
+              if (hasPay) ...[
               const SizedBox(width: 10),
               // Bên phải: thu nhập hôm nay, to nổi bật trong 3s đầu, sau đó thu nhỏ về góc
               // này — nhưng số vẫn tiếp tục chạy tăng dần mỗi giây nếu ca đang mở.
@@ -458,102 +455,167 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _statTile(context, 'Giờ công', fmtHours(slip.normalMinutes)),
-              _statTile(context, 'Tăng ca', fmtHours(slip.overtimeMinutes)),
-              _statTile(context, 'Tổng giờ', fmtHours(slip.normalMinutes + slip.overtimeMinutes)),
+              // Công nhân xem ngày công; công nhật không có ngày công nên xem giờ công.
+              if (slip.kind == WorkerKind.worker) ...[
+                _statTile(context, 'Ngày công', fmtN(slip.workDays)),
+                _statTile(context, 'Tăng ca', fmtHours(slip.overtimeMinutes)),
+              ] else
+                _statTile(context, 'Giờ công', fmtHours(slip.normalMinutes)),
+              // Công nhân: thay "Tổng giờ" bằng số giờ tăng ca bị trừ để bù (tắt bù thì là 0); bấm vào thì
+              // xem chi tiết (không mở Cài đặt như phần còn lại của thẻ).
+              if (slip.kind == WorkerKind.worker)
+                _statTile(
+                  context,
+                  'Trừ tăng ca',
+                  fmtHours(slip.offsetTakenSeconds ~/ 60),
+                  key: const ValueKey('home-offset'),
+                  onTap: () => showOvertimeOffsetSheet(context, slip),
+                )
+              else
+                _statTile(context, 'Tăng ca', fmtHours(slip.overtimeMinutes)),
               _statTile(context, 'Ngày nghỉ', '${slip.daysOff}'),
             ],
           ),
-          if (slip.overtimeOffset) ...[
-            const SizedBox(height: 8),
-            // Bấm riêng dòng này thì xem chi tiết, không mở Cài đặt như phần còn lại của thẻ.
-            GestureDetector(
-              key: const ValueKey('home-offset'),
-              behavior: HitTestBehavior.opaque,
-              onTap: () => showOvertimeOffsetSheet(context, slip),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text('Giờ tăng ca bị trừ', style: TextStyle(fontSize: 12.5, color: Colors.white70)),
-                  ),
-                  Text(
-                    fmtHours(slip.offsetTakenSeconds ~/ 60),
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                  const Icon(Icons.chevron_right, size: 18, color: Colors.white70),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
     return GestureDetector(onTap: _openSettings, child: card);
   }
 
-  Widget _statTile(BuildContext context, String label, String value) {
-    return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(value, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: Colors.white), maxLines: 1),
-          Text(label, style: const TextStyle(fontSize: 11.5, color: Colors.white70), maxLines: 1),
-        ],
+  /// Chưa có tọa độ chỗ làm: nhắc cài chấm công tự động (lúc đầu bấm "Để sau" vì chưa ở chỗ làm).
+  Widget _gpsReminder(BuildContext context, AppStore store) => Padding(
+    key: const ValueKey('home-gps-reminder'),
+    padding: const EdgeInsets.only(top: 10),
+    child: Material(
+      color: context.appColors.accentSoft,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const SettingsScreen(scrollToGps: true)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+          child: Row(
+            children: [
+              Icon(Icons.location_off_outlined, size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Chưa cài chấm công tự động', style: TextStyle(fontSize: 13))),
+              Text(
+                'Cài ngay',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary),
+              ),
+              IconButton(
+                key: const ValueKey('home-gps-reminder-off'),
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Không dùng chấm công tự động',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => store.updateSettings((s) => s.copyWith(gpsReminderOff: true)),
+              ),
+            ],
+          ),
+        ),
       ),
+    ),
+  );
+
+  /// Chưa cài lương: nút mở hướng dẫn tính lương, kèm chữ nhỏ nói đây là chức năng phụ.
+  Widget _payGuideButton(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 4),
+      // Loại người dùng, kỳ lương đã hỏi lúc mới vào app nên vào thẳng phần nhập phiếu lương.
+      PayGuideCta(onPressed: () => runPayGuide(context, context.read<AppStore>())),
+      const SizedBox(height: 2),
+      const Text(
+        'Đây là chức năng ước tính lương, nếu bạn không cần thì bỏ qua nhé.',
+        style: TextStyle(color: Colors.white70, fontSize: 11),
+      ),
+    ],
+  );
+
+  Widget _statTile(BuildContext context, String label, String value, {Key? key, VoidCallback? onTap}) {
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(value, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: Colors.white), maxLines: 1),
+        // Ô bấm được thì gạch chân nhãn; nhãn dài thì tự thu nhỏ cho vừa ô.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: Colors.white70,
+              decoration: onTap != null ? TextDecoration.underline : null,
+              decorationColor: Colors.white70,
+            ),
+            maxLines: 1,
+          ),
+        ),
+      ],
+    );
+    return Expanded(
+      key: key,
+      child: onTap == null ? column : GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: column),
     );
   }
 
   Widget _buildActionButtons(BuildContext context, AppStore store, DayRecord record, Payslip slip) {
-    final offset = store.settings.usesOvertimeOffset;
-    final onLeave = offset && slip.leaveDates.contains(dateOnly(_selectedDate));
+    // Công nhân: ngày nghỉ luôn là Tự nghỉ (trừ phép trước) hoặc Công ty cho nghỉ.
+    final worker = store.settings.workerKind == WorkerKind.worker;
+    final onLeave = worker && slip.leaveDates.contains(dateOnly(_selectedDate));
     final paidLook = record.paidLeave || onLeave;
     final String dayOffLabel;
     if (!record.isDayOff) {
       dayOffLabel = 'Ngày nghỉ';
-    } else if (!offset || record.paidLeave) {
+    } else if (!worker || record.paidLeave) {
       dayOffLabel = record.paidLeave ? 'Có lương' : 'Không lương';
     } else {
       dayOffLabel = record.companyOff ? 'Cty nghỉ' : (onLeave ? 'Nghỉ phép' : 'Tự nghỉ');
     }
-    Future<void> punchNow(bool isCheckIn) async {
+    // Giữ nút Vào/Ra: chưa có giờ vào thì chấm vào, có rồi thì chấm ra bằng giờ hiện tại.
+    Future<void> punchNow() async {
       final now = DateTime.now();
       final time = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, now.hour, now.minute);
-      if (isCheckIn) {
+      if (record.checkIn == null) {
         await store.punchIn(_selectedDate, time);
       } else {
         await store.punchOut(_selectedDate, time);
       }
     }
 
+    final String punchLabel;
+    if (record.checkIn == null) {
+      punchLabel = record.hasManualHours ? 'Giờ sửa tay' : 'Vào/Ra';
+    } else {
+      punchLabel = '${fmtTime(record.checkIn!)}–${record.checkOut != null ? fmtTime(record.checkOut!) : '…'}';
+    }
+
     return Column(
       children: [
         Row(
           children: [
+            // Một nút cho cả giờ vào và giờ ra; hai bước "chấm vào", "chấm ra" của chuyến hướng dẫn cùng
+            // khoét sáng nút này.
             Expanded(
-              child: _ActionButton(
-                key: _checkInKey,
-                icon: Icons.login,
-                label: record.checkIn != null ? fmtTime(record.checkIn!) : 'Chấm vào',
-                active: record.checkIn != null,
-                activeColor: Colors.blue,
-                onTap: () => showPunchEditSheet(context, store: store, date: _selectedDate, isCheckIn: true),
-                onLongPress: () => punchNow(true),
-              ),
-            ),
-            Expanded(
-              child: _ActionButton(
+              child: KeyedSubtree(
                 key: _checkOutKey,
-                icon: Icons.logout,
-                label: record.checkOut != null ? fmtTime(record.checkOut!) : 'Chấm ra',
-                active: record.checkOut != null,
-                activeColor: Colors.blue,
-                onTap: () => showPunchEditSheet(context, store: store, date: _selectedDate, isCheckIn: false),
-                onLongPress: () => punchNow(false),
+                child: _ActionButton(
+                  key: _checkInKey,
+                  icon: record.checkIn != null && record.checkOut == null ? Icons.logout : Icons.login,
+                  label: punchLabel,
+                  active: record.checkIn != null || record.hasManualHours,
+                  activeColor: Colors.blue,
+                  onTap: () => showPunchDialog(context, store: store, date: _selectedDate),
+                  onLongPress: punchNow,
+                ),
               ),
             ),
             Expanded(
@@ -566,7 +628,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 activeColor: paidLook
                     ? context.appColors.dayOffMark
                     : Color.lerp(context.appColors.dayOffMark, Colors.white, 0.45)!,
-                onTap: () => offset ? _chooseDayOffOffset(store, record) : _chooseDayOff(store, record),
+                onTap: () => worker ? _chooseDayOffOffset(store, record) : _chooseDayOff(store, record),
               ),
             ),
             Expanded(
@@ -671,8 +733,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Bấm "Ngày nghỉ" khi bật bù tăng ca: tự nghỉ (trừ phép trước, hết phép là không lương) hay công
-  /// ty cho nghỉ (lấy tăng ca bù).
+  /// Bấm "Ngày nghỉ" (công nhân): tự nghỉ (trừ phép trước, hết phép là không lương) hay công ty cho
+  /// nghỉ (không trừ phép; bật bù tăng ca thì lấy tăng ca bù).
   Future<void> _chooseDayOffOffset(AppStore store, DayRecord record) async {
     final date = _selectedDate;
     final balance = leaveBalanceFor(store.settings, store.recordFor, date);
@@ -700,7 +762,11 @@ class _HomeScreenState extends State<HomeScreen> {
               key: const ValueKey('dayoff-company'),
               leading: const Icon(Icons.apartment_outlined),
               title: const Text('Công ty cho nghỉ'),
-              subtitle: const Text('Không trừ phép, lấy tăng ca bù vào'),
+              subtitle: Text(
+                store.settings.usesOvertimeOffset
+                    ? 'Không trừ phép, lấy tăng ca bù vào'
+                    : 'Không trừ phép, nghỉ không lương',
+              ),
               trailing: record.isDayOff && record.companyOff ? const Icon(Icons.check) : null,
               onTap: () => Navigator.pop(context, 'company'),
             ),
@@ -745,21 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: () => showNoteSheet(context, store: store, date: _selectedDate),
       ),
     );
-    // Sửa tay giờ công / giờ tăng ca của ngày (ngày không nghỉ, không phải ngày mai trở đi).
-    final canEditHours = !record.isDayOff && !dateOnly(_selectedDate).isAfter(dateOnly(DateTime.now()));
-    if (!canEditHours) return note;
-    return Row(
-      children: [
-        Expanded(child: note),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          key: const ValueKey('edit-day-hours'),
-          icon: Icon(record.hasManualHours ? Icons.edit : Icons.edit_outlined, size: 18),
-          label: Text(record.hasManualHours ? 'Giờ sửa tay' : 'Sửa giờ'),
-          onPressed: () => showDayHoursDialog(context, store: store, date: _selectedDate),
-        ),
-      ],
-    );
+    return note;
   }
 }
 

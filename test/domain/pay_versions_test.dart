@@ -2,11 +2,12 @@ import 'package:cham_cong_don_gian/domain/models.dart';
 import 'package:cham_cong_don_gian/domain/pay_period.dart';
 import 'package:cham_cong_don_gian/domain/payslip.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../sample_settings.dart';
 
 void main() {
   // Công nhân mặc định: kỳ theo tháng, bắt đầu ngày 21. "Hôm nay" là 10/10/2026.
   final today = DateTime(2026, 10, 10);
-  final defaults = AppSettings.defaultsFor(WorkerKind.worker);
+  final defaults = sampleDefaults(WorkerKind.worker);
   final current = periodContaining(today, defaults.payPeriod); // 21/09 - 20/10
   final previous = periodContaining(DateTime(2026, 9, 1), defaults.payPeriod); // 21/08 - 20/09
   final older = periodContaining(DateTime(2026, 8, 1), defaults.payPeriod); // 21/07 - 20/08
@@ -106,7 +107,7 @@ void main() {
       periodEnded: false,
       baseSalary: 4500000,
     );
-    expect(AppSettings.defaultsFor(WorkerKind.daily, keep: s).payVersions, isEmpty);
+    expect(sampleDefaults(WorkerKind.daily, keep: s).payVersions, isEmpty);
   });
 
   group('ngày nghỉ có lương', () {
@@ -139,7 +140,7 @@ void main() {
     });
 
     test('công nhật: tính một ngày lương', () {
-      final daily = AppSettings.defaultsFor(WorkerKind.daily);
+      final daily = sampleDefaults(WorkerKind.daily);
       final paid = slipWith(daily, DayRecord(date: leaveDay, isDayOff: true, paidLeave: true));
       expect(salaryOf(paid), 350000);
       expect(paid.amountOn(leaveDay), 350000);

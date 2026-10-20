@@ -44,16 +44,16 @@ extension TourStepInfo on TourStep {
     _ => false,
   };
 
-  /// Số thứ tự hiện ở "Bước x/8" (hai bước 3a, 3b cùng là bước 3); hộp thoại thì không có.
+  /// Số thứ tự hiện ở "Bước x/10" (bước 9, 10 là GPS, hiện ở Cài đặt); hộp thoại thì không có.
   int? get number => switch (this) {
     TourStep.checkIn => 1,
     TourStep.checkOut => 2,
-    TourStep.pickDayOff || TourStep.chooseDayOff => 3,
-    TourStep.lateButton => 4,
-    TourStep.note => 5,
-    TourStep.calendar => 6,
-    TourStep.stats => 7,
-    TourStep.topButtons => 8,
+    TourStep.pickDayOff => 3,
+    TourStep.chooseDayOff => 4,
+    TourStep.lateButton => 5,
+    TourStep.note => 6,
+    TourStep.calendar => 7,
+    TourStep.stats => 8,
     _ => null,
   };
 }
@@ -165,7 +165,8 @@ class TourController extends ChangeNotifier {
       TourStep.intro => TourStep.manual,
       TourStep.manual => TourStep.checkIn,
       TourStep.calendar => TourStep.stats,
-      TourStep.stats => TourStep.topButtons,
+      // Nút âm lịch đã nói ở bước thống kê nên bỏ qua bước riêng của nó.
+      TourStep.stats => TourStep.done,
       TourStep.topButtons => TourStep.done,
       _ => null,
     };

@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../domain/models.dart';
+import '../data/store.dart';
 
 import '../theme/app_theme.dart';
 import 'tour_controller.dart';
@@ -8,6 +11,9 @@ import 'tour_controller.dart';
 /// Lớp phủ của chuyến hướng dẫn (theo `mockup/huong-dan-tung-buoc.html`): phủ mờ cả màn hình,
 /// khoét sáng đúng một chỗ; chỉ chỗ sáng bấm được ở các bước chờ thao tác. Đặt trong một `Stack`
 /// phủ toàn màn chính.
+/// Tổng số bước có số (8 trên màn chính, 9 và 10 là GPS ở Cài đặt).
+const tourStepCount = 10;
+
 class TourOverlay extends StatefulWidget {
   const TourOverlay({
     super.key,
@@ -115,9 +121,9 @@ class _TourOverlayState extends State<TourOverlay> with SingleTickerProviderStat
         onOk = c.next;
         onSkip = null;
       default:
-        title = 'Vậy là cơ bản đã xong';
+        title = 'Phần chấm công đã xong';
         body = [
-          _bodyText('Nếu bạn muốn chấm công tự động thì bấm Tiếp theo nhé.'),
+          _bodyText('Bước 9 và 10: cài chấm công tự động bằng GPS. Bấm Tiếp theo nhé.'),
           const SizedBox(height: 14),
           const Text(
             'Để dùng chức năng này, bây giờ bạn hãy đến chỗ nơi bạn hay chấm công nhé, hoặc chờ lúc về, cài đặt sau.',
@@ -185,18 +191,22 @@ class _TourOverlayState extends State<TourOverlay> with SingleTickerProviderStat
     final passThrough = step.waitsForAction;
 
     final text = switch (step) {
-      TourStep.checkIn => 'Đây là nút chấm giờ vào. Bạn hãy thử nhập giờ vào của bạn nhé.',
-      TourStep.checkOut => 'Đây là nút chấm giờ ra. Bạn hãy thử nhập giờ ra của bạn nhé.',
+      TourStep.checkIn => 'Đây là nút chấm giờ vào/ra. Bạn hãy bấm vào và nhập giờ vào của bạn nhé.',
+      TourStep.checkOut => 'Bấm lại nút này và nhập giờ ra của bạn nhé.',
       TourStep.pickDayOff => c.pickDayOffText,
-      TourStep.chooseDayOff => 'Bấm nút Ngày nghỉ, rồi chọn nghỉ có lương hay không lương.',
-      TourStep.lateButton => 'Nếu đi muộn, hãy chọn vào nút Đi muộn.',
+      TourStep.chooseDayOff => context.read<AppStore>().settings.workerKind == WorkerKind.worker
+          ? 'Bấm nút Ngày nghỉ, chọn Tự nghỉ hoặc Công ty cho nghỉ. Dòng nhỏ dưới "Tự nghỉ" cho biết bạn còn mấy ngày phép.'
+          : 'Bấm nút Ngày nghỉ, rồi chọn nghỉ có lương hay không lương.',
+      TourStep.lateButton => 'Nếu tự đi muộn, bấm nút Đi muộn.',
       TourStep.note => 'Bạn muốn ghi nhớ điều gì hôm nay thì có thể ghi lại ở đây, như bị ốm chẳng hạn.',
       TourStep.calendar =>
-        'Số trong ô là giờ làm trong ngày. Số màu đỏ ở góc ô là giờ tăng ca. Chữ "Chưa" nghĩa là ngày đó chưa chấm.',
+        'Mỗi ô có giờ vào, giờ ra, và tiền của ngày nếu đã cài lương. Số màu cam ở góc là giờ tăng ca, số có dấu "−" '
+            'là giờ thiếu được lấy tăng ca bù. Ô hồng đậm "Phép" là ngày nghỉ phép. "Chưa" là ngày chưa chấm.',
       TourStep.stats =>
-        'Đây là khung thống kê nhanh: số giờ công, số giờ tăng ca, tổng giờ và số ngày nghỉ của kỳ này.',
+        'Thống kê nhanh của kỳ này: ngày công, giờ tăng ca, giờ tăng ca bị trừ và số ngày nghỉ. Bấm vào "Trừ tăng ca" '
+            'để xem chi tiết trừ cho ngày nào, bao nhiêu giờ. Nút mặt trăng ở trên cùng bật ngày âm lịch.',
       _ =>
-        'Hai nút này: biểu tượng mặt trăng bật ngày âm lịch, biểu tượng đồng hồ hiện giờ vào và giờ ra trong từng ô lịch.',
+        'Nút mặt trăng bật ngày âm lịch trong từng ô lịch.',
     };
 
     // Hộp chỉ dẫn nằm phía có nhiều chỗ hơn so với chỗ sáng; nhãn "Bấm vào đây" ở phía đối diện.
@@ -282,7 +292,7 @@ class _TourOverlayState extends State<TourOverlay> with SingleTickerProviderStat
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Bước ${step.number}/8', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
+            Text('Bước ${step.number}/$tourStepCount', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
             const SizedBox(height: 2),
             Text(text, style: const TextStyle(fontSize: 13.5, height: 1.5, color: _ink)),
             const SizedBox(height: 6),

@@ -122,8 +122,7 @@ void main() {
       expect(tour.step, TourStep.calendar, reason: 'bước chỉ giải thích chờ bấm Tiếp');
       tour.next();
       expect(tour.step, TourStep.stats);
-      tour.next();
-      expect(tour.step, TourStep.topButtons);
+      // Nút âm lịch đã nói ở bước thống kê, không còn bước riêng.
       tour.next();
       expect(tour.step, TourStep.done);
     });
@@ -237,11 +236,17 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
+      // Trước chuyến là câu hỏi Công nhân hay Công nhật; "Để sau" thì vào chuyến luôn.
+      expect(find.text('Bạn là Công nhân hay Công nhật?'), findsOneWidget);
+      await tester.tap(find.text('Để sau'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('Nhập tay'), findsOneWidget);
       await tester.tap(find.text('Tiếp'));
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100)); // khung đầu chưa đo được chỗ sáng, khung sau mới có
-      expect(find.text('Bước 1/8'), findsOneWidget);
+      expect(find.text('Bước 1/10'), findsOneWidget);
       expect(find.text('Bấm vào đây'), findsOneWidget);
 
       // Chấm vào hôm nay (như người dùng giữ nút Chấm vào) -> sang bước 2.
@@ -249,14 +254,14 @@ void main() {
       await store.punchIn(dateOnly(now), DateTime(now.year, now.month, now.day, 7));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.text('Bước 2/8'), findsOneWidget);
+      expect(find.text('Bước 2/10'), findsOneWidget);
 
       // "Bỏ qua" trả dữ liệu tập về (hôm nay không có bản ghi từ trước).
       await tester.tap(find.text('Bỏ qua'));
       await tester.pump(const Duration(milliseconds: 100));
       expect(tourController.active, isFalse);
       expect(store.records.containsKey(dateKey(dateOnly(now))), isFalse);
-      expect(find.text('Bước 2/8'), findsNothing);
+      expect(find.text('Bước 2/10'), findsNothing);
     });
 
     testWidgets('Đi hết chuyến: mọi bước đều khoét sáng được, "Tiếp theo" mở Cài đặt và trả dữ liệu tập', (tester) async {
@@ -287,35 +292,37 @@ void main() {
         expect(find.text('Bấm vào đây'), hasLabel ? findsOneWidget : findsNothing, reason: label);
       }
 
-      await expectStep('Bước 1/8');
+      await expectStep('Bước 1/10');
       await store.punchIn(today, DateTime(now.year, now.month, now.day, 7));
-      await expectStep('Bước 2/8');
+      await expectStep('Bước 2/10');
       await store.punchOut(today, DateTime(now.year, now.month, now.day, 18));
-      await expectStep('Bước 3/8');
+      await expectStep('Bước 3/10');
       final practice = tourController.practiceDate!;
       expect(find.textContaining('(ngày ${practice.day})'), findsOneWidget);
       // Chạm đúng ô được khoét sáng trên lịch.
       await tester.tap(find.text('${practice.day}').first);
-      await expectStep('Bước 3/8');
+      await expectStep('Bước 4/10');
       expect(find.textContaining('Bấm nút Ngày nghỉ'), findsOneWidget);
       await store.setDayOff(practice, true);
-      await expectStep('Bước 4/8');
+      await expectStep('Bước 5/10');
       await store.setLate(today, true);
-      await expectStep('Bước 5/8');
+      await expectStep('Bước 6/10');
       await store.setNote(today, note: 'ốm');
-      await expectStep('Bước 6/8', hasLabel: false);
+      await expectStep('Bước 7/10', hasLabel: false);
       await tester.tap(find.text('Tiếp'));
-      await expectStep('Bước 7/8', hasLabel: false);
-      await tester.tap(find.text('Tiếp'));
-      await expectStep('Bước 8/8', hasLabel: false);
+      await expectStep('Bước 8/10', hasLabel: false);
+      expect(find.textContaining('Bấm vào "Trừ tăng ca"'), findsOneWidget);
       await tester.tap(find.text('Tiếp'));
       await settle();
-      expect(find.text('Vậy là cơ bản đã xong'), findsOneWidget);
+      expect(find.text('Phần chấm công đã xong'), findsOneWidget);
       await tester.tap(find.text('Tiếp theo'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(tourController.active, isFalse);
       expect(find.text('Cài đặt'), findsWidgets);
+      // Bước 9, 10 (GPS) hiện ngay trong thẻ Chấm công GPS (chỉ có khi không phải bản web).
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byKey(const ValueKey('gps-tour-hint'), skipOffstage: false), findsOneWidget);
       expect(store.records[dateKey(today)]!.toJson(), original.toJson());
       expect(store.records.containsKey(dateKey(practice)), isFalse);
     });

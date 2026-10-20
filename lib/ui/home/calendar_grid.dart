@@ -15,8 +15,6 @@ class CalendarGrid extends StatelessWidget {
     required this.selectedDate,
     required this.store,
     required this.showLunar,
-    required this.showMoneyPerDay,
-    required this.showCheckTimes,
     required this.moneyOf,
     required this.onSelect,
     this.keyFor,
@@ -28,8 +26,6 @@ class CalendarGrid extends StatelessWidget {
   final DateTime selectedDate;
   final AppStore store;
   final bool showLunar;
-  final bool showMoneyPerDay;
-  final bool showCheckTimes;
 
   /// Tiền của một ngày, lấy từ phiếu lương của kỳ chứa ngày đó.
   final double Function(DateTime date) moneyOf;
@@ -52,6 +48,9 @@ class CalendarGrid extends StatelessWidget {
     final totalCells = leadingBlank + daysInMonth;
     final rows = (totalCells / 7).ceil();
     final today = dateOnly(DateTime.now());
+    // Chưa cài lương thì không hiện tiền từng ngày, ô lịch thấp hơn.
+    final showMoney = store.settings.hasPayConfigured;
+    final cellHeight = showMoney ? 70.0 : 58.0;
 
     // Cỡ chữ trong ô lịch cố định, không theo cỡ chữ hệ thống — ô quá nhỏ nếu phóng to sẽ đè lên nhau.
     return MediaQuery(
@@ -84,7 +83,7 @@ class CalendarGrid extends StatelessWidget {
                         builder: (context) {
                           final cellIndex = r * 7 + c;
                           final dayNum = cellIndex - leadingBlank + 1;
-                          if (dayNum < 1 || dayNum > daysInMonth) return SizedBox(height: showCheckTimes ? 70 : 58);
+                          if (dayNum < 1 || dayNum > daysInMonth) return SizedBox(height: cellHeight);
                           final date = DateTime(month.year, month.month, dayNum);
                           return _DayCell(
                             key: keyFor?.call(date),
@@ -93,9 +92,9 @@ class CalendarGrid extends StatelessWidget {
                             isSelected: date == selectedDate,
                             store: store,
                             showLunar: showLunar,
-                            showMoneyPerDay: showMoneyPerDay,
-                            showCheckTimes: showCheckTimes,
-                            money: showMoneyPerDay ? moneyOf(date) : 0,
+                            showMoney: showMoney,
+                            height: cellHeight,
+                            money: showMoney ? moneyOf(date) : 0,
                             offset: offsetOf?.call(date),
                             onLeave: onLeaveOf?.call(date) ?? false,
                             onTap: () => onSelect(date),
@@ -120,8 +119,8 @@ class _DayCell extends StatelessWidget {
     required this.isSelected,
     required this.store,
     required this.showLunar,
-    required this.showMoneyPerDay,
-    required this.showCheckTimes,
+    required this.showMoney,
+    required this.height,
     required this.money,
     required this.onTap,
     this.offset,
@@ -133,10 +132,12 @@ class _DayCell extends StatelessWidget {
   final bool isSelected;
   final AppStore store;
   final bool showLunar;
-  final bool showMoneyPerDay;
-  final bool showCheckTimes;
 
-  /// Tiền của ngày theo phiếu lương (chỉ dùng khi bật "Lương mỗi ngày").
+  /// Đã cài lương: dòng cuối của ô là tiền của ngày.
+  final bool showMoney;
+  final double height;
+
+  /// Tiền của ngày theo phiếu lương (chỉ dùng khi [showMoney]).
   final double money;
   final VoidCallback onTap;
   final OvertimeOffsetDay? offset;
@@ -167,12 +168,18 @@ class _DayCell extends StatelessWidget {
       fill = paid ? colors.dayOffMark : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.surface, 0.6)!;
       onFill = paid ? Colors.white : Color.lerp(colors.dayOffMark, Theme.of(context).colorScheme.onSurface, 0.45)!;
       borderColor = fill;
-      // Nghỉ có lương có tiền của ngày: bật "Lương mỗi ngày" thì hiện số tiền đó.
-      bottomLabel = !paid
-          ? (record.companyOff ? 'Cty nghỉ' : 'Nghỉ')
-          : (showMoneyPerDay ? _shortMoney(money) : (onLeave ? 'Phép' : 'Nghỉ ₫'));
+      // Nghỉ có lương có tiền của ngày: đã cài lương thì hiện thêm số tiền đó.
+      bottomLabel = !paid ? (record.companyOff ? 'Cty nghỉ' : 'Nghỉ') : (onLeave ? 'Phép' : 'Nghỉ ₫');
+      if (paid && showMoney) bottomLabel2 = _shortMoney(money);
     } else if (isFuture) {
       bottomLabel = null;
+    } else if (!record.hasAttendance && record.hasManualHours) {
+      // Không có giờ vào/ra, chỉ có giờ sửa tay.
+      fill = Theme.of(context).colorScheme.primary;
+      onFill = Colors.white;
+      borderColor = fill;
+      bottomLabel = fmtHours(result.normalMinutes);
+      if (showMoney) bottomLabel2 = _shortMoney(money);
     } else if (!record.hasAttendance) {
       borderColor = colors.warnSoft;
       onFill = colors.warn;
@@ -183,26 +190,16 @@ class _DayCell extends StatelessWidget {
       fill = missed ? colors.lateMark : colors.openShiftMark;
       onFill = Colors.white;
       borderColor = fill;
-      if (showCheckTimes) {
-        bottomLabel = Clock(record.checkIn!.hour, record.checkIn!.minute).formatted;
-        bottomLabel2 = missed ? '?' : '…';
-      } else {
-        bottomLabel = missed ? 'Chưa ra' : 'Đang';
-      }
+      bottomLabel = Clock(record.checkIn!.hour, record.checkIn!.minute).formatted;
+      bottomLabel2 = missed ? '?' : '…';
     } else {
       fill = Theme.of(context).colorScheme.primary;
       onFill = Colors.white;
       borderColor = Theme.of(context).colorScheme.primary;
-      if (showCheckTimes) {
-        bottomLabel = Clock(record.checkIn!.hour, record.checkIn!.minute).formatted;
-        bottomLabel2 = Clock(record.checkOut!.hour, record.checkOut!.minute).formatted;
-        bottomLabel3 = fmtHours(result.normalMinutes + result.overtimeMinutes);
-      } else {
-        // Bù tăng ca: ngày nào cũng gần đủ công nên bỏ số giờ, giờ thiếu đã hiện ở huy hiệu "−".
-        bottomLabel = showMoneyPerDay
-            ? _shortMoney(money)
-            : (store.settings.usesOvertimeOffset ? null : fmtHours(result.normalMinutes));
-      }
+      // Giờ vào, giờ ra; đã cài lương thì thêm tiền của ngày.
+      bottomLabel = Clock(record.checkIn!.hour, record.checkIn!.minute).formatted;
+      bottomLabel2 = Clock(record.checkOut!.hour, record.checkOut!.minute).formatted;
+      if (showMoney) bottomLabel3 = _shortMoney(money);
     }
 
     final lunarDate = showLunar ? lunar.solarToLunar(date.day, date.month, date.year) : null;
@@ -211,7 +208,7 @@ class _DayCell extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: showCheckTimes ? 70 : 58,
+        height: height,
         margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(
           color: fill,
@@ -323,13 +320,13 @@ class _DayCell extends StatelessWidget {
                 child: Text(lunarDate.short, style: TextStyle(fontSize: 8, color: onFill == Colors.white ? Colors.white70 : colors.ink3)),
               ),
             // Chấm ghi chú, góc phải dưới — ẩn khi xem giờ vào/ra vì chữ đã chiếm hết chỗ dưới.
-            if (hasNote && !showCheckTimes)
+            if (hasNote && bottomLabel2 == null)
               Positioned(
                 right: 4,
                 bottom: 3,
                 child: Icon(Icons.circle, size: 6, color: onFill == Colors.white ? Colors.white : colors.noteMark),
               ),
-            if (isToday && !showCheckTimes)
+            if (isToday && bottomLabel2 == null)
               Positioned(
                 bottom: 3,
                 left: 0,

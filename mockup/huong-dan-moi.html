@@ -1,0 +1,375 @@
+<title>Hướng dẫn mới Chấm Công</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap">
+<style>
+  /* Bố cục: bản đề xuất đọc từ trên xuống, mỗi phần một khung điện thoại nhỏ bên cạnh lời giải thích.
+     Màu lấy theo app (xanh lá đậm của thẻ thu nhập, cam tăng ca, hồng ngày nghỉ). */
+  :root {
+    --bg: #EEF2F0;
+    --surface: #FFFFFF;
+    --ink: #1B2420;
+    --ink2: #52615B;
+    --ink3: #86938E;
+    --line: #DCE3E0;
+    --accent: #17695A;
+    --accent-soft: #DCEEE9;
+    --card-a: #1FA88A;
+    --card-b: #2F7FD9;
+    --ot: #E58A2B;
+    --off: #E4A9CF;
+    --off-strong: #C43F95;
+    --warn-soft: #FFF1DD;
+    --warn: #A65A00;
+    --phone: #F3F6F5;
+    --on-card: #FFFFFF;
+    --font: "Be Vietnam Pro", -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121816; --surface: #1B2321; --ink: #E7EEEB; --ink2: #B2C0BA; --ink3: #7F8E88; --line: #2C3633;
+      --accent: #5CC7AE; --accent-soft: #1E3A33; --phone: #18201E; --warn-soft: #3A2C17; --warn: #F2B266;
+      --off: #7A4A6A; --off-strong: #D063A9; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121816; --surface: #1B2321; --ink: #E7EEEB; --ink2: #B2C0BA; --ink3: #7F8E88; --line: #2C3633;
+    --accent: #5CC7AE; --accent-soft: #1E3A33; --phone: #18201E; --warn-soft: #3A2C17; --warn: #F2B266;
+    --off: #7A4A6A; --off-strong: #D063A9; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14.5px; line-height: 1.55;
+    padding-block: 28px 60px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { max-width: 980px; margin: 0 auto; display: grid; gap: 34px; }
+  header h1 { font-size: 24px; margin: 0 0 6px; font-weight: 800; text-wrap: balance; }
+  header p { margin: 0; color: var(--ink2); max-width: 68ch; }
+  section { display: grid; gap: 14px; }
+  .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  h2 { font-size: 19px; margin: 0; text-wrap: balance; }
+  h3 { font-size: 15px; margin: 0; }
+  p { margin: 0; }
+  .lead { color: var(--ink2); max-width: 70ch; }
+  .row { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+  .row > .text { flex: 1 1 320px; min-width: 0; display: grid; gap: 10px; }
+
+  /* Khung điện thoại */
+  .phone {
+    width: 270px; max-width: 100%; flex: 0 0 auto; background: var(--phone); border-radius: 22px;
+    border: 1px solid var(--line); padding: 12px 10px 14px; display: grid; gap: 10px; font-size: 11px;
+  }
+  .cap { font-size: 12px; color: var(--ink3); text-align: center; margin-top: -2px; }
+  .income {
+    border-radius: 16px; padding: 12px; color: var(--on-card);
+    background: linear-gradient(135deg, var(--card-a), var(--card-b));
+  }
+  .income .top { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5px; opacity: .85; }
+  .guide-btn {
+    margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px;
+    background: var(--on-card); color: var(--accent); font-weight: 700; font-size: 11.5px;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; margin-top: 10px; }
+  .tiles.three { grid-template-columns: repeat(3, 1fr); }
+  .tiles b { display: block; font-size: 14px; }
+  .tiles span { font-size: 9px; opacity: .85; }
+  .tiles .tap span { text-decoration: underline; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .d {
+    position: relative; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
+    min-height: 44px; display: grid; place-content: center; text-align: center; font-size: 8px; line-height: 1.15;
+    color: var(--ink2);
+  }
+  .d b { font-size: 12px; color: var(--ink); }
+  .d.work { background: var(--accent); border-color: var(--accent); color: var(--on-card); }
+  .d.work b { color: var(--on-card); }
+  .d.off { background: var(--off); border-color: var(--off); }
+  .d.leave { background: var(--off-strong); border-color: var(--off-strong); color: var(--on-card); }
+  .d.leave b { color: var(--on-card); }
+  .badge {
+    position: absolute; top: -6px; right: -4px; background: var(--ot); color: var(--on-card); font-weight: 800;
+    font-size: 7.5px; padding: 0 3px; border-radius: 6px;
+  }
+  .sheet { background: var(--surface); border-radius: 14px; padding: 12px; display: grid; gap: 8px; border: 1px solid var(--line); }
+  .sheet h4 { margin: 0; font-size: 13px; }
+  .muted { color: var(--ink3); }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .field { border: 1.5px solid var(--line); border-radius: 8px; padding: 5px 7px; font-size: 10px; color: var(--ink3); }
+  .field b { display: block; font-size: 13px; color: var(--ink); letter-spacing: .04em; }
+  .btn { justify-self: end; background: var(--accent); color: var(--on-card); border-radius: 999px; padding: 5px 14px; font-weight: 700; }
+  .choice { display: grid; gap: 6px; }
+  .choice div { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px; }
+  .choice div.on { border-color: var(--accent); background: var(--accent-soft); }
+  .choice b { display: block; font-size: 12px; }
+  .opt { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 11.5px; }
+  .dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--accent); flex: none; }
+  .dot.on { background: var(--accent); }
+  .kv { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 5px 0; }
+  .kv:last-child { border-bottom: 0; }
+
+  /* Bảng các bước */
+  .steps { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink3); font-weight: 700; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { white-space: nowrap; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+  td.where { color: var(--ink2); font-size: 13px; width: 24%; }
+  .new { display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--warn); background: var(--warn-soft); border-radius: 6px; padding: 0 6px; margin-left: 4px; }
+
+  /* Danh sách màn Hướng dẫn sử dụng */
+  .help { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .help article { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 6px; min-width: 0; }
+  .help article p, .help article li { color: var(--ink2); font-size: 13.5px; }
+  .help ol, .help ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .ask { background: var(--warn-soft); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; }
+  .ask h2 { color: var(--warn); font-size: 16px; }
+  .ask ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+  .small-note { margin: 5px 0 0; font-size: 9.5px; opacity: .85; }
+  .menu { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px; display: grid; gap: 2px; }
+  .menu b { font-size: 12px; }
+  .steps td .opt { margin-top: 2px; }
+</style>
+
+<main>
+  <header>
+    <p class="eyebrow">Bản đề xuất lần 2 · chưa sửa code</p>
+    <h1>Hướng dẫn mới cho bố cục mới</h1>
+    <p>Thứ tự theo góp ý: lần đầu mở app hỏi Công nhân hay Công nhật, rồi kỳ lương (công nhân thêm lấy tăng ca bù và ngày phép), sau đó tới hướng dẫn cơ bản có cả GPS. Phần tiền lương là hướng dẫn riêng, mở từ nút trên thẻ thu nhập. Số trong các khung chỉ là ví dụ.</p>
+  </header>
+
+  <!-- Phần 1 -->
+  <section>
+    <p class="eyebrow">Phần 1 · lần đầu mở app</p>
+    <h2>Hỏi loại người dùng, kỳ lương, rồi mới tới hướng dẫn cơ bản</h2>
+    <div class="row">
+      <div>
+        <div class="phone">
+          <div class="sheet">
+            <h4>Bạn là Công nhân hay Công nhật?</h4>
+            <div class="choice">
+              <div class="on"><b>Công nhân</b><span class="muted">Lương tháng, chia theo ngày công. Có thưởng, phụ cấp, bảo hiểm, ngày phép.</span></div>
+              <div><b>Công nhật</b><span class="muted">Lương trả theo từng ngày làm (lương ngày ÷ 8 × số giờ).</span></div>
+            </div>
+            <span class="muted">Chọn xong app đổi luôn theo loại bạn chọn. Sau này đổi lại ở Cài đặt.</span>
+          </div>
+        </div>
+        <p class="cap">Câu hỏi 1</p>
+      </div>
+      <div class="text steps" style="padding:0">
+        <table>
+          <tr><th>Bước</th><th>Câu hỏi</th></tr>
+          <tr><td>1</td><td><b>Công nhân hay Công nhật?</b> Chọn xong app đổi luôn cách tính và giao diện theo loại đó.</td></tr>
+          <tr><td>2</td><td><b>Kỳ lương.</b> Công ty tính lương từ ngày nào tới ngày nào? Ví dụ từ ngày 21 tháng này tới ngày 20 tháng sau. Trả 2 lần một tháng thì chọn "2 kỳ một tháng". Không biết thì để mặc định, sửa sau ở Cài đặt.</td></tr>
+          <tr><td>3</td><td><b>Lấy tăng ca bù</b> <span class="muted">(chỉ công nhân)</span>. Công ty có lấy giờ tăng ca để bù cho ngày nghỉ, ngày thiếu giờ không?<br>
+            <span class="opt"><span class="dot on"></span>Công ty cho nghỉ: chỉ bù ngày công ty cho nghỉ, cho vào muộn</span>
+            <span class="opt"><span class="dot"></span>Tự nghỉ: bù cả ngày tự nghỉ, tự đi muộn</span>
+            Không chọn gì là không bù.</td></tr>
+          <tr><td>4</td><td><b>Ngày phép</b> <span class="muted">(chỉ công nhân)</span>. Bạn đang còn mấy ngày phép? Mặc định 1. Mỗi kỳ lương app tự cộng 1 ngày, tự nghỉ thì trừ phép trước.</td></tr>
+          <tr><td>Tiếp</td><td>Chuyển sang hướng dẫn cơ bản (Phần 2). Bước nào cũng có nút <b>Để sau</b>.</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Phần 2 -->
+  <section>
+    <p class="eyebrow">Phần 2 · hướng dẫn cơ bản</p>
+    <h2>Chấm công trên màn chính, có thêm GPS</h2>
+    <div class="row">
+      <div>
+        <div class="phone">
+          <div class="sheet">
+            <h4>Giờ vào/ra — 18/10</h4>
+            <span class="muted">Gõ số: 7h30 ghi 0730, 9h ghi 9, 16h30 ghi 1630.</span>
+            <div class="fields">
+              <div class="field">Giờ vào<b>0700</b></div>
+              <div class="field">Giờ ra<b>1630</b></div>
+            </div>
+            <span><b>Sửa giờ công, giờ tăng ca</b></span>
+            <span class="muted">Để trống thì app tự tính.</span>
+            <div class="fields">
+              <div class="field">Giờ công<b>&nbsp;</b></div>
+              <div class="field">Giờ tăng ca<b>&nbsp;</b></div>
+            </div>
+            <span class="btn">Lưu</span>
+          </div>
+        </div>
+        <p class="cap">Bước 1–2: nút Vào/Ra</p>
+      </div>
+      <div class="text steps" style="padding:0">
+        <table>
+          <tr><th>Bước</th><th>Lời hướng dẫn</th></tr>
+          <tr><td>1/10</td><td>Đây là nút <b>Vào/Ra</b>. Bấm vào, gõ giờ vào bằng số (7h30 ghi 0730, 9h ghi 9) rồi bấm Lưu. Giữ lâu nút này thì chấm ngay giờ hiện tại.</td></tr>
+          <tr><td>2/10</td><td>Bấm lại nút Vào/Ra và gõ giờ ra. Công ty tính giờ khác với app thì sửa giờ công, giờ tăng ca ở ngay dưới.</td></tr>
+          <tr><td>3/10</td><td>Chạm vào ngày tập (ngày 15) trên lịch.</td></tr>
+          <tr><td>4/10</td><td>Bấm nút <b>Ngày nghỉ</b>, chọn <b>Tự nghỉ</b> hoặc <b>Công ty cho nghỉ</b>. Dòng nhỏ dưới "Tự nghỉ" cho biết bạn còn mấy ngày phép. <span class="muted">(Công nhật: có lương / không lương.)</span></td></tr>
+          <tr><td>5/10</td><td>Nếu tự đi muộn, bấm nút <b>Đi muộn</b>. Công ty cho vào muộn thì không cần bấm.</td></tr>
+          <tr><td>6/10</td><td>Muốn ghi nhớ điều gì hôm nay thì ghi vào Ghi chú, như bị ốm chẳng hạn.</td></tr>
+          <tr><td>7/10</td><td><b>Lịch:</b> mỗi ô có giờ vào, giờ ra, và tiền của ngày nếu đã cài lương. Số màu cam ở góc là giờ tăng ca. Số có dấu "−" là giờ thiếu được lấy tăng ca bù. Ô hồng đậm "Phép" là ngày nghỉ phép. "Chưa" là ngày chưa chấm.</td></tr>
+          <tr><td>8/10</td><td><b>Thống kê nhanh:</b> ngày công, giờ tăng ca, giờ tăng ca bị trừ, số ngày nghỉ của kỳ này. <b>Bấm vào "Trừ tăng ca" để xem chi tiết</b> trừ cho ngày nào, bao nhiêu giờ. Nút mặt trăng ở trên cùng bật ngày âm lịch.</td></tr>
+          <tr><td>9/10</td><td><b>Chấm công tự động bằng GPS</b> <span class="new">mới</span>. Muốn app tự chấm vào, chấm ra thì hãy đứng ở chỗ bạn hay chấm công rồi bấm <b>Lấy tọa độ</b>. Chưa ở chỗ làm thì bấm Để sau, lúc tới chỗ làm mở Cài đặt › Chấm công GPS làm tiếp.</td></tr>
+          <tr><td>10/10</td><td>Bấm <b>Cấp quyền chấm công</b> và đồng ý hết: vị trí "Luôn cho phép", thông báo, báo thức, cho app chạy nền. Thiếu quyền thì app không tự chấm được khi đang đóng. <span class="new">mới</span></td></tr>
+          <tr><td>Xong</td><td>Vậy là cơ bản đã xong. Muốn app ước tính lương thì bấm nút <b>Hướng dẫn tính lương</b> trên thẻ thu nhập.</td></tr>
+        </table>
+      </div>
+    </div>
+    <p class="lead">Bước 9 và 10 làm sáng thẻ "Chấm công GPS" trong Cài đặt (app tự mở Cài đặt và cuộn tới thẻ đó). Bản web không có GPS nên bỏ hai bước này.</p>
+  </section>
+
+  <!-- Phần 3 -->
+  <section>
+    <p class="eyebrow">Phần 3 · hướng dẫn lương</p>
+    <h2>Nút "Hướng dẫn tính lương" trên thẻ thu nhập</h2>
+    <div class="row">
+      <div>
+        <div class="phone">
+          <div class="income">
+            <div class="top"><span>Thực nhận tạm tính · kỳ 21/09–20/10</span></div>
+            <span class="guide-btn">Hướng dẫn tính lương ›</span>
+            <p class="small-note">Đây là chức năng ước tính lương, nếu bạn không cần thì bỏ qua nhé.</p>
+            <div class="tiles">
+              <div><b>7,1</b><span>Ngày công</span></div>
+              <div><b>6h05</b><span>Tăng ca</span></div>
+              <div class="tap"><b>9h</b><span>Trừ tăng ca</span></div>
+              <div><b>2</b><span>Ngày nghỉ</span></div>
+            </div>
+          </div>
+          <div class="cal">
+            <div class="d work"><b>12</b>07:00<br>19:00<span class="badge">2h30</span></div>
+            <div class="d work"><b>13</b>07:00<br>16:00</div>
+            <div class="d work"><b>14</b>08:00<br>16:00<span class="badge">−1h</span></div>
+            <div class="d off"><b>15</b>Cty nghỉ<span class="badge">−8h</span></div>
+            <div class="d leave"><b>16</b>Phép</div>
+            <div class="d work"><b>17</b>09:00<br>16:00<span class="badge">1h30</span></div>
+            <div class="d"><b>18</b></div>
+          </div>
+        </div>
+        <p class="cap">Chưa cài lương</p>
+      </div>
+      <div class="text">
+        <p>Khi chưa cài lương (mọi số tiền đều 0), chỗ số tiền to trên thẻ thu nhập hiện nút <b>Hướng dẫn tính lương</b>, dưới nút có chữ nhỏ "Đây là chức năng ước tính lương, nếu bạn không cần thì bỏ qua nhé." Cài lương xong thì nút tự đổi lại thành số tiền.</p>
+        <p>Loại người dùng và kỳ lương đã hỏi lúc đầu, nên hướng dẫn này chỉ còn phần tiền. Bạn lấy phiếu lương tháng trước ra để chép theo.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="text steps" style="padding:0">
+        <table>
+          <tr><th>Công nhân</th><th>Lời hướng dẫn</th></tr>
+          <tr><td>1/4</td><td><b>Lương cơ bản.</b> Nhập đúng số lương cơ bản trên phiếu. Có thưởng thành tích (tính theo ngày công) thì nhập luôn ở dưới.</td></tr>
+          <tr><td>2/4</td><td><b>Khoản thu nhập.</b> Phiếu có phụ cấp nào (nhà ở, xăng xe, chuyên cần...) thì bấm "Thêm khoản thu nhập", mỗi khoản một dòng.</td></tr>
+          <tr><td>3/4</td><td><b>Khoản khấu trừ.</b> Bảo hiểm app tự tính: BHXH 8% + BHYT 1,5% + BHTN 1% = 10,5% lương cơ bản. Có công đoàn phí, tiền cơm, tạm ứng thì thêm vào.</td></tr>
+          <tr><td>4/4</td><td><b>Giá tăng ca.</b> Một giờ tăng ca ngày thường, Chủ nhật, ngày lễ được bao nhiêu tiền? Nhập theo phiếu.</td></tr>
+        </table>
+      </div>
+      <div class="text steps" style="padding:0">
+        <table>
+          <tr><th>Công nhật</th><th>Lời hướng dẫn</th></tr>
+          <tr><td>1/3</td><td><b>Lương ngày.</b> Một ngày làm đủ 8 tiếng được bao nhiêu tiền? App tính một giờ = lương ngày ÷ 8.</td></tr>
+          <tr><td>2/3</td><td><b>Giá tăng ca.</b> Tăng ca, Chủ nhật, ngày lễ có giá riêng thì nhập vào bảng. Ô nào để 0 thì app lấy lương ngày ÷ 8.</td></tr>
+          <tr><td>3/3</td><td><b>Khoản trừ.</b> Có tiền cơm hay khoản trừ khác thì thêm vào. Không có thì bấm Tiếp.</td></tr>
+        </table>
+      </div>
+    </div>
+    <p class="lead">Xong: "Đã cài xong lương. Số tiền ước tính hiện ở thẻ thu nhập. Phiếu lương của kỳ được tính khi hết kỳ."</p>
+  </section>
+
+  <!-- Phần 4 -->
+  <section>
+    <p class="eyebrow">Phần 4 · màn Hướng dẫn</p>
+    <h2>Chia ba mục con: Cơ bản, Lương, Nâng cao</h2>
+    <div class="row">
+      <div>
+        <div class="phone">
+          <div class="sheet">
+            <h4>Hướng dẫn</h4>
+            <div class="menu"><b>Hướng dẫn cơ bản</b><span class="muted">Chấm công, ngày nghỉ, lịch, thống kê, GPS. Làm thử lại trên màn chính.</span></div>
+            <div class="menu"><b>Hướng dẫn lương</b><span class="muted">Loại người dùng, kỳ lương, lương cơ bản, các khoản, giá tăng ca.</span></div>
+            <div class="menu"><b>Nâng cao</b><span class="muted">Lấy tăng ca bù, ngày phép, GPS tùy chọn thêm, ngày lễ, sao lưu.</span></div>
+          </div>
+        </div>
+        <p class="cap">Cài đặt › Nâng cao › Hướng dẫn</p>
+      </div>
+      <div class="text">
+        <p><b>Hướng dẫn cơ bản</b> và <b>Hướng dẫn lương</b> mở lại đúng chuyến hướng dẫn ở Phần 2 và Phần 3 (Hướng dẫn lương có thêm câu hỏi loại người dùng và kỳ lương ở đầu). <b>Nâng cao</b> là trang chữ, giải thích những thứ không có trong hai chuyến kia:</p>
+      </div>
+    </div>
+    <div class="help">
+      <article>
+        <h3>Lấy tăng ca bù vào ngày nghỉ</h3>
+        <p>Dành cho công ty lấy giờ tăng ca để bù giờ thiếu. Khi bật, mỗi ngày T2–T6 đủ 8 tiếng mới tính tăng ca (thứ 7 là 7:00–11:30). Phần thiếu lấy từ tổng giờ tăng ca trong kỳ, 1 giờ tăng ca bù 1 giờ công, lấy tăng ca ngày thường trước rồi mới tới Chủ nhật, ngày lễ.</p>
+        <ul>
+          <li><b>Công ty cho nghỉ:</b> bù ngày công ty cho nghỉ và ngày công ty cho vào muộn, về sớm.</li>
+          <li><b>Tự nghỉ:</b> bù thêm cả ngày tự nghỉ (đã hết phép) và ngày tự đi muộn.</li>
+        </ul>
+        <p>Tăng ca trong kỳ không đủ bù thì phần thiếu bị mất như bình thường. Bấm "Trừ tăng ca" trên thẻ thu nhập để xem chi tiết.</p>
+      </article>
+      <article>
+        <h3>Ngày phép</h3>
+        <p>Mỗi kỳ lương được cộng 1 ngày phép, không dùng thì dồn sang kỳ sau. Tự nghỉ thì trừ phép trước, ngày đó vẫn có lương. Số phép còn lại hiện ở nút Ngày nghỉ, ở Cài đặt tính công và ở phiếu lương. Sửa số phép ở Cài đặt tính công (bấm Sửa), ví dụ khi công ty cho thêm phép hay xóa phép cuối năm.</p>
+      </article>
+      <article>
+        <h3>Kỳ lương và phiếu lương</h3>
+        <p>Mọi con số trên thẻ thu nhập và phiếu lương đều tính theo kỳ đang chạy. Phiếu lương chỉ được tính khi hết kỳ, trước đó các dòng hiện 0. Sửa ở kỳ nào thì áp dụng cho kỳ đó, các kỳ trước giữ nguyên. Ngày công, giờ tăng ca của kỳ sửa tay được theo số công ty chốt.</p>
+      </article>
+      <article>
+        <h3>GPS: tùy chọn thêm</h3>
+        <ol>
+          <li>Từ 7:00 tới 14:00, cứ phút 00 và 30 app dò vị trí; trong khoảng 200 m quanh chỗ làm thì chấm vào đúng mốc đó.</li>
+          <li>Sau khi vào, cứ phút 15 và 45 app dò lại; ra khỏi chỗ làm thì chấm ra (giờ ra là x:00 hoặc x:30).</li>
+          <li>Lúc mất GPS, app nhìn Wi-Fi quen (tự học) để biết bạn còn ở chỗ làm hay đã về.</li>
+          <li>Quá 22:00 mà chưa có giờ ra thì ngày đó báo đỏ, bạn tự nhập giờ ra.</li>
+        </ol>
+        <p>Đổi bán kính, khung giờ, thêm địa điểm khác (nhà trọ sát công ty, xưởng xa), xem nhật ký GPS: Cài đặt › Nâng cao › GPS: tùy chọn thêm.</p>
+      </article>
+      <article>
+        <h3>Ngày lễ, tăng ca theo khung</h3>
+        <p>Ngày lễ tính theo giá ngày lễ trong bảng lương/giờ, thêm hoặc bớt ở Cài đặt › Nâng cao › Ngày lễ. Tăng ca theo khung dùng khi công ty trừ phút nghỉ giữa các khung tăng ca.</p>
+      </article>
+      <article>
+        <h3>Sao lưu, sao chép cấu hình</h3>
+        <p>Sao lưu ra file Excel để đổi máy không mất dữ liệu. Sao chép cấu hình để gửi cách tính lương cho bạn cùng công ty dán vào máy họ.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- Phần 5 -->
+  <section>
+    <p class="eyebrow">Phần 5</p>
+    <h2>Ngày phép tách riêng, không phụ thuộc hai ô bù</h2>
+    <div class="row">
+      <div>
+        <div class="phone">
+          <div class="sheet">
+            <h4>Cài đặt tính công</h4>
+            <div class="kv"><span class="muted">Kỳ lương</span><b>bắt đầu ngày 21</b></div>
+            <div class="kv"><span class="muted">Ngày phép còn</span><b>1 ngày</b></div>
+            <div>
+              <span class="muted">Lấy tăng ca bù vào ngày nghỉ, ngày đi muộn</span>
+              <div class="opt"><span class="dot on"></span>Công ty cho nghỉ</div>
+              <div class="opt"><span class="dot"></span>Tự nghỉ</div>
+            </div>
+            <div class="kv"><span class="muted">Đi muộn</span><b>trừ 30 phút</b></div>
+          </div>
+        </div>
+        <p class="cap">"Ngày phép còn" luôn hiện</p>
+      </div>
+      <div class="text">
+        <p>Dòng <b>Ngày phép còn</b> đứng riêng, ngay dưới Kỳ lương, luôn hiện với công nhân dù có bật bù tăng ca hay không. Bấm Sửa thì sửa được số phép.</p>
+        <p>Nút Ngày nghỉ của công nhân lúc nào cũng có hai lựa chọn <b>Tự nghỉ</b> / <b>Công ty cho nghỉ</b>. Tự nghỉ luôn trừ phép trước. Khi tắt bù tăng ca, "Công ty cho nghỉ" là nghỉ không lương, không lấy tăng ca bù.</p>
+        <p>Công nhật không có ngày phép, nút Ngày nghỉ giữ có lương / không lương như cũ.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="ask">
+    <h2>Cần bạn chốt</h2>
+    <ol>
+      <li>Công nhân luôn được 1 ngày phép mỗi kỳ, kể cả khi không bật bù tăng ca. Đúng không?</li>
+      <li>Phần Nâng cao viết thành trang chữ như trên được không, hay bạn muốn nó cũng là chuyến làm sáng từng chỗ?</li>
+      <li>Thứ tự và câu chữ các bước đã ổn chưa?</li>
+    </ol>
+  </section>
+</main>

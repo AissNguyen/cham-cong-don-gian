@@ -9,6 +9,7 @@ import 'package:cham_cong_don_gian/domain/payslip.dart';
 import 'package:cham_cong_don_gian/theme/app_theme.dart';
 import 'package:cham_cong_don_gian/ui/format.dart';
 import 'package:cham_cong_don_gian/ui/home/home_screen.dart';
+import 'sample_settings.dart';
 
 DayRecord _shift(DateTime d, int inH, int outH, {int inM = 0, int outM = 0, bool late = false}) => DayRecord(
   date: d,
@@ -46,13 +47,12 @@ String _text(WidgetTester tester, String key) => (tester.widget(find.byKey(Value
 
 void main() {
   testWidgets('Màn chính hiện nút cài đặt, thực nhận tạm tính, lịch và các nút thao tác', (tester) async {
-    await _pumpHome(tester, settings: AppSettings.defaultsFor(WorkerKind.worker), records: const [], now: DateTime.now());
+    await _pumpHome(tester, settings: sampleDefaults(WorkerKind.worker), records: const [], now: DateTime.now());
 
     expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     expect(find.textContaining('Thực nhận tạm tính'), findsOneWidget);
-    expect(find.text('Giờ công'), findsOneWidget);
-    expect(find.text('Chấm vào'), findsOneWidget);
-    expect(find.text('Chấm ra'), findsOneWidget);
+    expect(find.text('Ngày công'), findsOneWidget);
+    expect(find.text('Vào/Ra'), findsOneWidget); // một nút cho cả giờ vào và giờ ra
     expect(find.text('Ngày nghỉ'), findsNWidgets(2)); // nhãn thống kê + nhãn nút
     expect(find.text('Đi muộn'), findsOneWidget);
     expect(find.text('Ghi chú'), findsOneWidget);
@@ -62,10 +62,10 @@ void main() {
   group('Số trên thẻ thu nhập ở màn chính = Thực nhận của phiếu lương', () {
     // Kỳ 21/09–20/10/2026 của Công nhân. 27/09 là chủ nhật; 30/09 đặt làm ngày lễ.
     final holiday = DateTime(2026, 9, 30);
-    final worker = AppSettings.defaultsFor(WorkerKind.worker).copyWith(
+    final worker = sampleDefaults(WorkerKind.worker).copyWith(
       holidays: [Holiday(date: holiday, name: 'Lễ thử')],
       incomeItems: [
-        for (final i in AppSettings.defaultsFor(WorkerKind.worker).incomeItems)
+        for (final i in sampleDefaults(WorkerKind.worker).incomeItems)
           i.id == payItemAllowance ? i.copyWith(amount: 500000) : i,
       ],
     );
@@ -117,9 +117,21 @@ void main() {
     });
 
     testWidgets('Công nhật, kỳ 1–15', (tester) async {
-      final daily = AppSettings.defaultsFor(WorkerKind.daily).copyWith(holidays: [Holiday(date: holiday, name: 'Lễ')]);
+      final daily = sampleDefaults(WorkerKind.daily).copyWith(holidays: [Holiday(date: holiday, name: 'Lễ')]);
       final recs = records.where((r) => r.date.month == 10 && r.date.day <= 9).toList();
       await check(tester, daily, recs, DateTime(2026, 10, 9, 17, 0));
     });
+  });
+
+  testWidgets('Chưa có tọa độ chỗ làm thì nhắc cài chấm công tự động; đã tắt nhắc hoặc có tọa độ thì không', (tester) async {
+    final base = sampleDefaults(WorkerKind.worker);
+    await _pumpHome(tester, settings: base, records: const [], now: DateTime(2026, 10, 2, 9));
+    expect(find.text('Chưa cài chấm công tự động'), findsOneWidget);
+    await _pumpHome(tester, settings: base.copyWith(gpsReminderOff: true), records: const [], now: DateTime(2026, 10, 2, 9));
+    expect(find.text('Chưa cài chấm công tự động'), findsNothing);
+    final withGps = base.copyWith(gps: base.gps.copyWith(latitude: 11.759805, longitude: 108.439777));
+    await _pumpHome(tester, settings: withGps, records: const [], now: DateTime(2026, 10, 2, 9));
+    expect(find.text('Chưa cài chấm công tự động'), findsNothing);
+    expect(AppSettings.fromJson(base.copyWith(gpsReminderOff: true).toJson()).gpsReminderOff, isTrue);
   });
 }

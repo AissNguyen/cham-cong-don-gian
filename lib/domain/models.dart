@@ -699,9 +699,9 @@ class IncomeItem {
 List<IncomeItem> defaultPayItems(WorkerKind kind) => [
   const IncomeItem(id: payItemSalary, name: 'Tiền lương', calcMethod: IncomeCalcMethod.salary),
   if (kind == WorkerKind.worker) ...[
-    const IncomeItem(id: payItemPerformance, name: 'Thưởng thành tích', amount: 2000000, inBasis: true),
+    const IncomeItem(id: payItemPerformance, name: 'Thưởng thành tích', inBasis: true),
     const IncomeItem(id: payItemOvertime, name: 'Thưởng vượt khoán', calcMethod: IncomeCalcMethod.overtime),
-    const IncomeItem(id: payItemAllowance, name: 'Các khoản trợ cấp', amount: 800000),
+    const IncomeItem(id: payItemAllowance, name: 'Các khoản trợ cấp'),
     const IncomeItem(
       id: payItemInsurance,
       name: 'Bảo hiểm',
@@ -715,11 +715,10 @@ List<IncomeItem> defaultPayItems(WorkerKind kind) => [
     name: 'Cơm trưa',
     type: IncomeItemType.deduction,
     calcMethod: IncomeCalcMethod.perWorkDay,
-    amount: 10000,
     activeAfter: Clock(12, 30),
   ),
   if (kind == WorkerKind.worker)
-    const IncomeItem(id: payItemUnion, name: 'Công đoàn phí', type: IncomeItemType.deduction, amount: 50000),
+    const IncomeItem(id: payItemUnion, name: 'Công đoàn phí', type: IncomeItemType.deduction),
 ];
 
 /// Phần lương của phiếu lương (lương cơ bản, lương ngày, các khoản) áp dụng từ kỳ bắt đầu ngày
@@ -800,6 +799,7 @@ class AppSettings {
     List<PayVersion>? payVersions,
     this.bells = const [],
     this.offsetMode = OvertimeOffsetMode.off,
+    this.gpsReminderOff = false,
     Map<String, double>? workDaysOverride,
     Map<String, double>? overtimeHoursOverride,
     List<LeaveAnchor>? leaveAnchors,
@@ -824,22 +824,14 @@ class AppSettings {
     return AppSettings(
       // Công nhân: giờ thường T2–T7 tự tính từ lương cơ bản nên để 0. Công nhật: ô nào để 0 thì
       // tự lấy lương ngày ÷ 8.
-      wageTable: worker
-          ? WageTable(
-              rates: {
-                DayType.weekday: const WageRate(overtimePerHour: 45000),
-                DayType.saturday: const WageRate(overtimePerHour: 45000),
-                DayType.sunday: const WageRate(normalPerHour: 45000, overtimePerHour: 45000),
-                DayType.holiday: const WageRate(normalPerHour: 63000, overtimePerHour: 63000),
-              },
-            )
-          : WageTable(),
+      wageTable: WageTable(),
       payPeriod: worker
           ? const PayPeriodConfig(monthlyStartDay: 21)
           : const PayPeriodConfig(type: PayPeriodType.semiMonthly),
       incomeItems: defaultPayItems(kind),
-      baseSalary: worker ? 4000000 : 0,
-      dailyWage: worker ? 0 : 350000,
+      // Mọi số tiền để 0, người dùng tự nhập theo bảng lương của mình.
+      baseSalary: 0,
+      dailyWage: 0,
       includeItemsInEstimate: true,
       workerKind: kind,
       fixedBreakRules: keep?.fixedBreakRules,
@@ -911,16 +903,38 @@ class AppSettings {
   /// Đang dùng cách tính bù tăng ca: chỉ có nghĩa với công nhân.
   bool get usesOvertimeOffset => offsetMode != OvertimeOffsetMode.off && workerKind == WorkerKind.worker;
 
+  /// Người dùng đã tắt dòng nhắc "Chưa cài chấm công tự động" trên màn chính.
+  final bool gpsReminderOff;
+
   /// Ngày công thực tế người dùng tự sửa cho từng kỳ (theo số công ty chốt), khóa là [PayPeriod.key].
   final Map<String, double> workDaysOverride;
 
   /// Số giờ tăng ca người dùng tự sửa cho từng kỳ, khóa là [PayPeriod.key].
   final Map<String, double> overtimeHoursOverride;
 
-  /// Ngày phép (khi bật bù tăng ca): các mốc "có bao nhiêu ngày phép tính tới ngày này", xếp theo
-  /// ngày. Mốc đầu được tạo khi bật bù (1 ngày, từ đầu kỳ đang chạy); người dùng sửa số phép thì thêm
+  /// Ngày phép của công nhân: các mốc "có bao nhiêu ngày phép tính tới ngày này", xếp theo ngày. Mốc
+  /// đầu được tạo ở câu hỏi lần đầu mở app (hoặc khi bật bù, khi sửa số phép); sửa số phép thì thêm
   /// mốc mới. Rỗng là chưa có ngày phép. Xem `leave.dart`.
   final List<LeaveAnchor> leaveAnchors;
+
+  /// Đã cài lương chưa (có số tiền nào khác 0). Chưa cài thì lịch không hiện tiền từng ngày.
+  bool get hasPayConfigured =>
+      baseSalary > 0 ||
+      dailyWage > 0 ||
+      payVersions.any((v) => v.baseSalary > 0 || v.dailyWage > 0) ||
+      DayType.values.any((t) => wageTable.of(t).normalPerHour > 0 || wageTable.of(t).overtimePerHour > 0);
+
+  /// Sửa số ngày phép hiện có: thêm mốc "tính tới [today] có [days] ngày phép" (thay mốc cùng ngày).
+  AppSettings withLeaveBalance(double days, DateTime today) {
+    final d = dateOnly(today);
+    return copyWith(
+      leaveAnchors: [
+        for (final a in leaveAnchors)
+          if (dateOnly(a.date) != d) a,
+        LeaveAnchor(date: d, days: days < 0 ? 0 : days),
+      ]..sort((a, b) => a.date.compareTo(b.date)),
+    );
+  }
 
   /// Cài đặt dùng để tính phiếu lương của kỳ bắt đầu ngày [periodStart]: phần lương lấy theo bản
   /// ghi gần nhất có hiệu lực từ trước hoặc đúng ngày đó.
@@ -993,6 +1007,7 @@ class AppSettings {
     List<PayVersion>? payVersions,
     List<BellConfig>? bells,
     OvertimeOffsetMode? offsetMode,
+    bool? gpsReminderOff,
     Map<String, double>? workDaysOverride,
     Map<String, double>? overtimeHoursOverride,
     List<LeaveAnchor>? leaveAnchors,
@@ -1018,6 +1033,7 @@ class AppSettings {
     showNotice: showNotice ?? this.showNotice,
     showGps: showGps ?? this.showGps,
     offsetMode: offsetMode ?? this.offsetMode,
+    gpsReminderOff: gpsReminderOff ?? this.gpsReminderOff,
     workDaysOverride: workDaysOverride ?? this.workDaysOverride,
     overtimeHoursOverride: overtimeHoursOverride ?? this.overtimeHoursOverride,
     leaveAnchors: leaveAnchors ?? this.leaveAnchors,
@@ -1045,6 +1061,7 @@ class AppSettings {
     'payVersions': payVersions.map((v) => v.toJson()).toList(),
     'bells': bells.map((b) => b.toJson()).toList(),
     'offsetMode': offsetMode.name,
+    if (gpsReminderOff) 'gpsReminderOff': true,
     'workDaysOverride': workDaysOverride,
     'overtimeHoursOverride': overtimeHoursOverride,
     'leaveAnchors': leaveAnchors.map((a) => a.toJson()).toList(),
@@ -1086,6 +1103,7 @@ class AppSettings {
       offsetMode: json['offsetMode'] != null
           ? OvertimeOffsetMode.values.asNameMap()[json['offsetMode']] ?? OvertimeOffsetMode.off
           : (json['overtimeOffset'] == true ? OvertimeOffsetMode.all : OvertimeOffsetMode.off),
+      gpsReminderOff: json['gpsReminderOff'] as bool? ?? false,
       workDaysOverride: _doubleMap(json['workDaysOverride']),
       overtimeHoursOverride: _doubleMap(json['overtimeHoursOverride']),
       leaveAnchors: [

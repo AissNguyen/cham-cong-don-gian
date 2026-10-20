@@ -158,7 +158,7 @@ class Payslip {
   /// Số ngày tự nghỉ trong kỳ được tính là nghỉ phép (nằm trong [paidLeaveDays]).
   final int leaveUsedDays;
 
-  /// Số ngày phép còn lại sau kỳ này (bật bù tăng ca).
+  /// Số ngày phép còn lại sau kỳ này (công nhân).
   final double leaveBalance;
 
   /// Các ngày tự nghỉ trong kỳ được tính là nghỉ phép.
@@ -248,8 +248,8 @@ Payslip computePayslip({
   // thể lấy ra bù (ngày, giây, giá một giờ, nhóm của dòng giải thích).
   final offset = settings.usesOvertimeOffset;
   final offsetAll = offset && settings.offsetMode == OvertimeOffsetMode.all;
-  // Ngày tự nghỉ được trừ vào phép (tính như nghỉ có lương).
-  final leave = offset ? leaveState(settings, recordOf, period.end) : null;
+  // Ngày tự nghỉ được trừ vào phép (tính như nghỉ có lương); công nhân lúc nào cũng có phép.
+  final leave = worker ? leaveState(settings, recordOf, period.end) : null;
   var leaveUsedDays = 0;
   final shortages = <({DateTime date, bool dayOff, bool companyOff, bool late, int seconds})>[];
   final pool = <({DateTime date, int seconds, double rate, String group, bool regular})>[];
@@ -605,57 +605,6 @@ Payslip computePayslip({
     leaveBalance: leave?.balance ?? 0,
     leaveDates: {...?leave?.used.where((d) => !d.isBefore(period.start) && !d.isAfter(period.end))},
   );
-}
-
-/// Phiếu lương mẫu cho người mới: tính bằng đúng các con số đang cài nhưng với ngày công giả định.
-class SamplePayslip {
-  const SamplePayslip({required this.slip, required this.days, required this.overtimeHours});
-
-  final Payslip slip;
-
-  /// Số ngày công giả định (mỗi ngày đủ 8 giờ).
-  final int days;
-
-  /// Tổng giờ tăng ca giả định, tính theo giá tăng ca ngày thường.
-  final int overtimeHours;
-}
-
-/// Phiếu lương mẫu của [period]: giả sử làm 25 ngày công và 95 giờ tăng ca ngày thường (kỳ nửa tháng
-/// thì 12 ngày, 47 giờ), không đi muộn, không nghỉ, kỳ đã hết nên khấu trừ tính đủ. Chỉ để người mới
-/// nhìn cho dễ hiểu; không dùng dữ liệu chấm công thật.
-SamplePayslip computeSamplePayslip({required AppSettings settings, required PayPeriod period}) {
-  final monthly = settings.payPeriod.type == PayPeriodType.monthly;
-  // Ngày làm giả định: các ngày T2–T7 đầu kỳ, 07:00–16:00 (8 giờ công) rồi tăng ca tiếp. Bỏ ngày lễ và
-  // khung tăng ca để số giờ ra đúng như giả định.
-  final sample = settings.copyWith(
-    workStart: const Clock(7, 0),
-    workEnd: const Clock(16, 0),
-    overtimeBrackets: const [],
-    holidays: const [],
-  );
-  final workDates = <DateTime>[];
-  final target = monthly ? 25 : 12;
-  for (var d = period.start; !d.isAfter(period.end) && workDates.length < target; d = DateTime(d.year, d.month, d.day + 1)) {
-    if (d.weekday != DateTime.sunday) workDates.add(d);
-  }
-  final overtimeHours = monthly ? 95 : 47;
-  final perDay = workDates.isEmpty ? 0 : overtimeHours * 60 ~/ workDates.length;
-  final extra = workDates.isEmpty ? 0 : overtimeHours * 60 - perDay * workDates.length;
-  final records = <DateTime, DayRecord>{
-    for (final (i, d) in workDates.indexed)
-      d: DayRecord(
-        date: d,
-        checkIn: DateTime(d.year, d.month, d.day, 7),
-        checkOut: DateTime(d.year, d.month, d.day, 16, perDay + (i == 0 ? extra : 0)),
-      ),
-  };
-  final slip = computePayslip(
-    settings: sample,
-    period: period,
-    recordOf: (date) => records[dateOnly(date)] ?? DayRecord(date: dateOnly(date)),
-    now: DateTime(period.end.year, period.end.month, period.end.day + 1, 12),
-  );
-  return SamplePayslip(slip: slip, days: workDates.length, overtimeHours: overtimeHours);
 }
 
 /// Dòng giải thích Tiền lương của công nhật. Mọi giờ cùng giá lương ngày ÷ 8 thì ghi gọn

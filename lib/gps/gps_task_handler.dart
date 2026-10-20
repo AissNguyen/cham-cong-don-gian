@@ -194,8 +194,14 @@ class GpsTaskHandler extends TaskHandler {
           break;
       }
       await _stop();
-    } catch (_) {
-      // Một lượt lỗi thì bỏ qua; mốc sau dò lại.
+    } catch (e) {
+      // Một lượt lỗi thì bỏ qua (ghi nhật ký để biết); mốc sau dò lại.
+      final plan = _plan;
+      if (plan != null) {
+        try {
+          await _log(plan, DateTime.now(), '', '', 'Lỗi khi dò: $e');
+        } catch (_) {}
+      }
       await _stop();
     } finally {
       _busy = false;

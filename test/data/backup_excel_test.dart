@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cham_cong_don_gian/data/backup_excel.dart';
 import 'package:cham_cong_don_gian/domain/models.dart';
+import '../sample_settings.dart';
 
 /// Số trong ô (Excel không phân biệt số nguyên và số thập phân, đọc lại 2.0 thành 2).
 num _num(Data? cell) => switch (cell!.value) {
@@ -17,7 +18,7 @@ num _num(Data? cell) => switch (cell!.value) {
 
 void main() {
   // Công nhật chỉ có dòng Tiền lương: tiền mỗi ngày = giờ thường × 30.000 + giờ tăng ca × 45.000.
-  final settings = AppSettings.defaultsFor(WorkerKind.daily).copyWith(
+  final settings = sampleDefaults(WorkerKind.daily).copyWith(
     wageTable: WageTable(
       rates: {for (final t in DayType.values) t: const WageRate(normalPerHour: 30000, overtimePerHour: 45000)},
     ),
