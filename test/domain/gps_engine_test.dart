@@ -170,28 +170,31 @@ void main() {
 
   group('chấm vào', () {
     test('dò chính trong 200 m -> chấm vào, giờ vào đúng mốc', () {
-      final d = decideArrival(mark: at(7, 30), sight: GpsSight.near, previousCheckGotFix: false);
+      final d = decideArrival(mark: at(7, 30), sight: GpsSight.near);
       expect(d.action, GpsAction.checkIn);
       expect(d.time, at(7, 30));
     });
 
-    test('dò chính ngoài 200 m -> chờ mốc sau, kể cả khi lần dò trước dò ra vị trí', () {
-      expect(decideArrival(mark: at(7, 30), sight: GpsSight.away, previousCheckGotFix: true).action, GpsAction.none);
+    test('dò chính ngoài 200 m hoặc ở nhà trọ -> chờ mốc sau', () {
+      expect(decideArrival(mark: at(7, 30), sight: GpsSight.away).action, GpsAction.none);
+      expect(decideArrival(mark: at(7, 30), sight: GpsSight.atCheckOutPlace).action, GpsAction.none);
     });
 
-    test('dò chính không dò ra vị trí: lần dò trước dò ra được (ở đâu cũng được) thì chấm vào', () {
-      final yes = decideArrival(mark: at(8, 0), sight: GpsSight.unknown, previousCheckGotFix: true);
+    test('3 lần không dò ra vị trí -> coi như ở chỗ làm, chấm vào', () {
+      final yes = decideArrival(mark: at(8, 0), sight: GpsSight.unknown);
       expect(yes.action, GpsAction.checkIn);
       expect(yes.time, at(8, 0));
-      expect(decideArrival(mark: at(8, 0), sight: GpsSight.unknown, previousCheckGotFix: false).action, GpsAction.none);
     });
 
-    test('lần dò trước = lần dò ra vị trí gần nhất nằm trong 15 phút trước mốc', () {
-      DayRecord fixAt(DateTime t) => empty().copyWith(gpsLastFixAt: t);
-      expect(previousCheckGotFix(fixAt(at(7, 45)), at(8, 0)), isTrue);
-      expect(previousCheckGotFix(fixAt(at(7, 51)), at(8, 0)), isTrue); // dò ra ở lần thử lại
-      expect(previousCheckGotFix(fixAt(at(7, 30)), at(8, 0)), isFalse); // của mốc trước nữa
-      expect(previousCheckGotFix(empty(), at(8, 0)), isFalse);
+    test('định vị của máy đang tắt -> không chấm vào', () {
+      expect(decideArrival(mark: at(8, 0), sight: GpsSight.locationOff).action, GpsAction.none);
+    });
+
+    test('mốc chấm vào trễ 5 phút thì bỏ, nhưng đang thử lại thì vẫn dò đủ 3 lần', () {
+      GpsPlan p(int late) => GpsPlan(GpsTask.arrival, at(8, 0), at(0, 0), lateMinutes: late);
+      expect(gpsPlanTooLate(p(6), retrying: false), isTrue);
+      expect(gpsPlanTooLate(p(7), retrying: true), isFalse); // lần thử thứ 3
+      expect(gpsPlanTooLate(p(14), retrying: true), isTrue);
     });
 
     test('chấm vào xong ghi giờ vào, các giờ khác giữ nguyên', () {
@@ -202,9 +205,10 @@ void main() {
   });
 
   group('chấm ra', () {
-    test('trong 200 m hoặc không dò ra vị trí -> vẫn đang làm', () {
+    test('trong 200 m, không dò ra vị trí hoặc định vị tắt -> vẫn đang làm', () {
       expect(decideDeparture(mark: at(17, 15), sight: GpsSight.near).action, GpsAction.none);
       expect(decideDeparture(mark: at(17, 15), sight: GpsSight.unknown).action, GpsAction.none);
+      expect(decideDeparture(mark: at(17, 15), sight: GpsSight.locationOff).action, GpsAction.none);
     });
 
     test('ngoài 200 m: dò phút 15 -> giờ ra x:00, dò phút 45 -> giờ ra x:30', () {
@@ -233,8 +237,8 @@ void main() {
       }
     });
 
-    test('đã đi xa, hoặc ở nhà trọ "chấm về" -> giữ giờ ra', () {
-      for (final sight in [GpsSight.away, GpsSight.atCheckOutPlace]) {
+    test('đã đi xa, ở nhà trọ "chấm về", hoặc định vị tắt -> giữ giờ ra', () {
+      for (final sight in [GpsSight.away, GpsSight.atCheckOutPlace, GpsSight.locationOff]) {
         expect(applyGpsDecision(closed, decideReopen(sight)).checkOut, at(12, 0));
       }
     });

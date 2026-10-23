@@ -4,6 +4,15 @@
 
 App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, tăng ca, ngày nghỉ, đi muộn, và ước tính lương theo kỳ. Tách riêng khỏi dự án `so_cong` (bản đầy đủ, đang để đó); chỉ dùng chung `domain/lunar.dart` và font Be Vietnam Pro.
 
+## Chấm công GPS: chỉ dùng GPS, bỏ Wi-Fi (2026-10-23, nhánh `pc/chi-gps-2026-10-23`)
+
+- Bỏ quét Wi-Fi và danh sách Wi-Fi quen (Android chỉ cho app nền quét khoảng 30 phút một lần). Lịch dò giữ nguyên như chốt 14/10.
+- Mỗi mốc dò tối đa 3 lần (cách 3 phút). Cả 3 lần không dò ra vị trí thì coi như đang ở chỗ làm: chấm vào (mốc 00/30), vẫn đang làm (mốc dò giờ về), mở lại ca (dò lại sau giờ ra).
+- Định vị của máy tắt hoặc app mất quyền vị trí: không kết luận gì (không chấm vào, không mở lại ca).
+- Sửa lỗi: mốc chấm vào giới hạn trễ 5 phút làm lần thử thứ 3 bị bỏ; nay giới hạn trễ chỉ tính cho lần dò đầu.
+- Code `lib/gps/gps_wifi.dart` và gói `wifi_scan` còn nằm đó nhưng không dùng để chấm nữa; dò trước ở phút 15/45 giờ chỉ để ghi nhật ký, có thể bỏ để đỡ pin.
+- 252 test qua, analyze sạch; đã build, cài lên điện thoại và mở app. Chưa thử ngày đi làm thật.
+
 ## Đang chạy ở đâu
 
 | Thứ | Ở đâu |

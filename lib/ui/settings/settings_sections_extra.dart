@@ -347,22 +347,21 @@ class GpsSection extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'Chấm vào: dò chính ở phút 00 và 30, ở chỗ làm thì giờ vào là đúng mốc đó. Dò trước ở phút 45 '
-                'và 15 để biết điện thoại còn bắt được GPS; lần dò chính mất sóng mà lần dò trước bắt được thì '
-                'vẫn chấm vào.\n'
+                'và 15 để biết điện thoại còn bắt được GPS.\n'
                 'Chấm ra: sau khi vào, dò ở phút 15 và 45. Ra khỏi phạm vi chỗ làm thì giờ ra là x:00 (dò phút '
                 '15) hoặc x:30 (dò phút 45). Không dò ra vị trí thì coi như vẫn đang làm.\n'
                 'Đã chấm ra: dò lại 3 lần, cách nhau 1 tiếng; còn ở chỗ làm hoặc không dò ra vị trí thì bỏ giờ ra, '
                 'tính công tiếp. Giờ ra bạn tự bấm thì máy không đụng tới.\n'
-                'Mỗi lần không dò ra vị trí thì thử lại 2 lần, cách 3 phút. Lúc mất GPS máy xem Wi-Fi quen (tự học, '
-                'không cần mật khẩu): Wi-Fi chỗ làm là đang ở chỗ làm, Wi-Fi ở ngoài (nhà...) là đã về. Hãy để Wi-Fi '
-                'của điện thoại ở chế độ bật.',
+                'Mỗi lần không dò ra vị trí thì thử lại 2 lần, cách 3 phút. Cả 3 lần đều không ra thì coi như bạn '
+                'đang ở chỗ làm (trong xưởng hay mất sóng GPS). Riêng khi định vị của điện thoại bị tắt thì máy '
+                'không tự chấm gì.',
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.receipt_long_outlined),
-              label: const Text('Nhật ký GPS và Wi-Fi quen'),
+              label: const Text('Nhật ký GPS'),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => Scaffold(
