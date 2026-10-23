@@ -10,8 +10,10 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 - Mỗi mốc dò tối đa 3 lần (cách 3 phút). Cả 3 lần không dò ra vị trí thì coi như đang ở chỗ làm: chấm vào (mốc 00/30), vẫn đang làm (mốc dò giờ về), mở lại ca (dò lại sau giờ ra).
 - Định vị của máy tắt hoặc app mất quyền vị trí: không kết luận gì (không chấm vào, không mở lại ca).
 - Sửa lỗi: mốc chấm vào giới hạn trễ 5 phút làm lần thử thứ 3 bị bỏ; nay giới hạn trễ chỉ tính cho lần dò đầu.
-- Code `lib/gps/gps_wifi.dart` và gói `wifi_scan` còn nằm đó nhưng không dùng để chấm nữa; dò trước ở phút 15/45 giờ chỉ để ghi nhật ký, có thể bỏ để đỡ pin.
-- 252 test qua, analyze sạch; đã build, cài lên điện thoại và mở app. Chưa thử ngày đi làm thật.
+- Code `lib/gps/gps_wifi.dart` và gói `wifi_scan` còn nằm đó nhưng không dùng để chấm nữa.
+- Bỏ lần dò trước ở phút 45/15 (kể cả 6:45) lúc chưa chấm vào: chưa vào thì chỉ dò phút 00/30 từ 7:00 tới 14:00. Sau khi vào vẫn dò giờ về ở phút 15/45.
+- Giữ nút Vào/Ra (chấm bằng giờ hiện tại) làm tròn về mốc 30 phút gần nhất, cả giờ vào lẫn giờ ra: 6:50–7:14 thành 7:00, 7:15–7:44 thành 7:30. Chạm nút rồi chọn giờ thì giữ đúng giờ chọn.
+- 253 test qua, analyze sạch; đã build, cài lên điện thoại và mở app. Chưa thử ngày đi làm thật.
 
 ## Đang chạy ở đâu
 

@@ -29,7 +29,7 @@ class GpsLogEntry {
   /// Lúc dò thật.
   final DateTime at;
 
-  /// Dò cho việc gì: "Vào (dò trước)", "Vào", "Ra", "Mở lại ca".
+  /// Dò cho việc gì: "Vào", "Ra", "Mở lại ca" (nhật ký cũ có thêm "Vào (dò trước)").
   final String task;
 
   /// Kết quả GPS: "cách 85 m", "không có sóng"...

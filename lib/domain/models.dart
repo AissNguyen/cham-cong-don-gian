@@ -464,7 +464,7 @@ class GpsConfig {
   /// Các địa điểm khác (nhà trọ, xưởng xa...), chỉ ảnh hưởng tới việc chấm ra.
   final List<GpsPlace> extraPlaces;
 
-  /// Khoảng giờ tự chấm vào: dò chính ở phút 00 và 30, dò trước ở phút 45 và 15, từ [arriveFrom] tới
+  /// Khoảng giờ tự chấm vào: dò ở phút 00 và 30, từ [arriveFrom] tới
   /// [arriveTo]. Xem `domain/gps_engine.dart`.
   final Clock arriveFrom;
   final Clock arriveTo;

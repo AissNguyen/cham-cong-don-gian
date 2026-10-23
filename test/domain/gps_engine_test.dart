@@ -51,7 +51,7 @@ void main() {
     test('báo thức trễ: chờ chấm vào cho trễ 5 phút, dò giờ về cho trễ tới phút 35 hoặc 05', () {
       expect(plan(empty(), at(8, 5))!.mark, at(8, 0));
       expect(plan(empty(), at(8, 6)), isNull); // mốc 8:00 trễ 6 phút: bỏ
-      expect(plan(empty(), at(8, 19))!.mark, at(8, 15));
+      expect(plan(empty(), at(8, 19)), isNull); // chưa vào thì phút 15 không dò
       expect(plan(checkedIn(), at(18, 35))!.mark, at(18, 15));
       expect(plan(checkedIn(), at(18, 36)), isNull); // mốc 18:15 trễ quá: bỏ, chờ mốc 18:45
       expect(plan(checkedIn(), at(19, 5))!.mark, at(18, 45));
@@ -82,10 +82,11 @@ void main() {
       expect(DayRecord.fromJson(r.toJson()).gpsDoneMarks, [at(18, 15)]);
     });
 
-    test('lịch báo thức: 6:45 tới 14:00 mỗi 15 phút, rồi phút 15 và 45 tới 2:15 sáng', () {
+    test('lịch báo thức: 7:00 tới 14:00 phút 00 và 30, từ 7:15 phút 15 và 45 tới 2:15 sáng', () {
       final times = gpsProbeTimes(settings.gps).map((c) => c.formatted).toList();
       expect(times.first, '00:15');
-      expect(times, containsAll(['02:15', '06:45', '07:00', '07:15', '13:45', '14:00', '14:15', '23:45']));
+      expect(times, containsAll(['02:15', '07:00', '07:15', '13:45', '14:00', '14:15', '23:45']));
+      expect(times, isNot(contains('06:45'))); // bỏ lần dò trước 6:45
       expect(times, isNot(contains('02:45')));
       expect(times, isNot(contains('06:30')));
       expect(times, isNot(contains('14:30'))); // sau 14:00 chỉ còn phút 15 và 45
@@ -101,12 +102,12 @@ void main() {
       expect(plan(empty(), at(7, 12)), isNull);
     });
 
-    test('chưa chấm vào: dò trước phút 45/15 (có 6:45), dò chính phút 00/30, từ 7:00 tới 14:00', () {
+    test('chưa chấm vào: chỉ dò ở phút 00/30, từ 7:00 tới 14:00 (phút 15/45 không dò)', () {
       expect(plan(empty(), at(6, 30)), isNull);
-      expect(plan(empty(), at(6, 45))!.task, GpsTask.arrivalCheck);
+      expect(plan(empty(), at(6, 45)), isNull);
       expect(plan(empty(), at(7, 0))!.task, GpsTask.arrival);
-      expect(plan(empty(), at(7, 15))!.task, GpsTask.arrivalCheck);
-      expect(plan(empty(), at(13, 45))!.task, GpsTask.arrivalCheck);
+      expect(plan(empty(), at(7, 15)), isNull);
+      expect(plan(empty(), at(13, 45)), isNull);
       expect(plan(empty(), at(14, 0))!.task, GpsTask.arrival);
       expect(plan(empty(), at(14, 15)), isNull); // sau 14:00 không tự chấm vào nữa
       expect(plan(empty(), at(7, 3))!.mark, at(7, 0)); // lần thử lại vẫn thuộc mốc 7:00
@@ -114,7 +115,10 @@ void main() {
 
     test('đã chấm vào: chỉ dò giờ về ở phút 15 và 45', () {
       expect(plan(checkedIn(), at(7, 15))!.task, GpsTask.departure);
-      expect(plan(checkedIn(), at(7, 30))!.mark, at(7, 15)); // phút 30 không có mốc giờ về; vẫn là mốc 7:15 (trễ 15 phút)
+      expect(
+        plan(checkedIn(), at(7, 30))!.mark,
+        at(7, 15),
+      ); // phút 30 không có mốc giờ về; vẫn là mốc 7:15 (trễ 15 phút)
       expect(plan(checkedIn(), at(17, 45))!.task, GpsTask.departure);
       expect(plan(checkedIn(), at(23, 45))!.task, GpsTask.departure);
       expect(plan(checkedIn(7, 30), at(7, 15)), isNull); // mốc trước giờ vào
@@ -166,6 +170,17 @@ void main() {
       expect(sightAt(s, 510), GpsSight.near);
       expect(sightAt(s, 60), GpsSight.near);
     });
+  });
+
+  test('giữ nút chấm tay: làm tròn về mốc 30 phút gần nhất', () {
+    String r(int h, int m) {
+      final t = roundToHalfHour(at(h, m));
+      return Clock(t.hour, t.minute).formatted;
+    }
+
+    expect([r(6, 50), r(7, 0), r(7, 10), r(7, 14)], ['07:00', '07:00', '07:00', '07:00']);
+    expect([r(7, 15), r(7, 20), r(7, 40), r(7, 44)], ['07:30', '07:30', '07:30', '07:30']);
+    expect(r(17, 45), '18:00');
   });
 
   group('chấm vào', () {

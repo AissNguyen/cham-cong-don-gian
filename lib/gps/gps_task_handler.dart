@@ -161,7 +161,6 @@ class GpsTaskHandler extends TaskHandler {
       }
 
       final decision = switch (plan.task) {
-        GpsTask.arrivalCheck => const GpsDecision(GpsAction.none),
         GpsTask.arrival => decideArrival(mark: plan.mark, sight: sight),
         GpsTask.departure => decideDeparture(mark: plan.mark, sight: sight),
         GpsTask.reopen => decideReopen(sight),
@@ -177,7 +176,7 @@ class GpsTaskHandler extends TaskHandler {
       }
 
       var result = describeDecision(plan.task, decision, sight);
-      if (sight == GpsSight.unknown && plan.task != GpsTask.arrivalCheck) {
+      if (sight == GpsSight.unknown) {
         result += ' (3 lần không dò ra vị trí, coi như đang ở chỗ làm)';
       }
       await _log(plan, now, gpsText, result);

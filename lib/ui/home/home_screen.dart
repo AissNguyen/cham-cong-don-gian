@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../analytics/analytics_service.dart';
 import '../../data/store.dart';
 import '../../domain/calc.dart';
+import '../../domain/gps_engine.dart' show roundToHalfHour;
 import '../../domain/leave.dart';
 import '../../domain/models.dart';
 import '../../domain/pay_period.dart';
@@ -580,9 +581,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       dayOffLabel = record.companyOff ? 'Cty nghỉ' : (onLeave ? 'Nghỉ phép' : 'Tự nghỉ');
     }
-    // Giữ nút Vào/Ra: chưa có giờ vào thì chấm vào, có rồi thì chấm ra bằng giờ hiện tại.
+    // Giữ nút Vào/Ra: chưa có giờ vào thì chấm vào, có rồi thì chấm ra bằng giờ hiện tại, làm tròn về
+    // mốc 30 phút gần nhất (6:50–7:14 thành 7:00, 7:15–7:44 thành 7:30).
     Future<void> punchNow() async {
-      final now = DateTime.now();
+      final now = roundToHalfHour(DateTime.now());
       final time = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, now.hour, now.minute);
       if (record.checkIn == null) {
         await store.punchIn(_selectedDate, time);

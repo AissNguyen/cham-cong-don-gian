@@ -90,7 +90,7 @@ class GpsSection extends StatelessWidget {
       children: [
         const Text('Giờ tự chấm', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        Text('Tự chấm vào (dò ở phút 00 và 30, dò trước ở phút 45 và 15)', style: muted),
+        Text('Tự chấm vào (dò ở phút 00 và 30)', style: muted),
         const SizedBox(height: 4),
         Wrap(
           spacing: 8,
@@ -346,8 +346,7 @@ class GpsSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Chấm vào: dò chính ở phút 00 và 30, ở chỗ làm thì giờ vào là đúng mốc đó. Dò trước ở phút 45 '
-                'và 15 để biết điện thoại còn bắt được GPS.\n'
+                'Chấm vào: dò ở phút 00 và 30, ở chỗ làm thì giờ vào là đúng mốc đó.\n'
                 'Chấm ra: sau khi vào, dò ở phút 15 và 45. Ra khỏi phạm vi chỗ làm thì giờ ra là x:00 (dò phút '
                 '15) hoặc x:30 (dò phút 45). Không dò ra vị trí thì coi như vẫn đang làm.\n'
                 'Đã chấm ra: dò lại 3 lần, cách nhau 1 tiếng; còn ở chỗ làm hoặc không dò ra vị trí thì bỏ giờ ra, '

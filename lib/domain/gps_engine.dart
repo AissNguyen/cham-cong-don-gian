@@ -5,8 +5,8 @@
 /// lấy được thì thử lại 2 lần, mỗi lần cách 3 phút. Cả 3 lần đều không dò ra vị trí thì coi như đang ở
 /// chỗ làm (trong nhà xưởng hay mất GPS). Riêng khi định vị của máy bị tắt (hoặc app mất quyền vị trí)
 /// thì không kết luận gì.
-/// - **Chấm vào**, từ [GpsConfig.arriveFrom] (7:00) tới [GpsConfig.arriveTo] (14:00):
-///   - Dò trước ở phút 45 và 15 (có cả 6:45): chỉ để biết điện thoại còn dò ra vị trí, ở đâu cũng được.
+/// - **Chấm vào**, từ [GpsConfig.arriveFrom] (7:00) tới [GpsConfig.arriveTo] (14:00). (Lần dò trước ở phút
+///   45/15 đã bỏ ngày 2026-10-23 vì không còn dùng để quyết định gì.)
 ///   - Dò chính ở phút 00 và 30: trong [GpsConfig.departRadiusMeters] (200 m) thì chấm vào, giờ vào là
 ///     đúng mốc đó; ngoài 200 m thì chờ mốc sau. Không dò ra vị trí thì cũng chấm vào.
 /// - **Chấm ra**: sau khi chấm vào, dò ở phút 15 và 45 tới [GpsConfig.departUntil] (2:30 sáng hôm
@@ -32,8 +32,8 @@ double distanceMeters(double lat1, double lon1, double lat2, double lon2) {
   return r * c;
 }
 
-/// Làm tròn về mốc 30 phút gần nhất — ví dụ 6:50 -> 7:00, 7:20 -> 7:30. (Dùng cho dữ liệu cũ; cách
-/// chấm GPS mới lấy thẳng mốc giờ, không làm tròn.)
+/// Làm tròn về mốc 30 phút gần nhất — ví dụ 6:50 -> 7:00, 7:14 -> 7:00, 7:15 -> 7:30. Dùng khi giữ nút
+/// Vào/Ra để chấm bằng giờ hiện tại (cách chấm GPS lấy thẳng mốc giờ, không làm tròn).
 DateTime roundToHalfHour(DateTime t) {
   final total = t.hour * 60 + t.minute;
   final rounded = ((total + 15) ~/ 30) * 30;
@@ -72,13 +72,13 @@ int _minutes(Clock c) => c.totalMinutes;
 /// Giờ cuối dò giờ về có sang ngày hôm sau không (ví dụ 2:30 sáng).
 bool _departOvernight(GpsConfig gps) => _minutes(gps.departUntil) < _minutes(gps.arriveFrom);
 
-/// Các giờ trong ngày cần đặt báo thức: phút 00/15/30/45 trong khoảng chấm vào (kể cả 15 phút trước
-/// giờ bắt đầu), và phút 15/45 từ sau giờ bắt đầu tới giờ cuối dò giờ về (có thể sang sáng hôm sau).
+/// Các giờ trong ngày cần đặt báo thức: phút 00/30 trong khoảng chấm vào, và phút 15/45 từ sau giờ bắt
+/// đầu tới giờ cuối dò giờ về (có thể sang sáng hôm sau).
 List<Clock> gpsProbeTimes(GpsConfig gps) {
   final set = <int>{};
   final from = _minutes(gps.arriveFrom);
   final to = _minutes(gps.arriveTo);
-  for (var t = from - 15; t <= to; t += 15) {
+  for (var t = from; t <= to; t += 30) {
     set.add((t + 24 * 60) % (24 * 60));
   }
   final until = _minutes(gps.departUntil) + (_departOvernight(gps) ? 24 * 60 : 0);
@@ -90,10 +90,10 @@ List<Clock> gpsProbeTimes(GpsConfig gps) {
 }
 
 /// Báo thức trễ so với mốc quá ngần này phút thì bỏ mốc đó (mốc kế tiếp vẫn dò bình thường): lúc chờ
-/// chấm vào (mốc cách nhau 15 phút) cho trễ 5 phút; dò giờ về và dò lại (mốc phút 15/45) cho trễ tới
+/// chấm vào cho trễ 5 phút; dò giờ về và dò lại (mốc phút 15/45) cho trễ tới
 /// phút 35 hoặc 05, tức 20 phút.
 int gpsLateLimitMinutes(GpsTask task) =>
-    task == GpsTask.arrival || task == GpsTask.arrivalCheck ? 5 : 20;
+    task == GpsTask.arrival ? 5 : 20;
 
 /// Mốc [p] có quá trễ để dò không. [retrying]: mốc này đang dò dở (đã dò ít nhất một lần, đang chờ thử
 /// lại). Giới hạn trễ chỉ tính cho lần dò đầu; đang thử lại thì cho thêm thời gian của các lần thử lại,
@@ -107,9 +107,6 @@ const gpsLookBackMinutes = 60;
 
 /// Việc của một lần dò.
 enum GpsTask {
-  /// Dò trước ở phút 45/15 trong khoảng chấm vào: chỉ để biết điện thoại còn dò ra vị trí.
-  arrivalCheck,
-
   /// Dò chính ở phút 00/30 trong khoảng chấm vào.
   arrival,
 
@@ -134,7 +131,6 @@ class GpsPlan {
   bool get tooLate => lateMinutes > gpsLateLimitMinutes(task);
 
   String get label => switch (task) {
-    GpsTask.arrivalCheck => 'Vào (dò trước)',
     GpsTask.arrival => 'Vào',
     GpsTask.departure => 'Ra',
     GpsTask.reopen => 'Mở lại ca',
@@ -171,9 +167,8 @@ GpsPlan? gpsPlanForMark({
   if (record == null || record.isDayOff) return null;
   if (record.checkIn == null) {
     final from = _minutes(gps.arriveFrom);
-    if (t < from - 15 || t > _minutes(gps.arriveTo)) return null;
-    final task = quarterOff ? GpsTask.arrivalCheck : GpsTask.arrival;
-    return done(GpsPlan(task, mark, dateOnly(record.date)), record);
+    if (quarterOff || t < from || t > _minutes(gps.arriveTo)) return null;
+    return done(GpsPlan(GpsTask.arrival, mark, dateOnly(record.date)), record);
   }
   if (_departOvernight(gps) || t <= _minutes(gps.departUntil)) {
     return done(_afterCheckIn(record, mark, quarterOff), record);
@@ -348,11 +343,6 @@ String describeDecision(GpsTask task, GpsDecision d, GpsSight sight) {
       return 'Mở lại ca';
     case GpsAction.none:
       return switch (task) {
-        GpsTask.arrivalCheck => switch (sight) {
-          GpsSight.unknown => 'Không dò ra vị trí',
-          GpsSight.locationOff => 'Định vị đang tắt',
-          _ => 'Dò ra vị trí',
-        },
         GpsTask.arrival => sight == GpsSight.locationOff ? 'Chưa vào (định vị đang tắt)' : 'Chưa vào',
         GpsTask.departure => 'Vẫn đang làm',
         GpsTask.reopen => 'Giữ giờ ra',
