@@ -1,10 +1,10 @@
 # Tổng hợp — Chấm Công Đơn Giản
 
-**Cập nhật lần cuối: 2026-10-10 (PC).** Bản 1.2.0 (phiếu lương chỉ tính khi hết kỳ, phiếu mẫu, GPS kiểu mới ít tốn pin, mặc định mới) đã phát hành và deploy web ngày 2026-10-10; GPS kiểu mới chưa được thử qua một ngày đi làm thật. Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
+**Cập nhật lần cuối: 2026-10-23 (PC).** Bản 1.2.4 (chỉ dùng GPS, bù tăng ca, ngày phép, hình động lấy tọa độ) đã merge vào `master`, phát hành lên GitHub Releases, deploy web và cài lên điện thoại ngày 2026-10-23; chưa thử qua một ngày đi làm thật. Đọc file này trước khi sửa app. Cách làm việc với người dùng nằm ở `CLAUDE.md`.
 
 App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, tăng ca, ngày nghỉ, đi muộn, và ước tính lương theo kỳ. Tách riêng khỏi dự án `so_cong` (bản đầy đủ, đang để đó); chỉ dùng chung `domain/lunar.dart` và font Be Vietnam Pro.
 
-## Chấm công GPS: chỉ dùng GPS, bỏ Wi-Fi (2026-10-23, nhánh `pc/chi-gps-2026-10-23`)
+## Chấm công GPS: chỉ dùng GPS, bỏ Wi-Fi (2026-10-23, đã merge vào `master`, bản 1.2.4)
 
 - Bỏ quét Wi-Fi và danh sách Wi-Fi quen (Android chỉ cho app nền quét khoảng 30 phút một lần). Lịch dò giữ nguyên như chốt 14/10.
 - Mỗi mốc dò tối đa 3 lần (cách 3 phút). Cả 3 lần không dò ra vị trí thì coi như đang ở chỗ làm: chấm vào (mốc 00/30), vẫn đang làm (mốc dò giờ về), mở lại ca (dò lại sau giờ ra).
@@ -19,11 +19,11 @@ App chấm công đơn giản cho người làm theo giờ: ghi giờ vào/ra, t
 
 | Thứ | Ở đâu |
 |---|---|
-| Mã nguồn | GitHub `AissNguyen/cham-cong-don-gian`, nhánh `master` (bản 1.2.0). App trước khi làm lại nằm ở nhánh `cham-cong-don-gian-cu` |
-| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-10, bản 1.2.0) |
-| Bản Android | GitHub Releases `v1.2.0` (đưa lên ngày 2026-10-10, file `app-release.apk`; `v1.1.0` cùng ngày vẫn còn đó); nút "Tải bản Android" trên web trỏ tới `releases/latest`. Điện thoại của người dùng (Realme RMX2021) đang chạy bản build cùng mã nguồn nhưng còn ghi số 1.1.0 (lúc phát hành điện thoại không nối với PC nên chưa cài đè bản 1.2.0). Chưa lên Google Play |
+| Mã nguồn | GitHub `AissNguyen/cham-cong-don-gian`, nhánh `master` (bản 1.2.4). App trước khi làm lại nằm ở nhánh `cham-cong-don-gian-cu` |
+| Bản web | https://cham-cong-don-gian.web.app (Firebase Hosting, deploy lần cuối 2026-10-23, bản 1.2.4; luật Firestore deploy lại cùng lúc) |
+| Bản Android | GitHub Releases `v1.2.4` (đưa lên ngày 2026-10-23, file `app-release.apk`; các bản cũ vẫn còn); nút "Tải bản Android" trên web trỏ tới `releases/latest`. Điện thoại người dùng (Realme RMX2021) đã cài bản 1.2.4. Chưa lên Google Play |
 | Firebase | Dự án `cham-cong-don-gian`: Analytics, Crashlytics, Remote Config, Firestore (máy chủ nam5 – Mỹ), Hosting. Gói miễn phí |
-| Gói Android | `vn.chamcong.cham_cong_don_gian`, phiên bản `1.2.0+3`. Mọi bản phát hành ký bằng khóa ở `C:\Users\Admin\Documents\khoa-ky-cham-cong-don-gian\` trên PC (xem `android/key.properties`, không commit) |
+| Gói Android | `vn.chamcong.cham_cong_don_gian`, phiên bản `1.2.4+7`. Mọi bản phát hành ký bằng khóa ở `C:\Users\Admin\Documents\khoa-ky-cham-cong-don-gian\` trên PC (xem `android/key.properties`, không commit) |
 
 ## Bản mới: phiếu lương (nhánh `phieu-luong-moi`, chờ merge)
 

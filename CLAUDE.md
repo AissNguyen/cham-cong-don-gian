@@ -35,6 +35,8 @@ Chưa đổi gì, chờ người dùng quyết định. Danh sách nằm ở `TI
 
 ## Cập nhật lần cuối
 
+2026-10-23 (PC): merge nhánh `pc/chi-gps-2026-10-23` (chỉ dùng GPS, hình động lấy tọa độ từ Google Maps) vào `master`; thay tọa độ chỗ làm thật của người dùng trong repo bằng tọa độ ví dụ 10,7724983, 106,6980146 (lịch sử git cũ vẫn còn). Phát hành bản 1.2.4 lên GitHub Releases, deploy web + luật Firestore, cài lên điện thoại. 253 test qua, analyze sạch. Remote Config chưa đổi.
+
 2026-10-18 (PC): làm tính năng lấy tăng ca bù giờ thiếu cho công nhân theo `Y-TUONG-MOI.md` (ba mức bù ở Cài đặt tính công, tự nghỉ / công ty cho nghỉ, ngày phép mỗi kỳ, sửa tay giờ từng ngày và số của kỳ, dòng "Giờ tăng ca bị trừ" ở màn chính và thống kê theo kỳ). 240 test qua, analyze sạch; đã build APK, cài lên điện thoại và mở được app, chưa thử tính năng trên máy. Chưa commit, chưa deploy web.
 
 2026-10-16 (cloud, nhánh `claude/huong-dan-tung-buoc`, PR vào `master`): viết khung giới thiệu lần đầu mở app và chuyến hướng dẫn làm thử trên màn chính (`lib/onboarding/`), dữ liệu tập tự trả về như cũ. 219 test qua, analyze sạch; chưa thử trên điện thoại thật, chưa build APK, chưa deploy.
