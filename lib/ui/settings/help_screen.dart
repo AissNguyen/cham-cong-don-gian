@@ -5,6 +5,7 @@ import '../../data/store.dart';
 import '../../notice/help_text.dart';
 import '../../onboarding/pay_guide.dart';
 import '../../onboarding/tour_controller.dart';
+import '../widgets/gps_coords_demo.dart';
 import 'settings_card.dart';
 
 class HelpEntrySection extends StatelessWidget {
@@ -65,7 +66,7 @@ const _advancedItems = [
     '1. Từ 7:00 tới 14:00, cứ phút 00 và 30 app dò vị trí; trong khoảng 200 m quanh chỗ làm thì chấm vào đúng mốc '
         'đó.\n'
         '2. Sau khi vào, cứ phút 15 và 45 app dò lại; ra khỏi chỗ làm thì chấm ra (giờ ra là x:00 hoặc x:30).\n'
-        '3. Lúc mất GPS, app nhìn Wi-Fi quen (tự học) để biết bạn còn ở chỗ làm hay đã về.\n'
+        '3. Dò 3 lần (cách 3 phút) vẫn không ra vị trí thì coi như bạn đang ở chỗ làm.\n'
         '4. Quá 22:00 mà chưa có giờ ra thì ngày đó báo đỏ, bạn tự nhập giờ ra.\n'
         'Đổi bán kính, khung giờ, thêm địa điểm khác (nhà trọ sát công ty, xưởng xa), xem nhật ký GPS: Cài đặt › '
         'Nâng cao › GPS: tùy chọn thêm.',
@@ -127,6 +128,14 @@ class HelpScreen extends StatelessWidget {
             title: 'Hướng dẫn lương',
             sub: 'Loại người dùng, kỳ lương, lương cơ bản, các khoản, giá tăng ca.',
             onTap: () => runPayGuide(context, context.read<AppStore>(), askSetup: true),
+          ),
+          const SizedBox(height: 10),
+          entry(
+            key: const ValueKey('help-gps-demo'),
+            icon: Icons.map_outlined,
+            title: 'Lấy tọa độ từ Google Maps',
+            sub: 'Hình động: phóng to bản đồ, chép tọa độ chỗ chấm công, dán vào app.',
+            onTap: () => showGpsCoordsDemo(context),
           ),
           const SizedBox(height: 10),
           entry(

@@ -20,14 +20,14 @@ void main() {
 
   test('tọa độ nhập tay: "vĩ độ, kinh độ" như dán từ Google Maps', () {
     // Google Maps tiếng Việt: dấu phẩy là dấu thập phân.
-    expect(parseLatLng('11,7598094, 108,4397679'), (11.7598094, 108.4397679));
-    expect(parseLatLng('11,7598094,108,4397679'), (11.7598094, 108.4397679));
-    expect(parseLatLng('11,7598094; 108,4397679'), (11.7598094, 108.4397679));
+    expect(parseLatLng('10,7724983, 106,6980146'), (10.7724983, 106.6980146));
+    expect(parseLatLng('10,7724983,106,6980146'), (10.7724983, 106.6980146));
+    expect(parseLatLng('10,7724983; 106,6980146'), (10.7724983, 106.6980146));
     // Kiểu tiếng Anh.
-    expect(parseLatLng('11.759805, 108.439777'), (11.759805, 108.439777));
-    expect(parseLatLng('11.759805,108.439777'), (11.759805, 108.439777));
-    expect(parseLatLng(' 11.759805 108.439777 '), (11.759805, 108.439777));
-    expect(parseLatLng('11.759805'), isNull);
+    expect(parseLatLng('10.772498, 106.698015'), (10.772498, 106.698015));
+    expect(parseLatLng('10.772498,106.698015'), (10.772498, 106.698015));
+    expect(parseLatLng(' 10.772498 106.698015 '), (10.772498, 106.698015));
+    expect(parseLatLng('10.772498'), isNull);
     expect(parseLatLng('abc, 108'), isNull);
     expect(parseLatLng('95, 108'), isNull);
   });

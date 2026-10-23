@@ -129,7 +129,7 @@ void main() {
     expect(find.text('Chưa cài chấm công tự động'), findsOneWidget);
     await _pumpHome(tester, settings: base.copyWith(gpsReminderOff: true), records: const [], now: DateTime(2026, 10, 2, 9));
     expect(find.text('Chưa cài chấm công tự động'), findsNothing);
-    final withGps = base.copyWith(gps: base.gps.copyWith(latitude: 11.759805, longitude: 108.439777));
+    final withGps = base.copyWith(gps: base.gps.copyWith(latitude: 10.772498, longitude: 106.698015));
     await _pumpHome(tester, settings: withGps, records: const [], now: DateTime(2026, 10, 2, 9));
     expect(find.text('Chưa cài chấm công tự động'), findsNothing);
     expect(AppSettings.fromJson(base.copyWith(gpsReminderOff: true).toJson()).gpsReminderOff, isTrue);

@@ -21,7 +21,7 @@ Người dùng: "đọc Y-TUONG-MOI.md" → chốt và làm tính năng **lấy 
 11. Người dùng: "xóa hết dữ liệu để trải nghiệm từ đầu" → đồng ý ("oki"). `pm clear` bị ColorOS chặn → **gỡ app và cài lại** (mất toàn bộ dữ liệu trên máy người dùng, kể cả cài đặt chạy nền của ColorOS — xem mục 15).
 12. Nút "Hướng dẫn tính lương" không hỏi lại câu ban đầu; **ngón tay nhấp nháy đè lên mép nút, viền nút sáng lên tắt xuống** (bỏ nhãn "Hãy ấn vào đây" vì gây hiểu nhầm). Thêm nút **"Nhập tọa độ"** ở thẻ Chấm công GPS; nhập tọa độ chỗ làm của người dùng.
 13. Bàn trước khi code: nhắc cài GPS lần sau (dòng **"Chưa cài chấm công tự động · Cài ngay"** trên màn chính, ✕ tắt hẳn; bước 9 hướng dẫn 2 cách: tới chỗ làm bấm Lấy tọa độ, hoặc chép từ Google Maps rồi Nhập tọa độ); lời mở hướng dẫn lương có **"Đồng nghiệp đã cài sẵn? Dán cấu hình"**, dán xong chỉ hỏi lại lương cơ bản/lương ngày. Người dùng "ok" → làm.
-14. Google Maps tiếng Việt cho tọa độ dạng **"11,7598094, 108,4397679"** (dấu phẩy thập phân) → ô Nhập tọa độ nhận cả kiểu này. Tọa độ chỗ làm hiện lưu: **11,7598094, 108,4397679**.
+14. Google Maps tiếng Việt cho tọa độ dạng **"10,7724983, 106,6980146"** (dấu phẩy thập phân) → ô Nhập tọa độ nhận cả kiểu này. Tọa độ chỗ làm hiện lưu: **10,7724983, 106,6980146**.
 15. Người dùng (19/10 tối): "GPS lại lỗi". Kiểm tra: nhật ký chỉ có lần dò 07:34–07:51, sau đó cả ngày không dò. Quyền vị trí "Luôn cho phép", định vị bật, miễn tối ưu pin, báo thức có đặt. Nguyên nhân: ColorOS 7.2 (Realme RMX2021, Android 10) — trong Cài đặt › Ứng dụng › Chấm Công › **Mức sử dụng pin**, "Cho phép hoạt động dưới nền" và "Cho phép tự động khởi chạy" đang **tắt** (bị đặt lại khi gỡ cài lại ở bước 11). Claude mở sẵn trang đó, nhờ người dùng bật cả hai. Thêm nhật ký cho các lần báo thức reo mà không dò (trước đây dừng im lặng).
 16. Người dùng: "tóm tắt lại all ý chính và lưu vào md, sau đó chuyển sang phiên mới" → file này.
 
@@ -66,6 +66,17 @@ Người dùng: "đọc Y-TUONG-MOI.md" → chốt và làm tính năng **lấy 
 - [ ] Người dùng bấm "Cấp quyền chấm công" nếu thẻ GPS còn báo "chưa cấp quyền".
 - [ ] Người dùng thử toàn bộ luồng mới trên máy; khi người dùng thấy ổn: merge nhánh này vào `master` (theo `CLAUDE.md`, PC commit/push thẳng `master` khi người dùng đồng ý), cập nhật `TIEN-DO.md`, `CLAUDE.md`.
 - [ ] Chưa deploy web, chưa phát hành APK lên Releases.
+
+## Phiên 2026-10-20 (PC): hình động lấy tọa độ từ Google Maps
+- Người dùng muốn "video ngắn về lấy GPS bằng cách nhập" → chọn **dựng hình động** (không quay video). Mockup `mockup/gps-nhap-toa-do.html` (artifact https://claude.ai/artifact/BLHRLSSe53Np7bgSPwgaDx), người dùng thêm bước **phóng to bản đồ, giữ đúng chỗ chấm công** rồi chốt.
+- Code (chưa commit): `lib/ui/widgets/gps_coords_demo.dart` (mới) — hình động 7 bước vẽ bằng widget (~24 giây, lặp, tạm dừng/xem lại), `openGoogleMaps()`, `gpsExampleCoords` = 10,7724983, 106,6980146. Gắn vào: hộp Nhập tọa độ (nút "Xem cách làm", "Mở Google Maps" — đã có tọa độ thì mở đúng chỗ đó), lời hướng dẫn bước 9 (nút "Xem cách lấy tọa độ từ Google Maps"), màn Hướng dẫn (mục "Lấy tọa độ từ Google Maps"). Lời trong app bỏ tọa độ chỗ làm thật của người dùng, thay bằng tọa độ ví dụ, thêm ý phóng to bản đồ.
+- Test `test/ui/gps_coords_demo_test.dart`; **251 test qua, analyze sạch**. Đã build, cài lên điện thoại và mở app; chưa thử hình động trên máy.
+- Việc tiếp (Claude đề xuất 2026-10-21, chờ người dùng trả lời, rồi người dùng bảo tắt PC):
+  1. Đối chiếu cách chép tọa độ trên Google Maps thật (có thể chỉ cần bấm vào dãy số ở khung dưới là chép), sửa hình động cho đúng.
+  2. Mở hình động trên máy, chụp màn hình xem ngón tay có chạm đúng nút không.
+  3. Repo công khai: thay tọa độ chỗ làm thật của người dùng ở `HANDOFF.md` (mục 14), `Y-TUONG-MOI.md` (lần 11), `test/ui/punch_digits_test.dart` bằng tọa độ ví dụ trước lần commit tới.
+  4. Hỏi người dùng GPS sáng 21/10 có tự dò không (đã bật 2 công tắc chạy nền chưa).
+  5. Commit phần hình động khi người dùng thấy ổn (hiện chưa commit, file vẫn nằm trên máy).
 
 ## Ý tưởng chưa làm, câu hỏi còn mở
 - Gợi ý (chờ người dùng đồng ý): trên máy Realme/OPPO, nút "Cấp quyền chấm công" mở luôn trang pin của app và nhắc bật 2 công tắc chạy nền.
